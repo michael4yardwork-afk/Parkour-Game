@@ -1,0 +1,6 @@
+{
+  "name": "3D Parkour Time Trial",
+  "description": "A high-skill 3D parkour time-trial game featuring handcrafted runs, physics momentum conservation, mobile touchscreen overlays, personal best ghost replays, local leaderboards, and an interactive 3D course builder.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
