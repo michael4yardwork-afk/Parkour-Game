@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, RefreshCw, Smartphone, Monitor, Award, Download } from 'lucide-react';
+import { Trophy, RefreshCw, Smartphone, Monitor, Award } from 'lucide-react';
 import { LeaderboardEntry, UserAccount } from '../types';
 
 interface LeaderboardProps {
@@ -7,12 +7,10 @@ interface LeaderboardProps {
   levelName: string;
   localBest: number | null;
   onClose: () => void;
-  // Ghost export helper if available
-  exportGhostReplay?: () => void;
   currentUser?: UserAccount | null;
 }
 
-export default function Leaderboard({ levelId, levelName, localBest, onClose, exportGhostReplay, currentUser }: LeaderboardProps) {
+export default function Leaderboard({ levelId, levelName, localBest, onClose, currentUser }: LeaderboardProps) {
   const [filter, setFilter] = useState<'world' | 'local'>('world');
   const [worldView, setWorldView] = useState<'top' | 'my_position'>('top');
   const [rawLocalRuns, setRawLocalRuns] = useState<LeaderboardEntry[]>([]);
@@ -226,16 +224,6 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, ex
               {currentLocalBest ? formatTime(currentLocalBest) : 'No time recorded'}
             </span>
           </div>
-          {exportGhostReplay && currentLocalBest && (
-            <button
-              onClick={exportGhostReplay}
-              className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 transition-colors bg-blue-500/10 hover:bg-blue-500/20 px-2.5 py-1 rounded-md"
-              title="Download Ghost Replay to share with others"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export Ghost</span>
-            </button>
-          )}
         </div>
 
         {/* Filter Toggle */}
@@ -363,9 +351,11 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, ex
                             <span className="text-[9px] bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded font-mono font-medium">Player</span>
                           )}
                         </div>
-                        <div className="text-[10px] text-neutral-550 font-mono mt-0.5">
-                          {new Date(entry.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </div>
+                        {filter !== 'world' && (
+                          <div className="text-[10px] text-white font-mono mt-0.5">
+                            {new Date(entry.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -410,9 +400,6 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, ex
                             {currentUser?.username || 'Guest'}
                           </span>
                           <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-mono font-medium">You</span>
-                        </div>
-                        <div className="text-[10px] text-neutral-550 font-mono mt-0.5">
-                          {playerPBEntry ? new Date(playerPBEntry.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
                         </div>
                       </div>
                     </div>

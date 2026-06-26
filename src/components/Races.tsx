@@ -45,9 +45,11 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Player selected color
+  // Player selected color (randomized dynamically)
   const [playerColor, setPlayerColor] = useState<string>(() => {
-    return localStorage.getItem(`racer_color_${currentUser.username}`) || '#3b82f6';
+    const randomColor = OPPONENT_COLORS[Math.floor(Math.random() * OPPONENT_COLORS.length)];
+    localStorage.setItem(`racer_color_${currentUser.username}`, randomColor);
+    return randomColor;
   });
 
   // Lobby/Matchmaking state
@@ -139,13 +141,19 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
   // Handle Matchmaking Search start
   const handleStartSearching = () => {
     synths.playTick();
+    
+    // Pick a new random color for this race
+    const randomColor = OPPONENT_COLORS[Math.floor(Math.random() * OPPONENT_COLORS.length)];
+    setPlayerColor(randomColor);
+    localStorage.setItem(`racer_color_${currentUser.username}`, randomColor);
+
     setIsSearching(true);
     setTimeLeft(15);
     
     // Add ourselves as first participant
     const selfParticipant: RaceParticipant = {
       username: currentUser.username,
-      color: playerColor,
+      color: randomColor,
       avatar: currentUser.avatar || '🏃',
       isNpc: false,
       baseSpeed: 11, // Standard default speed scalar
@@ -158,7 +166,7 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
       type: 'LOBBY_JOIN',
       data: {
         username: currentUser.username,
-        color: playerColor,
+        color: randomColor,
         avatar: currentUser.avatar
       }
     });
@@ -170,8 +178,6 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
       timerRef.current = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 1) {
-            clearInterval(timerRef.current!);
-            handleConcludeMatchmaking();
             return 0;
           }
           // Tick sound effect on timer decrement
@@ -186,7 +192,17 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isSearching, lobbyPlayers]);
+  }, [isSearching]);
+
+  // Conclude matchmaking when time runs out
+  useEffect(() => {
+    if (isSearching && timeLeft === 0) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      handleConcludeMatchmaking();
+    }
+  }, [timeLeft, isSearching]);
 
   const handleCancelSearching = () => {
     synths.playTick();
@@ -244,13 +260,32 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
       if (!actualPlayersInLobby.some(p => p.username === botName) && !npcs.some(p => p.username === botName)) {
         const botColor = availableColors[npcs.length % availableColors.length];
         
+        // Define tiered speeds to spread final times significantly within player speed limits (4.0 to 12.0 m/s)
+        const speedRoll = newSeedRandom(seed + botIndex * 43);
+        let botSpeed = 10.0;
+        if (speedRoll < 0.15) {
+          // Elite Speedrunner bot (15% chance): 11.4 to 12.0 m/s
+          botSpeed = 11.4 + newSeedRandom(seed + botIndex * 15) * 0.6;
+        } else if (speedRoll < 0.40) {
+          // Expert bot (25% chance): 10.0 to 11.3 m/s
+          botSpeed = 10.0 + newSeedRandom(seed + botIndex * 15) * 1.3;
+        } else if (speedRoll < 0.70) {
+          // Challenger/Regular bot (30% chance): 8.0 to 9.8 m/s
+          botSpeed = 8.0 + newSeedRandom(seed + botIndex * 15) * 1.8;
+        } else if (speedRoll < 0.90) {
+          // Casual bot (20% chance): 5.5 to 7.8 m/s
+          botSpeed = 5.5 + newSeedRandom(seed + botIndex * 15) * 2.3;
+        } else {
+          // Slow / Snail bot (10% chance): 3.8 to 5.2 m/s
+          botSpeed = 3.8 + newSeedRandom(seed + botIndex * 15) * 1.4;
+        }
+
         npcs.push({
           username: botName,
           color: botColor,
           avatar: '🤖',
           isNpc: true,
-          // Give bots slightly staggered speeds based on the seed
-          baseSpeed: 9.5 + newSeedRandom(seed + botIndex * 15) * 3.5, // 9.5 to 13 m/s
+          baseSpeed: botSpeed,
           seed: newSeedRandom(seed + botIndex)
         });
         slotsRemaining--;
@@ -269,12 +304,6 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
     const x = Math.sin(val) * 10000;
     return x - Math.floor(x);
   }
-
-  const handleSelectColor = (col: string) => {
-    synths.playTick();
-    setPlayerColor(col);
-    localStorage.setItem(`racer_color_${currentUser.username}`, col);
-  };
 
   return (
     <div className="min-h-[calc(100vh-64px)] bg-neutral-950 text-neutral-100 p-6 md:p-10 font-sans">
@@ -311,83 +340,20 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
           </div>
         </div>
 
-        {/* Triple Bento Stats Block */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
-            <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Total Matches</div>
-            <div className="text-3xl font-black font-mono text-neutral-50 mt-2">{totalRaces}</div>
-          </div>
-          <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
-            <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Champion Runs (1st)</div>
-            <div className="text-3xl font-black font-mono text-emerald-400 mt-2">{firstPlaces}</div>
-          </div>
-          <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
-            <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Podium Finishes (Top 3)</div>
-            <div className="text-3xl font-black font-mono text-amber-500 mt-2">{podiums}</div>
-          </div>
-          <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
-            <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Win Percentage</div>
-            <div className="text-3xl font-black font-mono text-indigo-400 mt-2">{winRatio}%</div>
-          </div>
-        </div>
-
-        {/* Main interactive cockpit */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Matchmaking Lobby Block */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800 p-8 rounded-3xl relative overflow-hidden shadow-2xl flex flex-col justify-between min-h-[380px]">
-              
-              {!isSearching ? (
-                // LOBBY ENTRY STATE WITH COLOR SELECTION
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-xl font-black tracking-tight flex items-center gap-2">
-                      <Users className="w-5 h-5 text-indigo-400" />
-                      Racer Customization & Match Entry
-                    </h2>
-                    <p className="text-xs text-neutral-400 mt-1">
-                      Choose your representing jersey color and click matchmaking queue below.
-                    </p>
-                  </div>
-
-                  {/* Representative Color Palette Selector */}
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest font-bold">
-                      Player Theme Color
-                    </label>
-                    <div className="flex flex-wrap gap-2.5">
-                      {OPPONENT_COLORS.map((col) => (
-                        <button
-                          key={col}
-                          onClick={() => handleSelectColor(col)}
-                          className={`w-10 h-10 rounded-xl transition border-2 flex items-center justify-center cursor-pointer`}
-                          style={{
-                            backgroundColor: col,
-                            borderColor: playerColor.toLowerCase() === col.toLowerCase() ? '#ffffff' : 'transparent',
-                            boxShadow: playerColor.toLowerCase() === col.toLowerCase() ? `0 0 12px ${col}` : 'none'
-                          }}
-                        >
-                          {playerColor.toLowerCase() === col.toLowerCase() && (
-                            <div className="w-2.5 h-2.5 bg-neutral-950 rounded-full" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="border-t border-neutral-800/80 pt-6">
-                    <button
-                      onClick={handleStartSearching}
-                      className="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold tracking-tight shadow-lg shadow-indigo-500/20 active:scale-98 transition flex items-center justify-center gap-3 cursor-pointer group hover:border border-white/10"
-                    >
-                      <Trophy className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                      <span>Start Matching Queue</span>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                // SEARCHING/MATCHING QUEUE STATE
+        {!isSearching ? (
+          <button
+            onClick={handleStartSearching}
+            className="w-full py-5 px-8 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-sm tracking-tight shadow-lg shadow-indigo-500/25 active:scale-98 transition duration-200 flex items-center justify-center gap-3 cursor-pointer group hover:border border-white/10"
+          >
+            <Trophy className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" />
+            <span>Start Matching Queue</span>
+          </button>
+        ) : (
+          <div className="w-full">
+            {/* Matchmaking Lobby Block */}
+            <div className="w-full space-y-6">
+              <div className="bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-800 p-8 rounded-3xl relative overflow-hidden shadow-2xl flex flex-col justify-between min-h-[380px]">
+                {/* SEARCHING/MATCHING QUEUE STATE */}
                 <div className="space-y-6 flex-1 flex flex-col justify-between">
                   <div>
                     <div className="flex justify-between items-center bg-neutral-950/50 p-3 rounded-2xl border border-neutral-800/80 mb-6">
@@ -440,7 +406,10 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
                               {player ? player.username : 'Searching...'}
                             </div>
                             <div className="text-[8px] font-mono text-neutral-500">
-                              {player ? (player.isNpc ? 'SpeedBot' : 'Opponent') : 'Waiting'}
+                              {player ? (
+                                player.isNpc ? 'SpeedBot' : 
+                                player.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim() ? 'You' : 'Opponent'
+                              ) : 'Waiting'}
                             </div>
                           </div>
                         </div>
@@ -465,40 +434,28 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Quick info about races */}
-          <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-3xl space-y-6">
-            <div>
-              <h3 className="text-sm font-black text-neutral-200 uppercase tracking-widest font-mono">League Rules</h3>
-              <p className="text-xs text-neutral-400 mt-2 leading-relaxed">
-                Races take place automatically on one of the six high-momentum courses. All starting and finish parameters are matched. Bots scale automatically around your current rating.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest font-bold">Racer Rating Scale</h4>
-              <div className="space-y-2 text-xs font-mono">
-                <div className="flex justify-between p-2.5 bg-neutral-950 rounded-xl border border-neutral-800/60">
-                  <span className="text-neutral-400">1st Place</span>
-                  <span className="text-emerald-400 font-bold">+100 rating</span>
-                </div>
-                <div className="flex justify-between p-2.5 bg-neutral-950 rounded-xl border border-neutral-800/60">
-                  <span className="text-neutral-400">2nd / 3rd Place</span>
-                  <span className="text-amber-400 font-bold">+60 / +30 rating</span>
-                </div>
-                <div className="flex justify-between p-2.5 bg-neutral-950 rounded-xl border border-neutral-800/60">
-                  <span className="text-neutral-400">4th Place</span>
-                  <span className="text-neutral-400 font-medium">+10 rating</span>
-                </div>
-                <div className="flex justify-between p-2.5 bg-neutral-950 rounded-xl border border-neutral-800/60">
-                  <span className="text-neutral-400">5th / 6th Place</span>
-                  <span className="text-red-400 font-bold">-10 / -30 rating</span>
-                </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Triple Bento Stats Block */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
+            <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Total Matches</div>
+            <div className="text-3xl font-black font-mono text-neutral-50 mt-2">{totalRaces}</div>
+          </div>
+          <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
+            <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Champion Runs (1st)</div>
+            <div className="text-3xl font-black font-mono text-emerald-400 mt-2">{firstPlaces}</div>
+          </div>
+          <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
+            <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Podium Finishes (Top 3)</div>
+            <div className="text-3xl font-black font-mono text-amber-500 mt-2">{podiums}</div>
+          </div>
+          <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
+            <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Win Percentage</div>
+            <div className="text-3xl font-black font-mono text-indigo-400 mt-2">{winRatio}%</div>
           </div>
         </div>
 
@@ -537,7 +494,7 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
                     <div>
                       <div className="font-bold text-neutral-100 font-sans text-sm">{entry.levelName}</div>
                       <div className="text-[10px] text-neutral-500 flex items-center gap-1.5 mt-0.5">
-                        <span>Elapsed: {entry.time.toFixed(2)}s</span>
+                        <span>Elapsed: {entry.time.toFixed(3)}s</span>
                         <span>•</span>
                         <span>{new Date(entry.date).toLocaleDateString()}</span>
                       </div>
@@ -551,7 +508,7 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
                         key={idx}
                         className="px-2 py-0.5 rounded bg-neutral-950 text-[9px] border text-neutral-400 flex items-center gap-1 shrink-0"
                         style={{ borderColor: opp.color + '30' }}
-                        title={`${opp.username} (${opp.finished && opp.time ? opp.time.toFixed(2) + 's' : 'DNF'})`}
+                        title={`${opp.username} (${opp.finished && opp.time ? opp.time.toFixed(3) + 's' : 'DNF'})`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: opp.color }} />
                         <span className="truncate max-w-[50px]">{opp.username}</span>

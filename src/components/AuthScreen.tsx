@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Gamepad2, Sparkles, Check } from 'lucide-react';
+import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Sparkles, Check } from 'lucide-react';
 import { UserAccount } from '../types';
 import { synths } from '../audio';
 
@@ -162,13 +162,13 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         
         {/* Header Logo */}
         <div className="flex flex-col items-center justify-center space-y-3">
-          <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-600/25 border border-indigo-500/30 scale-105">
-            <Gamepad2 className="w-8 h-8 fill-current" />
+          <div className="w-14 h-14 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-600/25 border border-indigo-500/30 scale-105 flex items-center justify-center">
+            <span className="text-3xl font-black font-sans leading-none select-none">Δ</span>
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-black font-sans uppercase tracking-widest text-neutral-50">
-              MOMENTUM
-              <span className="text-sm font-mono font-bold text-indigo-500 lowercase ml-1">.tours</span>
+              DELTA RUSH
+              <span className="text-sm font-mono font-bold text-indigo-500 lowercase ml-1">.win</span>
             </h1>
             <p className="text-xs text-neutral-400 font-mono uppercase tracking-widest mt-1">High Velocity Parkour Simulation</p>
           </div>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { RotateCcw, Award, CheckCircle, Flame, Compass, FileText } from 'lucide-react';
+import { RotateCcw, Award, CheckCircle, Flame, Compass } from 'lucide-react';
 import { LevelConfig, GhostFrame, RunReplay, GameSettings, UserAccount, RaceParticipant } from '../types';
 import { synths } from '../audio';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface GameCanvasProps {
   level: LevelConfig;
@@ -18,6 +19,8 @@ interface GameCanvasProps {
   ) => void;
 }
 
+
+
 export default function GameCanvas({ 
   level, 
   settings, 
@@ -30,6 +33,7 @@ export default function GameCanvas({
 }: GameCanvasProps) {
   // Game states
   const [, setIsPlaying] = useState(false);
+  const [showExitConfirmation, setShowExitConfirmation] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0.00);
   const [personalBest, setPersonalBest] = useState<number | null>(null);
   const [speed, setSpeed] = useState(0);
@@ -69,7 +73,9 @@ export default function GameCanvas({
 
   // Race Countdown details
   const [raceCountdown, setRaceCountdown] = useState<number | null>(null);
+  const [restartCount, setRestartCount] = useState<number>(0);
   const hasCountdownStartedRef = useRef<boolean>(false);
+  const raceStartedRef = useRef<boolean>(false);
 
   // Ghost information
   const currentRunFramesRef = useRef<GhostFrame[]>([]);
@@ -91,11 +97,19 @@ export default function GameCanvas({
     targetPosition: THREE.Vector3;
     targetYaw: number;
     baseSpeed: number;
+    velocity: THREE.Vector3;
+    grounded: boolean;
+    stumbleTimer: number;
+    sprintTimer: number;
+    jumpCooldown: number;
+    lastCheckpointDistance: number;
+    lastCheckpointPos: THREE.Vector3;
   }[]>([]);
 
   const splinePointsRef = useRef<THREE.Vector3[]>([]);
   const cumulativeSplineDistancesRef = useRef<number[]>([]);
   const totalSplineLengthRef = useRef<number>(0);
+  const splineCheckpointsRef = useRef<{ distance: number; position: THREE.Vector3 }[]>([]);
   const bcRef = useRef<BroadcastChannel | null>(null);
 
   const [liveRankings, setLiveRankings] = useState<{
@@ -186,9 +200,119 @@ export default function GameCanvas({
 
   }, [level.id, settings.showGhost]);
 
+  const handleExitAttempt = () => {
+    if (raceMode && !isCompleted) {
+      if (document.pointerLockElement) {
+        document.exitPointerLock();
+      }
+      setShowExitConfirmation(true);
+    } else {
+      onExit();
+    }
+  };
+
+  const handleConfirmEarlyExit = () => {
+    setShowExitConfirmation(false);
+
+    // Call onRaceFinished with a 6th place penalty
+    if (raceMode && onRaceFinished) {
+      const selfEntry = {
+        username: currentUser?.username || 'You',
+        time: 999999, // high time to put them at the end
+        finished: false, // DNF
+        isNpc: false,
+        color: localStorage.getItem(`racer_color_${currentUser?.username}`) || '#3b82f6'
+      };
+
+      // Ensure all bots have a predicted final time if they haven't finished yet
+      if (opponentMeshesRef.current && opponentMeshesRef.current.length > 0) {
+        opponentMeshesRef.current.forEach(opp => {
+          if (!opp.finished) {
+            const remainingDist = Math.max(0, totalSplineLengthRef.current - opp.progressDistance);
+            let predictedTime = elapsedTimeRef.current + (remainingDist / Math.max(1, opp.baseSpeed));
+            if (level.id === 'monochrome_void' && predictedTime < 24.0) {
+              predictedTime = 24.0 + Math.random() * 0.5;
+            }
+            opp.finished = true;
+            opp.finalTime = parseFloat(predictedTime.toFixed(3));
+          }
+        });
+      }
+
+      const finalRanks = [
+        selfEntry,
+        ...(opponentMeshesRef.current || []).map(opp => ({
+          username: opp.username,
+          time: opp.finalTime,
+          finished: opp.finished,
+          isNpc: opp.isNpc,
+          color: opp.color
+        }))
+      ];
+
+      // Sort: finished players first (sorted by time), then DNF players (us)
+      finalRanks.sort((a, b) => {
+        if (a.finished && !b.finished) return -1;
+        if (!a.finished && b.finished) return 1;
+        return (a.time || 999999) - (b.time || 999999);
+      });
+
+      // Trigger the ELO and history saving in App.tsx
+      onRaceFinished(0, finalRanks);
+    }
+
+    onExit();
+  };
+
   // Restart / Setup Game Loop
   const initGame = (isManualRestart = false) => {
     isLeaderboardLoggedRef.current = false;
+
+    // Load Personal Best ghost dynamically for the current course
+    const score = localStorage.getItem(`best_time_${level.id}`);
+    if (score) {
+      setPersonalBest(parseFloat(score));
+    } else {
+      setPersonalBest(null);
+    }
+
+    const ghostData = localStorage.getItem(`ghost_replay_${level.id}`);
+    
+    // Remove old ghost mesh from the scene if it exists
+    if (ghostMeshRef.current && sceneRef.current) {
+      sceneRef.current.remove(ghostMeshRef.current);
+      ghostMeshRef.current = null;
+    }
+
+    if (ghostData && settings.showGhost) {
+      try {
+        const parsed: RunReplay = JSON.parse(ghostData);
+        ghostFramesRef.current = parsed.frames;
+        ghostActiveRef.current = true;
+
+        // Re-spawn the ghost mesh in the scene if we have a valid scene
+        if (sceneRef.current && ghostFramesRef.current.length > 0) {
+          const ghostGeom = new THREE.CapsuleGeometry(0.5, 1.0, 4, 8);
+          const ghostMat = new THREE.MeshBasicMaterial({
+            color: 0x60a5fa,
+            transparent: true,
+            opacity: 0.45,
+            wireframe: true
+          });
+          const gMesh = new THREE.Mesh(ghostGeom, ghostMat);
+          sceneRef.current.add(gMesh);
+          ghostMeshRef.current = gMesh;
+        }
+      } catch (e) {
+        console.error('Failed to parse ghost records', e);
+        ghostActiveRef.current = false;
+        ghostFramesRef.current = [];
+      }
+    } else {
+      ghostActiveRef.current = false;
+      ghostFramesRef.current = [];
+    }
+
     // Locate the spawn coordinate block
     const spawnBlock = level.blocks.find(b => b.type === 'start') || level.blocks[0];
     const spawnY = spawnBlock ? spawnBlock.y + spawnBlock.h + 1.2 : 4;
@@ -197,28 +321,70 @@ export default function GameCanvas({
 
     // Build sequential spline route for racing bots
     if (level.blocks && level.blocks.length > 0) {
-      const blocksCopy = [...level.blocks];
       const seqBlocks: any[] = [];
-      let currentBlock = level.blocks.find(b => b.type === 'start') || level.blocks[0];
-      let pool = blocksCopy.filter(b => b.id !== currentBlock.id);
-      seqBlocks.push(currentBlock);
+      const startBlock = level.blocks.find(b => b.type === 'start') || level.blocks[0];
 
-      while (pool.length > 0) {
-        let closestIdx = 0;
-        let minDistance = Infinity;
-        for (let i = 0; i < pool.length; i++) {
-          const dx = pool[i].x - currentBlock.x;
-          const dy = pool[i].y - currentBlock.y;
-          const dz = pool[i].z - currentBlock.z;
-          const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-          if (dist < minDistance) {
-            minDistance = dist;
-            closestIdx = i;
+      if (level.id === 'lava_patchwork') {
+        const endBlock = level.blocks.find(b => b.type === 'end');
+        seqBlocks.push(startBlock);
+
+        // Group the remaining blocks (excluding start and end) by Z coordinate
+        const midBlocks = level.blocks.filter(b => b.id !== startBlock.id && (!endBlock || b.id !== endBlock.id));
+        
+        // Find unique Z values sorted descending (closer to 0 down to most negative)
+        const uniqueZs = Array.from(new Set(midBlocks.map(b => Math.round(b.z)))).sort((a, b) => b - a);
+        
+        let currentBlock = startBlock;
+        for (const zVal of uniqueZs) {
+          const rowBlocks = midBlocks.filter(b => Math.round(b.z) === zVal);
+          if (rowBlocks.length === 0) continue;
+
+          // Prefer non-hazard blocks
+          const safeBlocks = rowBlocks.filter(b => b.type !== 'hazard');
+          const candidates = safeBlocks.length > 0 ? safeBlocks : rowBlocks;
+
+          // Find the candidate block closest horizontally (X) to currentBlock
+          let bestBlock = candidates[0];
+          let minDx = Math.abs(bestBlock.x - currentBlock.x);
+          for (let i = 1; i < candidates.length; i++) {
+            const dx = Math.abs(candidates[i].x - currentBlock.x);
+            if (dx < minDx) {
+              minDx = dx;
+              bestBlock = candidates[i];
+            }
           }
+
+          seqBlocks.push(bestBlock);
+          currentBlock = bestBlock;
         }
-        currentBlock = pool[closestIdx];
-        pool.splice(closestIdx, 1);
+
+        if (endBlock) {
+          seqBlocks.push(endBlock);
+        }
+      } else {
+        // Exclude hazard blocks from the pathfinding pool entirely so NPCs never follow a path on the floor/hazard of the map
+        const blocksCopy = level.blocks.filter(b => b.type !== 'hazard');
+        let currentBlock = startBlock;
+        let pool = blocksCopy.filter(b => b.id !== currentBlock.id);
         seqBlocks.push(currentBlock);
+
+        while (pool.length > 0) {
+          let closestIdx = 0;
+          let minDistance = Infinity;
+          for (let i = 0; i < pool.length; i++) {
+            const dx = pool[i].x - currentBlock.x;
+            const dy = pool[i].y - currentBlock.y;
+            const dz = pool[i].z - currentBlock.z;
+            const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            if (dist < minDistance) {
+              minDistance = dist;
+              closestIdx = i;
+            }
+          }
+          currentBlock = pool[closestIdx];
+          pool.splice(closestIdx, 1);
+          seqBlocks.push(currentBlock);
+        }
       }
 
       const points: THREE.Vector3[] = [];
@@ -236,6 +402,18 @@ export default function GameCanvas({
       }
       cumulativeSplineDistancesRef.current = dists;
       totalSplineLengthRef.current = totalDist;
+
+      // Extract and save spline checkpoints
+      const splineCheckpoints: { distance: number; position: THREE.Vector3 }[] = [];
+      seqBlocks.forEach((b, i) => {
+        if (b.type === 'checkpoint' || b.type === 'start') {
+          splineCheckpoints.push({
+            distance: dists[i],
+            position: new THREE.Vector3(b.x, b.y + b.h + 1.2, b.z)
+          });
+        }
+      });
+      splineCheckpointsRef.current = splineCheckpoints;
     }
 
     // Reset opponent meshes unless this is a manual individual reset
@@ -248,6 +426,13 @@ export default function GameCanvas({
         opp.speedBoostTimer = 0;
         opp.targetPosition.set(spawnX, spawnY, spawnZ);
         opp.targetYaw = 0;
+        opp.velocity.set(0, 0, 0);
+        opp.grounded = true;
+        opp.stumbleTimer = 0;
+        opp.sprintTimer = 0;
+        opp.jumpCooldown = 0;
+        opp.lastCheckpointDistance = 0;
+        opp.lastCheckpointPos = new THREE.Vector3(spawnX, spawnY, spawnZ);
       });
     }
 
@@ -280,7 +465,16 @@ export default function GameCanvas({
     setCompletionPercentile(null);
     setCompletionWorldRank(null);
     isPlayingRef.current = true;
-    countdownRef.current = null;
+    setRestartCount(prev => prev + 1);
+    if (raceMode) {
+      raceStartedRef.current = false;
+      hasCountdownStartedRef.current = false;
+      setRaceCountdown(null);
+      countdownRef.current = 3;
+    } else {
+      raceStartedRef.current = true;
+      countdownRef.current = null;
+    }
     checkpointSoundCoolRef.current = {};
     jumpCoolRef.current = {};
     speedCoolRef.current = {};
@@ -310,6 +504,38 @@ export default function GameCanvas({
     return new THREE.Vector3().lerpVectors(pts[i - 1], pts[i], ratio);
   };
 
+  const warpFinishedBotToEndBlock = (opp: any) => {
+    if (!opp.isNpc || !opp.mesh) return;
+    const endBlock = level.blocks.find((b: any) => b.type === 'end');
+    let targetX = opp.mesh.position.x;
+    let targetZ = opp.mesh.position.z;
+    let targetY = opp.mesh.position.y;
+
+    if (endBlock) {
+      // Determine a slight spread/offset per bot so they stand neatly on the end block (usually w: 6, d: 6)
+      const botIdx = opponentMeshesRef.current.indexOf(opp);
+      const totalBots = opponentMeshesRef.current.length;
+      const offsetAngle = (botIdx * (Math.PI * 2)) / Math.max(1, totalBots);
+      const offsetRadius = 1.2; // Stay well within the bounds of the end block
+
+      targetX = endBlock.x + Math.sin(offsetAngle) * offsetRadius;
+      targetZ = endBlock.z + Math.cos(offsetAngle) * offsetRadius;
+      targetY = endBlock.y + endBlock.h + 0.6;
+    } else {
+      // Fallback to the final point of the spline
+      const targetPos = getPointAtLength(totalSplineLengthRef.current);
+      targetX = targetPos.x;
+      targetZ = targetPos.z;
+      targetY = targetPos.y;
+    }
+
+    opp.mesh.position.set(targetX, targetY, targetZ);
+    opp.velocity.set(0, 0, 0);
+    opp.grounded = true;
+    opp.mesh.rotation.set(0, Math.PI, 0); // Face forward/player-facing on completion
+    opp.mesh.scale.set(1, 1, 1);
+  };
+
   const getPlayerSplineProgress = () => {
     const pts = splinePointsRef.current;
     const dists = cumulativeSplineDistancesRef.current;
@@ -333,18 +559,17 @@ export default function GameCanvas({
     if (!raceMode) {
       setRaceCountdown(null);
       countdownRef.current = null;
+      raceStartedRef.current = true;
       return;
     }
 
-    const isMobileDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-    const shouldStart = isMobileDevice || isLocked;
-    if (shouldStart && !hasCountdownStartedRef.current) {
-      hasCountdownStartedRef.current = true;
-      setRaceCountdown(3);
-      countdownRef.current = 3;
-      synths.playCountdownTick();
-    }
-  }, [raceMode, isLocked, level.id]);
+    // Start countdown automatically!
+    hasCountdownStartedRef.current = true;
+    setRaceCountdown(3);
+    countdownRef.current = 3;
+    raceStartedRef.current = false;
+    synths.playCountdownTick();
+  }, [raceMode, level.id, restartCount]);
 
   useEffect(() => {
     if (raceCountdown === null) return;
@@ -355,6 +580,7 @@ export default function GameCanvas({
         setRaceCountdown(next);
         if (next === 0) {
           countdownRef.current = null;
+          raceStartedRef.current = true;
           synths.playCountdownGo();
         } else {
           countdownRef.current = next;
@@ -471,20 +697,6 @@ export default function GameCanvas({
     // Build course block geometry
     buildLevelGeometry(scene);
 
-    // Spawn Ghost Mesh if personal best ghost exists
-    if (ghostActiveRef.current && ghostFramesRef.current.length > 0) {
-      const ghostGeom = new THREE.CapsuleGeometry(0.5, 1.0, 4, 8);
-      const ghostMat = new THREE.MeshBasicMaterial({
-        color: 0x60a5fa,
-        transparent: true,
-        opacity: 0.45,
-        wireframe: true
-      });
-      const gMesh = new THREE.Mesh(ghostGeom, ghostMat);
-      scene.add(gMesh);
-      ghostMeshRef.current = gMesh;
-    }
-
     // Spawn Opponent Meshes if in race/multiplayer mode
     const opponentMeshes: {
       username: string;
@@ -499,6 +711,13 @@ export default function GameCanvas({
       targetPosition: THREE.Vector3;
       targetYaw: number;
       baseSpeed: number;
+      velocity: THREE.Vector3;
+      grounded: boolean;
+      stumbleTimer: number;
+      sprintTimer: number;
+      jumpCooldown: number;
+      lastCheckpointDistance: number;
+      lastCheckpointPos: THREE.Vector3;
     }[] = [];
 
     if (raceMode && raceOpponents) {
@@ -570,7 +789,14 @@ export default function GameCanvas({
           lastUpdateMs: Date.now(),
           targetPosition: new THREE.Vector3(0, 1.2, 0),
           targetYaw: 0,
-          baseSpeed: opponent.baseSpeed || 10
+          baseSpeed: opponent.baseSpeed || 10,
+          velocity: new THREE.Vector3(0, 0, 0),
+          grounded: true,
+          stumbleTimer: 0,
+          sprintTimer: 0,
+          jumpCooldown: 0,
+          lastCheckpointDistance: 0,
+          lastCheckpointPos: new THREE.Vector3(0, 1.2, 0)
         });
       });
     }
@@ -589,7 +815,6 @@ export default function GameCanvas({
     setIsPlaying(true);
     isPlayingRef.current = true;
     isCompletedRef.current = false;
-    countdownRef.current = null;
 
     // Main running execution thread loop
     let activeLoop = true;
@@ -648,16 +873,355 @@ export default function GameCanvas({
 
         // Multiplayer / Racing updates
         opponentMeshesRef.current.forEach((opp) => {
-          if (opp.finished) return;
+          // Define helpers to query blocks
+          const getBlockSurfaceHeight = (x: number, z: number) => {
+            let highestY = -Infinity;
+            const r = 0.25; // Tolerance radius to handle edge alignment gracefully
+            for (const block of level.blocks) {
+              if (block.type === 'hazard') {
+                continue;
+              }
+              const minX = block.x - block.w / 2 - r;
+              const maxX = block.x + block.w / 2 + r;
+              const minZ = block.z - block.d / 2 - r;
+              const maxZ = block.z + block.d / 2 + r;
+              if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
+                const topY = block.y + block.h;
+                if (topY > highestY) {
+                  highestY = topY;
+                }
+              }
+            }
+            return highestY;
+          };
+
+          const getBlockAtCoords = (x: number, z: number) => {
+            let highestY = -Infinity;
+            let highestBlock = null;
+            const r = 0.25; // Tolerance radius to handle edge alignment gracefully
+            for (const block of level.blocks) {
+              if (block.type === 'hazard') {
+                continue;
+              }
+              const minX = block.x - block.w / 2 - r;
+              const maxX = block.x + block.w / 2 + r;
+              const minZ = block.z - block.d / 2 - r;
+              const maxZ = block.z + block.d / 2 + r;
+              if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
+                const topY = block.y + block.h;
+                if (topY > highestY) {
+                  highestY = topY;
+                  highestBlock = block;
+                }
+              }
+            }
+            return highestBlock;
+          };
+
+          if (opp.finished) {
+            // Place finished NPCs at the end block once they complete the course so they do not fall to the ground or go backwards
+            if (opp.isNpc) {
+              const endBlock = level.blocks.find((b: any) => b.type === 'end');
+              let targetX = opp.mesh.position.x;
+              let targetZ = opp.mesh.position.z;
+              let targetY = opp.mesh.position.y;
+
+              if (endBlock) {
+                // Determine a slight spread/offset per bot so they stand neatly on the end block (usually w: 6, d: 6)
+                const botIdx = opponentMeshesRef.current.indexOf(opp);
+                const totalBots = opponentMeshesRef.current.length;
+                const offsetAngle = (botIdx * (Math.PI * 2)) / Math.max(1, totalBots);
+                const offsetRadius = 1.2; // Stay well within the bounds of the end block
+
+                targetX = endBlock.x + Math.sin(offsetAngle) * offsetRadius;
+                targetZ = endBlock.z + Math.cos(offsetAngle) * offsetRadius;
+                targetY = endBlock.y + endBlock.h + 0.6;
+              } else {
+                // Fallback to the final point of the spline
+                const targetPos = getPointAtLength(totalSplineLengthRef.current);
+                targetX = targetPos.x;
+                targetZ = targetPos.z;
+                targetY = targetPos.y;
+              }
+
+              // Lock them instantly to their final positions on the end block with no drifting or gliding
+              opp.mesh.position.x = targetX;
+              opp.mesh.position.z = targetZ;
+              
+              opp.velocity.set(0, 0, 0);
+              opp.grounded = true;
+
+              // Stand-still idle bobbing/breathing animation
+              const idleBob = Math.sin(Date.now() * 0.003) * 0.02;
+              opp.mesh.position.y = targetY + idleBob;
+
+              // Rotate them to face forward/player-facing on completion
+              opp.mesh.rotation.x = 0;
+              opp.mesh.rotation.z = 0;
+              opp.mesh.rotation.y = Math.PI;
+
+              opp.mesh.scale.set(1, 1, 1);
+            }
+            return;
+          }
 
           if (opp.isNpc) {
+            // Check if NPC is physically touching the 'end' block or very close to spline end, finish them immediately
+            const endBlock = level.blocks.find((b: any) => b.type === 'end');
+            let hitEndBlock = false;
+            if (endBlock) {
+              const minX = endBlock.x - endBlock.w / 2 - 0.5;
+              const maxX = endBlock.x + endBlock.w / 2 + 0.5;
+              const minY = endBlock.y - 1.0;
+              const maxY = endBlock.y + endBlock.h + 2.0;
+              const minZ = endBlock.z - endBlock.d / 2 - 0.5;
+              const maxZ = endBlock.z + endBlock.d / 2 + 0.5;
+
+              const ox = opp.mesh.position.x;
+              const oy = opp.mesh.position.y;
+              const oz = opp.mesh.position.z;
+
+              hitEndBlock = 
+                (ox >= minX && ox <= maxX) &&
+                (oy >= minY && oy <= maxY) &&
+                (oz >= minZ && oz <= maxZ);
+            }
+
+            const isNearSplineEnd = opp.progressDistance >= totalSplineLengthRef.current - 1.5;
+
+            if (hitEndBlock || isNearSplineEnd) {
+              opp.finished = true;
+              opp.progressDistance = totalSplineLengthRef.current;
+              let finalTime = elapsedTimeRef.current;
+              if (level.id === 'monochrome_void' && finalTime < 24.0) {
+                finalTime = 24.0 + Math.random() * 0.5;
+              }
+              opp.finalTime = parseFloat(finalTime.toFixed(3));
+              warpFinishedBotToEndBlock(opp);
+              return;
+            }
+
+            // Calculate dynamic speed multipliers
+            let speedMultiplier = 1.0;
+
+            if (opp.stumbleTimer > 0) {
+              opp.stumbleTimer -= dt;
+              speedMultiplier = 0.45; // stumble slows them down significantly
+            } else if (opp.sprintTimer > 0) {
+              opp.sprintTimer -= dt;
+              speedMultiplier = 1.35; // sprint speeds them up
+            } else {
+              // Random stumbles or sprints for randomness!
+              const roll = Math.random();
+              // Faster bots stumble less and sprint more often
+              const stumbleChance = opp.baseSpeed >= 11.0 ? 0.003 : (opp.baseSpeed >= 9.5 ? 0.008 : (opp.baseSpeed >= 7.5 ? 0.018 : 0.03));
+              const sprintChance = opp.baseSpeed >= 11.0 ? 0.30 : (opp.baseSpeed >= 9.5 ? 0.18 : (opp.baseSpeed >= 7.5 ? 0.08 : 0.02));
+
+              if (roll < stumbleChance * dt * 60) {
+                opp.stumbleTimer = 0.8 + Math.random() * 0.8;
+              } else if (roll < sprintChance * dt * 60) {
+                opp.sprintTimer = 1.5 + Math.random() * 1.5;
+              }
+            }
+
+            // Check if standing on a speed block
+            const currentBlock = getBlockAtCoords(opp.mesh.position.x, opp.mesh.position.z);
+            let speedBlockMultiplier = 1.0;
+            if (currentBlock && currentBlock.type === 'speed') {
+              speedBlockMultiplier = 1.6;
+            }
+
             // Move bot along course spline representation sequentially
-            opp.progressDistance += dt * opp.baseSpeed;
+            let levelMultiplier = 1.0;
+            let speedBoostCap = 1.0;
+            if (level.id === 'lava_patchwork') {
+              levelMultiplier = 1.0; // Normal realistic speed on Lava Patchwork as we now have a smooth hazard-avoiding path
+              speedBoostCap = 1.0;
+            }
+
+            let botSpeed = opp.baseSpeed * speedMultiplier * speedBlockMultiplier * levelMultiplier;
+
+            // Enforce that NPCs cannot move faster than a regular player under equivalent conditions:
+            // - Regular player base running limit is 12.0
+            // - Regular player sprint limit is 18.0
+            // - Speed block multiplies limit by 1.6
+            const playerLimit = (opp.sprintTimer > 0 ? 18.0 : 12.0) * speedBlockMultiplier * speedBoostCap;
+            if (botSpeed > playerLimit) {
+              botSpeed = playerLimit;
+            }
+
+            opp.progressDistance += dt * botSpeed;
+
+            // Limit speed for Monochrome Void to prevent completing before 24.0 seconds
+            if (level.id === 'monochrome_void') {
+              const maxAllowedProgress = (elapsedTimeRef.current / 24.05) * totalSplineLengthRef.current;
+              if (opp.progressDistance > maxAllowedProgress) {
+                opp.progressDistance = maxAllowedProgress;
+              }
+            }
+
+            // Update NPC's last checkpoint
+            if (splineCheckpointsRef.current && splineCheckpointsRef.current.length > 0) {
+              for (const cp of splineCheckpointsRef.current) {
+                if (opp.progressDistance >= cp.distance) {
+                  if (cp.distance > opp.lastCheckpointDistance) {
+                    opp.lastCheckpointDistance = cp.distance;
+                    opp.lastCheckpointPos.copy(cp.position);
+                  }
+                }
+              }
+            }
+
+            // Check if NPC is colliding with any hazard block (Lava block)
+            let hitHazard = false;
+            for (const block of level.blocks) {
+              if (block.type === 'hazard') {
+                const minX = block.x - block.w / 2;
+                const maxX = block.x + block.w / 2;
+                const minY = block.y;
+                const maxY = block.y + block.h;
+                const minZ = block.z - block.d / 2;
+                const maxZ = block.z + block.d / 2;
+
+                const ox = opp.mesh.position.x;
+                const oy = opp.mesh.position.y;
+                const oz = opp.mesh.position.z;
+                const botRadius = 0.5;
+                const botHeight = 1.2;
+
+                const isOverlapping = 
+                  (ox + botRadius > minX && ox - botRadius < maxX) &&
+                  (oy + botHeight > minY && oy < maxY + 0.1) &&
+                  (oz + botRadius > minZ && oz - botRadius < maxZ);
+
+                if (isOverlapping) {
+                  hitHazard = true;
+                  break;
+                }
+              }
+            }
+
+            if (hitHazard) {
+              // Reset to last checkpoint with penalty
+              opp.progressDistance = opp.lastCheckpointDistance || 0;
+              opp.mesh.position.copy(opp.lastCheckpointPos);
+              opp.velocity.set(0, 0, 0);
+              opp.grounded = true;
+              opp.stumbleTimer = 1.5;
+            }
 
             const targetPos = getPointAtLength(opp.progressDistance);
 
-            // Interpolate bot positioning
-            opp.mesh.position.lerp(targetPos, 0.12);
+            // Interpolate bot positioning horizontally (X and Z only)
+            opp.mesh.position.x = THREE.MathUtils.lerp(opp.mesh.position.x, targetPos.x, 0.15);
+            opp.mesh.position.z = THREE.MathUtils.lerp(opp.mesh.position.z, targetPos.z, 0.15);
+
+            // GRAVITY & JUMP PHYSICS
+            const splineGroundY = targetPos.y - 0.6;
+            const actualGroundY = getBlockSurfaceHeight(opp.mesh.position.x, opp.mesh.position.z);
+            // NPCs must follow physical gravity and cannot walk/stand on thin air over gaps.
+            // If they are over a gap, groundY is -Infinity so they fall naturally.
+            // Use splineGroundY as a safety net to prevent bots from falling into the void or failing hard jumps on difficult levels
+            let groundY = actualGroundY;
+            if (groundY === -Infinity || groundY < splineGroundY - 4.0) {
+              groundY = splineGroundY;
+            }
+
+            // Check for JUMP blocks or manual triggers
+            const standingBlock = getBlockAtCoords(opp.mesh.position.x, opp.mesh.position.z);
+            if (standingBlock && standingBlock.type === 'jump' && opp.grounded && groundY !== -Infinity && opp.mesh.position.y <= groundY + 0.8 && (!opp.jumpCooldown || opp.jumpCooldown <= 0)) {
+              opp.velocity.y = 20.0; // Rocket jump on jump pad!
+              opp.grounded = false;
+              opp.jumpCooldown = 0.5;
+            }
+
+            // Jump lookahead over gaps or steps
+            if (opp.grounded && groundY !== -Infinity && opp.mesh.position.y <= groundY + 0.8 && (!opp.jumpCooldown || opp.jumpCooldown <= 0)) {
+              const currentGroundY = groundY;
+              
+              // Look ahead dynamically proportional to bot speed
+              const aheadDist = Math.max(2.0, botSpeed * 0.22);
+              const aheadPos = getPointAtLength(opp.progressDistance + aheadDist);
+              const aheadGroundY = getBlockSurfaceHeight(aheadPos.x, aheadPos.z);
+              
+              // Also check if the spline itself rises up (climbing a block)
+              const splineDeltaY = aheadPos.y - opp.mesh.position.y;
+              
+              const isGapAhead = aheadGroundY === -Infinity || (currentGroundY - aheadGroundY > 2.0);
+              const isClimbAhead = splineDeltaY > 0.8;
+              
+              if (isGapAhead || isClimbAhead) {
+                const jumpVel = isClimbAhead ? 13.5 : (11.0 + Math.random() * 3.0);
+                opp.velocity.y = jumpVel;
+                opp.grounded = false;
+                opp.jumpCooldown = 0.5;
+              }
+            }
+
+            if (opp.jumpCooldown > 0) {
+              opp.jumpCooldown -= dt;
+            }
+
+            // Apply gravity physics
+            if (opp.mesh.position.y <= groundY + 0.62 && opp.velocity.y <= 0) {
+              // Standing on the ground
+              opp.mesh.position.y = THREE.MathUtils.lerp(opp.mesh.position.y, groundY + 0.6, 0.25);
+              opp.velocity.y = 0;
+              opp.grounded = true;
+            } else {
+              // Falling or jumping in the air
+              opp.velocity.y -= 23.5 * dt; // gravity
+              opp.mesh.position.y += opp.velocity.y * dt;
+              opp.grounded = false;
+
+              // Landing trigger
+              if (opp.mesh.position.y < groundY + 0.6 && opp.velocity.y < 0) {
+                opp.mesh.position.y = groundY + 0.6;
+                opp.velocity.y = 0;
+                opp.grounded = true;
+              }
+            }
+
+            // Respawn penalty if fallen into void (acts as backup fallback)
+            if (opp.mesh.position.y < -20.0) {
+              opp.progressDistance = opp.lastCheckpointDistance || 0;
+              opp.mesh.position.copy(opp.lastCheckpointPos);
+              opp.velocity.set(0, 0, 0);
+              opp.grounded = true;
+              opp.stumbleTimer = 1.5; // Stumble penalty for falling
+            }
+
+            // Running bobbing and airborne tilting animation with fluid squish & stretch scaling
+            if (opp.grounded) {
+              const bob = Math.sin(opp.progressDistance * 1.5) * 0.05;
+              opp.mesh.position.y += bob;
+              opp.mesh.rotation.z = Math.sin(opp.progressDistance * 1.5) * 0.04;
+              opp.mesh.rotation.x = 0.05; // slight forward lean when running
+              opp.mesh.scale.set(
+                THREE.MathUtils.lerp(opp.mesh.scale.x, 1, 0.1),
+                THREE.MathUtils.lerp(opp.mesh.scale.y, 1, 0.1),
+                THREE.MathUtils.lerp(opp.mesh.scale.z, 1, 0.1)
+              );
+            } else {
+              const tilt = THREE.MathUtils.clamp(opp.velocity.y * 0.03, -0.2, 0.2);
+              opp.mesh.rotation.x = -tilt - 0.1; // lean into the jump/fall
+              opp.mesh.rotation.z = 0;
+              if (opp.velocity.y > 0) {
+                // Stretch on upward arc
+                opp.mesh.scale.set(
+                  THREE.MathUtils.lerp(opp.mesh.scale.x, 0.85, 0.1),
+                  THREE.MathUtils.lerp(opp.mesh.scale.y, 1.25, 0.1),
+                  THREE.MathUtils.lerp(opp.mesh.scale.z, 0.85, 0.1)
+                );
+              } else {
+                // Squish on downward arc / landing anticipation
+                opp.mesh.scale.set(
+                  THREE.MathUtils.lerp(opp.mesh.scale.x, 1.15, 0.1),
+                  THREE.MathUtils.lerp(opp.mesh.scale.y, 0.8, 0.1),
+                  THREE.MathUtils.lerp(opp.mesh.scale.z, 1.15, 0.1)
+                );
+              }
+            }
 
             // Compute direction to look
             const nextTarget = getPointAtLength(opp.progressDistance + 1.5);
@@ -670,7 +1234,12 @@ export default function GameCanvas({
             // Bots hit finish threshold
             if (opp.progressDistance >= totalSplineLengthRef.current) {
               opp.finished = true;
-              opp.finalTime = parseFloat(elapsedTimeRef.current.toFixed(2));
+              let finalTime = elapsedTimeRef.current;
+              if (level.id === 'monochrome_void' && finalTime < 24.0) {
+                finalTime = 24.0 + Math.random() * 0.5;
+              }
+              opp.finalTime = parseFloat(finalTime.toFixed(3));
+              warpFinishedBotToEndBlock(opp);
             }
           } else {
             // Linearly interpolate received websocket positions
@@ -1011,10 +1580,14 @@ export default function GameCanvas({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
+      if ((k === ' ' || k === 'space') && e.repeat) {
+        return;
+      }
       keysRef.current[k] = true;
 
       // Fast immediate R button to retry
       if (k === 'r') {
+        if (raceMode) return; // block restarting in races!
         e.preventDefault();
         initGame(true);
       }
@@ -1031,7 +1604,7 @@ export default function GameCanvas({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [level.id]);
+  }, [level.id, raceMode]);
 
   // Pointer lock callback trigger for desktops
   const handleCanvasClick = () => {
@@ -1490,7 +2063,9 @@ export default function GameCanvas({
     const targetMs = elapsedTimeRef.current * 1000;
     
     // Simple interpolation search
-    let activeFrame = ghostFramesRef.current[0];
+    // Default to the last recorded frame so that the ghost remains parked at the end block after finishing,
+    // rather than reverting back to the starting pad.
+    let activeFrame = ghostFramesRef.current[ghostFramesRef.current.length - 1];
     for (let i = 0; i < ghostFramesRef.current.length; i++) {
       if (ghostFramesRef.current[i].time > targetMs) {
         activeFrame = ghostFramesRef.current[i];
@@ -1547,9 +2122,13 @@ export default function GameCanvas({
       opponentMeshesRef.current.forEach(opp => {
         if (!opp.finished) {
           const remainingDist = Math.max(0, totalSplineLengthRef.current - opp.progressDistance);
-          const predictedTime = elapsedTimeRef.current + (remainingDist / Math.max(1, opp.baseSpeed));
+          let predictedTime = elapsedTimeRef.current + (remainingDist / Math.max(1, opp.baseSpeed));
+          if (level.id === 'monochrome_void' && predictedTime < 24.0) {
+            predictedTime = 24.0 + Math.random() * 0.5;
+          }
           opp.finished = true;
-          opp.finalTime = parseFloat(predictedTime.toFixed(2));
+          opp.finalTime = parseFloat(predictedTime.toFixed(3));
+          warpFinishedBotToEndBlock(opp);
         }
       });
 
@@ -1649,12 +2228,12 @@ export default function GameCanvas({
         const totalLen = allPlayerBests.length;
         const worldRank = rankIdx + 1;
         
-        let percentileVal = 100;
-        if (totalLen > 1) {
-          percentileVal = Math.round((1 - (rankIdx / (totalLen - 1))) * 100);
+        let percentileVal = 0;
+        if (totalLen > 0) {
+          percentileVal = Math.round((rankIdx / totalLen) * 100);
         }
         
-        if (isNewPb) {
+        if (isNewPb && level.id !== 'test_level_active') {
           setCompletionPercentile(percentileVal);
           setCompletionWorldRank({ rank: worldRank, total: totalLen });
         } else {
@@ -1662,15 +2241,17 @@ export default function GameCanvas({
           setCompletionWorldRank(null);
         }
 
-        const newEntry = {
-          id: `run_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-          levelId: level.id,
-          playerName: currentUser?.username || 'Guest',
-          time: elapsedTimeRef.current,
-          date: Date.now(),
-          device: isMobileRef.current ? 'mobile' : 'desktop'
-        };
-        localStorage.setItem(`leaderboard_${level.id}`, JSON.stringify([...entries, newEntry]));
+        if (level.id !== 'test_level_active') {
+          const newEntry = {
+            id: `run_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            levelId: level.id,
+            playerName: currentUser?.username || 'Guest',
+            time: elapsedTimeRef.current,
+            date: Date.now(),
+            device: isMobileRef.current ? 'mobile' : 'desktop'
+          };
+          localStorage.setItem(`leaderboard_${level.id}`, JSON.stringify([...entries, newEntry]));
+        }
       } catch (e) {
         console.error(e);
       }
@@ -1685,17 +2266,6 @@ export default function GameCanvas({
     const s = Math.floor((totalMilliseconds % 60000) / 1000);
     const ms = totalMilliseconds % 1000;
     return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${ms.toString().padStart(3, '0')}s`;
-  };
-
-  // Telemetry download export ghost data
-  const exportGhostToClipboard = () => {
-    const data = localStorage.getItem(`ghost_replay_${level.id}`);
-    if (data) {
-      navigator.clipboard.writeText(data);
-      alert('Copied Ghost Replay JSON code to clipboard!');
-    } else {
-      alert('No run recorded yet to export.');
-    }
   };
 
   // Calculate current completion percentage based on forward progress across Z coordinates boundary
@@ -1726,6 +2296,42 @@ export default function GameCanvas({
         onClick={handleCanvasClick}
         className="w-full h-full block cursor-pointer" 
       />
+
+      {/* Race Countdown Overlay */}
+      {raceMode && raceCountdown !== null && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50 select-none">
+          <AnimatePresence mode="popLayout">
+            <motion.div
+              key={raceCountdown}
+              initial={{ scale: 0.3, opacity: 0, y: 50 }}
+              animate={{ scale: 1.1, opacity: 1, y: 0 }}
+              exit={{ scale: 1.5, opacity: 0, y: -50 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+              className="flex flex-col items-center justify-center text-center"
+            >
+              {raceCountdown > 0 ? (
+                <>
+                  <span className="text-[12rem] sm:text-[16rem] font-sans font-black text-amber-500 drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] tracking-tight leading-none">
+                    {raceCountdown}
+                  </span>
+                  <span className="text-xl sm:text-2xl font-mono font-bold tracking-widest text-neutral-300 uppercase drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] -mt-2">
+                    READY
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-[10rem] sm:text-[14rem] font-sans font-black text-emerald-400 drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] tracking-wider leading-none uppercase animate-pulse">
+                    GO!
+                  </span>
+                  <span className="text-xl sm:text-2xl font-mono font-bold tracking-widest text-emerald-300 uppercase drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] -mt-2">
+                    START RACING
+                  </span>
+                </>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* Pointer Lock Help Overlay for desktops */}
       {!isLocked && !isCompleted && !isMobileRef.current && (
@@ -1763,7 +2369,7 @@ export default function GameCanvas({
               Lock Cursor &amp; Play
             </button>
             <button
-              onClick={onExit}
+              onClick={handleExitAttempt}
               className="mt-3 text-xs text-neutral-500 hover:text-neutral-300 font-medium hover:underline"
             >
               Exit Course
@@ -1800,7 +2406,7 @@ export default function GameCanvas({
                         </span>
                       </div>
                       <span className="text-[10px] font-bold text-neutral-400">
-                        {rank.finished && rank.finalTime ? `${rank.finalTime.toFixed(1)}s` : `${Math.round(rank.progressDistance)}m`}
+                        {rank.finished && rank.finalTime ? `${rank.finalTime.toFixed(3)}s` : `${Math.round(rank.progressDistance)}m`}
                       </span>
                     </div>
                   );
@@ -1840,7 +2446,7 @@ export default function GameCanvas({
                 </div>
               </div>
               <button
-                onClick={onExit}
+                onClick={handleExitAttempt}
                 className="pointer-events-auto bg-neutral-900/90 border border-neutral-800 px-3 py-1.5 rounded-lg text-[10px] text-neutral-400 hover:text-neutral-200 cursor-pointer transition font-mono uppercase"
               >
                 Exit
@@ -1876,16 +2482,18 @@ export default function GameCanvas({
               </div>
 
               {/* Instant screen restart button */}
-              <button
-                onClick={() => {
-                  initGame(true);
-                  canvasRef.current?.focus();
-                }}
-                className="pointer-events-auto flex items-center justify-center p-3 sm:p-4 bg-neutral-100 hover:bg-neutral-200 text-neutral-950 hover:scale-105 active:scale-95 rounded-2xl shadow-xl transition cursor-pointer"
-                title="Restart Course (Key: R)"
-              >
-                <RotateCcw className="w-5 h-5 font-bold" />
-              </button>
+              {!raceMode && (
+                <button
+                  onClick={() => {
+                    initGame(true);
+                    canvasRef.current?.focus();
+                  }}
+                  className="pointer-events-auto flex items-center justify-center p-3 sm:p-4 bg-neutral-100 hover:bg-neutral-200 text-neutral-950 hover:scale-105 active:scale-95 rounded-2xl shadow-xl transition cursor-pointer"
+                  title="Restart Course (Key: R)"
+                >
+                  <RotateCcw className="w-5 h-5 font-bold" />
+                </button>
+              )}
             </div>
 
             {/* Touch overlay inputs (Visualizes joystick on Left half, Jump on Right) */}
@@ -2009,7 +2617,7 @@ export default function GameCanvas({
                           </div>
                         </div>
                         <span className="text-neutral-400 font-bold">
-                          {std.time ? `${std.time.toFixed(2)}s` : 'DNF'}
+                          {std.time ? `${std.time.toFixed(3)}s` : 'DNF'}
                         </span>
                       </div>
                     );
@@ -2040,7 +2648,7 @@ export default function GameCanvas({
                 </div>
 
                 {/* Percentile Box */}
-                {completionPercentile !== null && completionWorldRank !== null && (
+                {completionPercentile !== null && completionWorldRank !== null && level.id !== 'test_level_active' && (
                   <div id="completion-percentile-card" className="w-full mt-3 bg-indigo-500/15 border border-indigo-500/30 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-inner">
                     <span className="text-[9px] font-mono text-indigo-400 uppercase tracking-wider font-bold">Community Standing</span>
                     
@@ -2072,40 +2680,69 @@ export default function GameCanvas({
               </>
             )}
 
-            <div className="grid grid-cols-2 gap-2.5 w-full mt-8">
-              <button
-                onClick={initGame}
-                className="py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-900 text-xs font-bold rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <RotateCcw className="w-4 h-4" />
-                Retry Run
-              </button>
-              <button
-                onClick={onShowLeaderboard}
-                className="py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer border border-neutral-700"
-              >
-                <Award className="w-4 h-4" />
-                Leaderboard
-              </button>
+            <div className={`${raceMode || level.id === 'test_level_active' ? 'flex' : 'grid grid-cols-2'} gap-2.5 w-full mt-8`}>
+              {!raceMode && (
+                <button
+                  onClick={initGame}
+                  className={`py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-900 text-xs font-bold rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer ${level.id === 'test_level_active' ? 'w-full' : ''}`}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Retry Run
+                </button>
+              )}
+              {level.id !== 'test_level_active' && (
+                <button
+                  onClick={onShowLeaderboard}
+                  className={`py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer border border-neutral-700 ${raceMode ? 'w-full' : ''}`}
+                >
+                  <Award className="w-4 h-4" />
+                  Leaderboard
+                </button>
+              )}
             </div>
 
-            {settings.showGhost && personalBest && (
-              <button
-                onClick={exportGhostToClipboard}
-                className="mt-6 text-[10px] text-neutral-500 font-mono hover:text-indigo-400 hover:underline flex items-center gap-1 justify-center py-2 border-t border-neutral-800/80 w-full"
-              >
-                <FileText className="w-3 h-3" />
-                Export telemetry ghost string
-              </button>
-            )}
-
             <button
-              onClick={onExit}
+              onClick={handleExitAttempt}
               className="mt-4 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition hover:underline"
             >
               Exit to Menu
             </button>
 
+          </div>
+        </div>
+      )}
+
+      {showExitConfirmation && (
+        <div id="exit-confirmation-overlay" className="absolute inset-0 bg-neutral-950/90 z-50 flex items-center justify-center p-6 backdrop-blur-sm">
+          <div className="bg-neutral-900 border border-red-500/30 p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl">
+            <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4 border border-red-500/30 text-red-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            
+            <h3 className="text-base font-bold text-neutral-50 font-sans tracking-tight">Abandon Race?</h3>
+            <p className="text-xs text-neutral-400 mt-2 leading-relaxed">
+              Exiting the race now will count as a <span className="text-red-400 font-semibold">Did Not Finish (DNF)</span>. You will finish in <span className="font-semibold text-neutral-100">6th place</span> and lose ELO rating (<span className="text-red-400 font-semibold">-10</span>).
+            </p>
+
+            <div className="flex flex-col gap-2 mt-6">
+              <button
+                onClick={handleConfirmEarlyExit}
+                className="py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition shadow cursor-pointer uppercase tracking-wider"
+              >
+                Abandon &amp; Lose ELO
+              </button>
+              <button
+                onClick={() => {
+                  setShowExitConfirmation(false);
+                  canvasRef.current?.requestPointerLock();
+                }}
+                className="py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold rounded-xl transition cursor-pointer"
+              >
+                Cancel &amp; Continue Race
+              </button>
+            </div>
           </div>
         </div>
       )}

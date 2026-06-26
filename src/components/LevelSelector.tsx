@@ -11,9 +11,6 @@ interface LevelSelectorProps {
 
 export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEditCustom }: LevelSelectorProps) {
   const [customLevels, setCustomLevels] = useState<LevelConfig[]>([]);
-  const [importText, setImportText] = useState('');
-  const [importError, setImportError] = useState('');
-  const [showImportDialog, setShowImportDialog] = useState(false);
 
   // Load custom levels from storage
   useEffect(() => {
@@ -36,37 +33,7 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
     }
   };
 
-  const handleImportLevel = () => {
-    try {
-      setImportError('');
-      if (!importText.trim()) {
-        setImportError('Please paste some level JSON code.');
-        return;
-      }
-      const data = JSON.parse(importText);
-      if (!data.id || !data.name || !Array.isArray(data.blocks)) {
-        setImportError('Invalid format. Level must have a name, ID, and list of blocks.');
-        return;
-      }
 
-      // Safeguard duplicates or override
-      const sanitizedId = `imported_${Date.now()}`;
-      const newLvl: LevelConfig = {
-        ...data,
-        id: sanitizedId,
-        isCustom: true
-      };
-
-      const updated = [...customLevels, newLvl];
-      setCustomLevels(updated);
-      localStorage.setItem('custom_parkour_levels', JSON.stringify(updated));
-      setShowImportDialog(false);
-      setImportText('');
-      alert(`Successfully imported: "${newLvl.name}"!`);
-    } catch (e) {
-      setImportError('Failed to parse JSON. Please check compatibility.');
-    }
-  };
 
   const exportLevelJSON = (lvl: LevelConfig, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -113,18 +80,11 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
             Parkour Time Trials
           </h1>
           <p className="text-sm text-neutral-600 mt-2 max-w-xl">
-            Shave off milliseconds by mastering movement. Leap, slide, wall-run, and discover shortcuts across high-skill courses.
+            Shave off milliseconds by mastering movement. Leap, sprint, wall-run, and discover shortcuts across high-skill courses.
           </p>
         </div>
 
         <div className="flex gap-3">
-          <button
-            onClick={() => setShowImportDialog(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl font-medium text-xs transition duration-200 cursor-pointer border border-neutral-200"
-          >
-            <Upload className="w-4 h-4" />
-            Import JSON Link
-          </button>
           <button
             onClick={onCreateNewCustom}
             className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-xs transition shadow-md hover:shadow duration-200 cursor-pointer"
@@ -201,7 +161,7 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
             <Code className="w-10 h-10 text-neutral-400 mx-auto opacity-40 mb-3" />
             <h3 className="text-sm font-semibold text-neutral-700">No custom levels found</h3>
             <p className="text-xs text-neutral-500 mt-1 max-w-xs mx-auto">
-              Open the Course Builder to design a layout from scratch, or import a JSON string shared by friends!
+              Open the Course Builder to design a layout from scratch!
             </p>
           </div>
         ) : (
@@ -279,47 +239,7 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
         )}
       </div>
 
-      {/* JSON Import Dialog overlay */}
-      {showImportDialog && (
-        <div className="fixed inset-0 z-50 bg-neutral-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl border border-neutral-200">
-            <h2 className="text-lg font-extrabold text-neutral-900">Import Custom Level Code</h2>
-            <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
-              Paste the level JSON text code block formatted by the Course Builder to play instantly!
-            </p>
 
-            <textarea
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder='{ "id": "custom", "name": "...", "theme": "...", "blocks": [...] }'
-              className="w-full h-44 mt-4 p-3 bg-neutral-50 border border-neutral-200 rounded-xl text-neutral-800 font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-            />
-
-            {importError && (
-              <p className="text-xs text-red-500 font-semibold mt-2">{importError}</p>
-            )}
-
-            <div className="flex gap-2 justify-end mt-4">
-              <button
-                onClick={() => {
-                  setShowImportDialog(false);
-                  setImportText('');
-                  setImportError('');
-                }}
-                className="px-4 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-700 rounded-lg transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleImportLevel}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition shadow"
-              >
-                Assemble Level
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Code, Settings, Trophy, ArrowRight, ShieldCheck, Gamepad2, Info, LogOut, User, KeyRound, Sparkles, Check, Lock, ShieldAlert } from 'lucide-react';
+import { Code, Settings, Trophy, ArrowRight, ShieldCheck, Info, LogOut, User, KeyRound, Sparkles, Check, Lock, ShieldAlert } from 'lucide-react';
 import { GameSettings, UserAccount } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { synths } from '../audio';
@@ -59,10 +59,10 @@ const getPercentileForLevel = (levelId: string, time: number | null, username: s
     const rankIdx = otherPlayerTimes.indexOf(time);
     const totalLen = otherPlayerTimes.length;
     
-    if (totalLen <= 1) return 100;
-    return Math.round((1 - (rankIdx / (totalLen - 1))) * 100);
+    if (totalLen === 0) return 0;
+    return Math.round((rankIdx / totalLen) * 100);
   } catch (e) {
-    return 100;
+    return 0;
   }
 };
 
@@ -172,14 +172,14 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
 
         <div className="max-w-xl">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/15 border border-indigo-500/20 text-indigo-400 rounded-full text-[10px] font-mono uppercase font-bold tracking-wider mb-5">
-            <Gamepad2 className="w-3.5 h-3.5" />
+            <span className="text-sm font-black text-indigo-400 font-sans leading-none">Δ</span>
             V0.4 Community Release
           </span>
           <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-none">
-            Momentum Parkour
+            Delta Rush
           </h1>
           <p className="text-sm text-neutral-300 mt-4 leading-relaxed max-w-lg">
-            A high-skill 3D parkour time-trial racer focused on flow, momentum preservation, and precision routing. Sprint, slide, leap off wall-run rails, and shave precious milliseconds off your runs as <span className="text-indigo-400 font-bold">{currentUser.username}</span>.
+            A high-skill 3D parkour time-trial racer focused on flow, momentum preservation, and precision routing. Sprint, wall-run, leap off rails, and shave precious milliseconds off your runs as <span className="text-indigo-400 font-bold">{currentUser.username}</span>.
           </p>
         </div>
 
@@ -266,233 +266,7 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
         </div>
       </div>
 
-      {/* Mechanics Grid & Config Customizations */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Movement Mechanics Overview (7 columns width) */}
-        <div className="lg:col-span-7 space-y-6">
-          <h2 className="text-xl font-bold text-neutral-900 tracking-tight flex items-center gap-2 border-b border-neutral-100 pb-3">
-            <Info className="w-5 h-5 text-indigo-500" />
-            The Movement Lexicon
-          </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Mechanic 1: Slide Boost */}
-            <div className="p-5 bg-neutral-50 rounded-2xl border border-neutral-200/60 leading-relaxed shadow-sm">
-              <span className="inline-block p-2 bg-indigo-50 text-indigo-600 rounded-xl font-mono text-[10px] font-bold uppercase mb-3">
-                L-SHIFT / C Key
-              </span>
-              <h3 className="font-bold text-sm text-neutral-800">Slide Dash &amp; Slip</h3>
-              <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">
-                Sliding mid-stride reduces player height by 50% allowing you to pass through narrow utility gaps. If moving with high momentum, sliding triggers an acceleration surge!
-              </p>
-            </div>
-
-            {/* Mechanic 2: Wallrunning */}
-            <div className="p-5 bg-neutral-50 rounded-2xl border border-neutral-200/60 leading-relaxed shadow-sm">
-              <span className="inline-block p-2 bg-purple-50 text-purple-600 rounded-xl font-mono text-[10px] font-bold uppercase mb-3">
-                Forward near wall
-              </span>
-              <h3 className="font-bold text-sm text-neutral-800">Vertical Wall Run</h3>
-              <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">
-                Sprint forward along the side of flat purple panels to stick to the surface. Vertical gravity decreases by 70%, letting you run high above lava hazards!
-              </p>
-            </div>
-
-            {/* Mechanic 3: Wall Jumping */}
-            <div className="p-5 bg-neutral-50 rounded-2xl border border-neutral-200/60 leading-relaxed shadow-sm">
-              <span className="inline-block p-2 bg-amber-50 text-amber-600 rounded-xl font-mono text-[10px] font-bold uppercase mb-3">
-                Space during wall-run
-              </span>
-              <h3 className="font-bold text-sm text-neutral-800">Wall Kickback</h3>
-              <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">
-                Jumping while wall-running kicks you off the wall with a direct horizontal boost, pushing you to opposite walls or platforms for quick zig-zag leaps!
-              </p>
-            </div>
-
-            {/* Mechanic 4: Jump Pads */}
-            <div className="p-5 bg-neutral-50 rounded-2xl border border-neutral-200/60 leading-relaxed shadow-sm">
-              <span className="inline-block p-2 bg-emerald-50 text-emerald-600 rounded-xl font-mono text-[10px] font-bold uppercase mb-3">
-                Touch launch surface
-              </span>
-              <h3 className="font-bold text-sm text-neutral-800">Thermal Jump Pads</h3>
-              <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">
-                Golden orange platforms launch you 20 meters vertical into the sky, preserving forward velocity! Perfect for executing massive shortcuts high above.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Dynamic Character Glyph & Customization (5 columns width) */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-neutral-50 p-6 rounded-3xl border border-neutral-200/80 space-y-6 shadow-sm">
-            <div>
-              <h2 className="text-base font-bold text-neutral-900 uppercase tracking-wider font-mono border-b border-neutral-200 pb-3 mb-5 flex items-center gap-2">
-                <User className="w-4 h-4 text-neutral-600" />
-                Runner Customization
-              </h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block mb-2 text-left">
-                    Signature Emoji Glyph
-                  </span>
-                  <div className="grid grid-cols-4 gap-2">
-                    {AVATARS.map(avatar => (
-                      <button
-                        key={avatar.emoji}
-                        onClick={() => selectAvatar(avatar.emoji)}
-                        className={`py-2 rounded-xl text-lg flex items-center justify-center border transition ${
-                          currentUser.avatar === avatar.emoji
-                            ? 'bg-indigo-600/10 border-indigo-600 text-indigo-700 font-bold'
-                            : 'bg-white border-neutral-200 text-neutral-500 hover:border-neutral-300'
-                        }`}
-                        title={avatar.name}
-                      >
-                        {avatar.emoji}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block mb-2 text-left">
-                    Icon Theme Signature
-                  </span>
-                  <div className="flex flex-wrap gap-2.5">
-                    {AVATAR_BGS.map(bg => (
-                      <button
-                        key={bg.value}
-                        onClick={() => selectBg(bg.value)}
-                        className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition focus:outline-none ${
-                          bg.value === (currentUser.avatarBg || 'bg-rose-500')
-                            ? 'border-indigo-600 shadow-sm scale-105'
-                            : 'border-transparent'
-                        } ${bg.value}`}
-                        title={bg.label}
-                      >
-                        {bg.value === (currentUser.avatarBg || 'bg-rose-500') && (
-                          <Check className="w-3.5 h-3.5 stroke-[3] text-white" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Standard FOV settings and options */}
-            <div className="pt-4 border-t border-neutral-200/60">
-              <h2 className="text-xs font-bold text-neutral-900 uppercase tracking-wider font-mono mb-4 flex items-center gap-2">
-                <Settings className="w-3.5 h-3.5 text-neutral-500" />
-                CALIBRATION
-              </h2>
-
-              <div className="space-y-4">
-                {/* FOV */}
-                <div>
-                  <div className="flex justify-between text-xs font-mono">
-                    <span className="text-neutral-500 block">Field of View (FOV)</span>
-                    <span className="font-semibold text-neutral-800">{settings.fov}°</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="60"
-                    max="110"
-                    step="5"
-                    value={settings.fov}
-                    onChange={(e) => handleFovChange(parseInt(e.target.value))}
-                    className="w-full mt-2 accent-indigo-600 cursor-pointer"
-                  />
-                </div>
-
-                {/* Toggle Ghost */}
-                <div className="flex items-center justify-between py-2 border-t border-neutral-200/50">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-semibold text-neutral-800">Ghost Racer Replay</span>
-                    <span className="text-[10px] text-neutral-400 mt-0.5">Render PB run as competitor</span>
-                  </div>
-                  <button
-                    onClick={() => onChangeSettings({ ...settings, showGhost: !settings.showGhost })}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      settings.showGhost ? 'bg-indigo-600' : 'bg-neutral-300'
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                        settings.showGhost ? 'translate-x-4' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Password Management Option (Security Amenity) */}
-            <div className="pt-4 border-t border-neutral-200/60 leading-relaxed">
-              <h2 className="text-xs font-bold text-neutral-900 uppercase tracking-wider font-mono mb-3.5 flex items-center gap-2">
-                <Lock className="w-3.5 h-3.5 text-neutral-500" />
-                PASSWORD &amp; SECURITY
-              </h2>
-
-              <form onSubmit={handleUpdatePassword} className="space-y-3">
-                {passwordFeedback && (
-                  <div className={`p-2.5 text-[10px] rounded-lg border leading-snug font-mono ${
-                    passwordFeedback.type === 'error'
-                      ? 'bg-rose-50/50 border-rose-200 text-rose-600'
-                      : 'bg-green-50/50 border-green-200 text-green-600'
-                  }`}>
-                    {passwordFeedback.message}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 gap-2 text-xs">
-                  <input
-                    type="password"
-                    placeholder="Current Password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="w-full bg-white border border-neutral-250 py-1.5 px-3 rounded-lg text-neutral-800"
-                    required
-                  />
-                  <input
-                    type="password"
-                    placeholder="New Password (Min. 6)"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full bg-white border border-neutral-250 py-1.5 px-3 rounded-lg text-neutral-800"
-                    required
-                  />
-                  <input
-                    type="password"
-                    placeholder="Confirm New Password"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    className="w-full bg-white border border-neutral-250 py-1.5 px-3 rounded-lg text-neutral-800"
-                    required
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-2 bg-neutral-900 hover:bg-neutral-800 text-white font-semibold text-[10px] font-mono uppercase tracking-widest rounded-lg transition"
-                >
-                  Confirm Password Change
-                </button>
-              </form>
-            </div>
-
-            <div className="pt-4 border-t border-neutral-250 text-[10px] text-neutral-400 font-mono flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-indigo-500" />
-                Telemetry Authenticated
-              </span>
-              <ShieldCheck className="w-4 h-4 text-emerald-500 fill-current opacity-80" />
-            </div>
-          </div>
-        </div>
-
-      </div>
 
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-[100] bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -501,7 +275,7 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
               <LogOut className="w-5 h-5" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-base font-bold text-neutral-900 tracking-tight">Sign Out of Momentum?</h3>
+              <h3 className="text-base font-bold text-neutral-900 tracking-tight">Sign Out of Delta Rush?</h3>
               <p className="text-xs text-neutral-500 leading-relaxed">
                 Are you sure you want to exit your active runner session? You will need to authenticate again to access your custom levels and stats.
               </p>

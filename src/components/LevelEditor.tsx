@@ -308,8 +308,12 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
       return;
     }
 
+    // Generate a unique ID if this is a blank layout or still has the draft placeholder ID
+    const isNewDraft = !initialLevel?.id || initialLevel.id === 'momentum_builder_draft_temp_id';
+    const finalId = isNewDraft ? `level_${Date.now()}` : initialLevel.id;
+
     const compiled: LevelConfig = {
-      id: initialLevel?.id || `level_${Date.now()}`,
+      id: finalId,
       name: levelName.trim() || 'Custom course',
       description: levelDesc.trim(),
       theme: theme,
@@ -511,17 +515,15 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
                     <span className="text-neutral-300 capitalize">{b.type} block</span>
                     <span className="text-[10px] text-neutral-500">({b.x},{b.y},{b.z})</span>
                   </div>
-                  {b.id !== 'start_pad' && b.id !== 'end_pad' && b.type !== 'start' && b.type !== 'end' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteBlock(b.id);
-                      }}
-                      className="text-neutral-500 hover:text-red-400 p-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteBlock(b.id);
+                    }}
+                    className="text-neutral-500 hover:text-red-400 p-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               ))}
             </div>
@@ -659,16 +661,6 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
           <p className="text-[10px] text-neutral-500 leading-relaxed self-center uppercase font-bold text-center">
             Zero-Gravity Lab v1.0
           </p>
-          <button
-            onClick={() => {
-              const clipboardStr = JSON.stringify({ name: levelName, theme: theme, blocks: blocks }, null, 2);
-              navigator.clipboard.writeText(clipboardStr);
-              alert('Level JSON blueprints exported to clipboard! Check the Level Selector to paste it.');
-            }}
-            className="text-[10px] text-indigo-400 hover:text-indigo-300 hover:underline"
-          >
-            Export Blueprint Code
-          </button>
         </div>
 
       </div>

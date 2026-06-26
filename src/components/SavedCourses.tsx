@@ -12,9 +12,6 @@ interface SavedCoursesProps {
 
 export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditCustom, currentUser }: SavedCoursesProps) {
   const [customLevels, setCustomLevels] = useState<LevelConfig[]>([]);
-  const [importText, setImportText] = useState('');
-  const [importError, setImportError] = useState('');
-  const [showImportDialog, setShowImportDialog] = useState(false);
   const [copiedLevelId, setCopiedLevelId] = useState<string | null>(null);
   const [deletingLevel, setDeletingLevel] = useState<LevelConfig | null>(null);
   const [publishingLevel, setPublishingLevel] = useState<LevelConfig | null>(null);
@@ -105,6 +102,24 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
       setCustomLevels(updatedList);
       localStorage.setItem('custom_parkour_levels', JSON.stringify(updatedList));
 
+      // Decouple the builder draft if it matches the level being published
+      const savedDraft = localStorage.getItem('momentum_builder_draft');
+      if (savedDraft) {
+        try {
+          const parsed = JSON.parse(savedDraft) as LevelConfig;
+          if (parsed.id === publishingLevel.id) {
+            const decoupledDraft: LevelConfig = {
+              ...parsed,
+              id: `level_${Date.now()}`,
+              isPublished: false
+            };
+            localStorage.setItem('momentum_builder_draft', JSON.stringify(decoupledDraft));
+          }
+        } catch (e) {
+          console.error('Error decoupling draft on publish:', e);
+        }
+      }
+
       setPublishingLevel(null);
       synths.playFinish();
       alert(`"${published.name}" has been successfully published to the community! Custom edits are now locked.`);
@@ -114,38 +129,7 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
     }
   };
 
-  const handleImportLevel = () => {
-    try {
-      setImportError('');
-      if (!importText.trim()) {
-        setImportError('Please paste some level JSON code.');
-        return;
-      }
-      const data = JSON.parse(importText);
-      if (!data.id || !data.name || !Array.isArray(data.blocks)) {
-        setImportError('Invalid format. Level must have a name, ID, and list of blocks.');
-        return;
-      }
 
-      // Safeguard duplicates or override
-      const sanitizedId = `imported_${Date.now()}`;
-      const newLvl: LevelConfig = {
-        ...data,
-        id: sanitizedId,
-        isCustom: true
-      };
-
-      const updated = [...customLevels, newLvl];
-      setCustomLevels(updated);
-      localStorage.setItem('custom_parkour_levels', JSON.stringify(updated));
-      setShowImportDialog(false);
-      setImportText('');
-      synths.playFinish();
-      alert(`Successfully imported: "${newLvl.name}"!`);
-    } catch (e) {
-      setImportError('Failed to parse JSON. Please check compatibility.');
-    }
-  };
 
   const exportLevelJSON = (lvl: LevelConfig, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -205,14 +189,6 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
 
         <div className="flex items-center gap-3">
           <button
-            id="import-course-btn"
-            onClick={() => { setShowImportDialog(true); synths.playTick(); }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-neutral-150 hover:bg-neutral-200 text-neutral-800 rounded-xl font-bold text-xs transition duration-200 cursor-pointer border border-neutral-200/50 shadow-sm"
-          >
-            <Upload className="w-4 h-4 text-neutral-600" />
-            Import Shared Course
-          </button>
-          <button
             id="create-course-btn"
             onClick={() => { onCreateNewCustom(); synths.playTick(); }}
             className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition shadow-md hover:shadow-indigo-500/10 duration-200 cursor-pointer"
@@ -239,12 +215,6 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
               className="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-850 text-white rounded-xl font-bold text-xs transition duration-200 cursor-pointer"
             >
               Start Building Let's Go
-            </button>
-            <button
-              onClick={() => { setShowImportDialog(true); synths.playTick(); }}
-              className="px-4 py-2.5 bg-white border border-neutral-200 hover:bg-neutral-50 text-neutral-700 rounded-xl font-semibold text-xs transition duration-200 cursor-pointer shadow-sm"
-            >
-              Paste Course Code
             </button>
           </div>
         </div>
@@ -371,51 +341,7 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
         </div>
       )}
 
-      {/* JSON Import Dialog overlay */}
-      {showImportDialog && (
-        <div className="fixed inset-0 z-50 bg-neutral-950/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl border border-neutral-200/80 animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center gap-2 mb-2 text-neutral-900">
-              <Upload className="w-5 h-5 text-indigo-600" />
-              <h2 className="text-lg font-black tracking-tight text-neutral-850">Import Layout Code</h2>
-            </div>
-            <p className="text-xs text-neutral-500 leading-relaxed">
-              Paste the level JSON text configuration to compile it into your list.
-            </p>
 
-            <textarea
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder='{ "id": "custom", "name": "...", "theme": "...", "blocks": [...] }'
-              className="w-full h-44 mt-4 p-3 bg-neutral-50 border border-neutral-200 rounded-xl text-neutral-800 font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-            />
-
-            {importError && (
-              <p className="text-xs text-red-500 font-semibold mt-2">{importError}</p>
-            )}
-
-            <div className="flex gap-2 justify-end mt-4">
-              <button
-                onClick={() => {
-                  setShowImportDialog(false);
-                  setImportText('');
-                  setImportError('');
-                  synths.playTick();
-                }}
-                className="px-4 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-700 rounded-lg transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleImportLevel}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition shadow"
-              >
-                Assemble Level
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Custom Confirmation Screen Dialog for Deletion */}
       {deletingLevel && (

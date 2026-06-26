@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Gamepad2, Code, Volume2, LogOut, User, KeyRound, ShieldAlert, Users, Trophy } from 'lucide-react';
+import { Code, Volume2, LogOut, User, KeyRound, ShieldAlert, Users, Trophy, Settings, HelpCircle } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import LevelSelector from './components/LevelSelector';
 import LevelEditor from './components/LevelEditor';
@@ -9,6 +9,9 @@ import Races from './components/Races';
 import GameCanvas from './components/GameCanvas';
 import Leaderboard from './components/Leaderboard';
 import AuthScreen from './components/AuthScreen';
+import SettingsModal from './components/SettingsModal';
+import HelpModal from './components/HelpModal';
+import PrivacyModal from './components/PrivacyModal';
 import { LevelConfig, GameSettings, UserAccount, RaceParticipant } from './types';
 import { synths } from './audio';
 
@@ -46,6 +49,7 @@ export default function App() {
   const [activeLevel, setActiveLevel] = useState<LevelConfig | null>(null);
   const [raceMode, setRaceMode] = useState<boolean>(false);
   const [raceOpponents, setRaceOpponents] = useState<RaceParticipant[]>([]);
+  const [isEditingSaved, setIsEditingSaved] = useState<boolean>(false);
   const [editingLevel, setEditingLevel] = useState<LevelConfig | null>(() => {
     const saved = localStorage.getItem('momentum_builder_draft');
     if (saved) {
@@ -61,6 +65,11 @@ export default function App() {
   // Leaderboard modal states
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [leaderboardLevel, setLeaderboardLevel] = useState<{ id: string; name: string } | null>(null);
+
+  // System settings modal state
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
 
   // Initialize volume settings from LocalStorage
   useEffect(() => {
@@ -121,12 +130,12 @@ export default function App() {
     const ourPlace = ourRankIndex !== -1 ? ourRankIndex + 1 : 6;
 
     let ratingChange = 0;
-    if (ourPlace === 1) ratingChange = 100;
-    else if (ourPlace === 2) ratingChange = 60;
-    else if (ourPlace === 3) ratingChange = 30;
-    else if (ourPlace === 4) ratingChange = 10;
-    else if (ourPlace === 5) ratingChange = -10;
-    else ratingChange = -30;
+    if (ourPlace === 1) ratingChange = 10;
+    else if (ourPlace === 2) ratingChange = 5;
+    else if (ourPlace === 3) ratingChange = 2;
+    else if (ourPlace === 4) ratingChange = -2;
+    else if (ourPlace === 5) ratingChange = -5;
+    else ratingChange = -10;
 
     const currentRatingStr = localStorage.getItem(`racer_rating_${currentUser.username}`);
     const currentRating = currentRatingStr ? parseInt(currentRatingStr) : 1000;
@@ -157,13 +166,30 @@ export default function App() {
   };
 
   const handleStartBuilder = () => {
+    setIsEditingSaved(false);
     const saved = localStorage.getItem('momentum_builder_draft');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved) as LevelConfig;
+        let parsed = JSON.parse(saved) as LevelConfig;
+
+        // Decouple if this draft matches any published level
+        const stored = localStorage.getItem('custom_parkour_levels');
+        const list: LevelConfig[] = stored ? JSON.parse(stored) : [];
+        const isDraftPublished = parsed.isPublished || list.some(lvl => lvl.id === parsed.id && lvl.isPublished);
+
+        if (isDraftPublished) {
+          parsed = {
+            ...parsed,
+            id: `level_${Date.now()}`,
+            isPublished: false
+          };
+          localStorage.setItem('momentum_builder_draft', JSON.stringify(parsed));
+        }
+
         setEditingLevel(parsed);
       } catch (e) {
         console.error(e);
+        setEditingLevel(null);
       }
     } else {
       setEditingLevel(null);
@@ -177,6 +203,7 @@ export default function App() {
       alert('This course has already been published to the community and cannot be edited.');
       return;
     }
+    setIsEditingSaved(true);
     setEditingLevel(level);
     setTab('editor');
     synths.playTick();
@@ -187,21 +214,35 @@ export default function App() {
       const stored = localStorage.getItem('custom_parkour_levels');
       let list: LevelConfig[] = stored ? JSON.parse(stored) : [];
       
-      const existsIndex = list.findIndex(lvl => lvl.id === level.id);
+      // If we are NOT editing an already saved course, force a brand new unique ID so it saves as a new course!
+      let levelToSave = level;
+      if (!isEditingSaved) {
+        levelToSave = {
+          ...level,
+          id: `level_${Date.now()}`
+        };
+      }
+
+      const existsIndex = list.findIndex(lvl => lvl.id === levelToSave.id);
       if (existsIndex >= 0) {
         if (list[existsIndex].isPublished) {
           alert('This course has already been published to the community and cannot be edited.');
           return;
         }
         // Clear personal best times and ghost replays on that custom course as it has been edited
-        localStorage.removeItem(`best_time_${level.id}`);
-        localStorage.removeItem(`ghost_replay_${level.id}`);
-        list[existsIndex] = level;
+        localStorage.removeItem(`best_time_${levelToSave.id}`);
+        localStorage.removeItem(`ghost_replay_${levelToSave.id}`);
+        list[existsIndex] = levelToSave;
       } else {
-        list.push(level);
+        list.push(levelToSave);
       }
       
       localStorage.setItem('custom_parkour_levels', JSON.stringify(list));
+      
+      // Update editingLevel state and local draft storage with the saved level config
+      setEditingLevel(levelToSave);
+      localStorage.setItem('momentum_builder_draft', JSON.stringify(levelToSave));
+
       setTab('saved');
       synths.playFinish();
     } catch (e) {
@@ -275,12 +316,12 @@ export default function App() {
               onClick={() => { setTab('home'); synths.playTick(); }}
               className="flex items-center gap-2 cursor-pointer group"
             >
-              <div className="p-1.5 bg-neutral-900 text-white rounded-lg group-hover:bg-indigo-600 transition duration-200">
-                <Gamepad2 className="w-5 h-5 fill-current" />
+              <div className="w-8 h-8 bg-neutral-900 text-white rounded-lg group-hover:bg-indigo-600 transition duration-200 flex items-center justify-center">
+                <span className="text-lg font-black font-sans leading-none select-none">Δ</span>
               </div>
               <span className="font-extrabold tracking-tight text-neutral-950 font-sans text-sm md:text-base uppercase">
-                Momentum
-                <span className="text-xs font-mono font-bold text-indigo-600 lowercase ml-1">.tours</span>
+                Delta Rush
+                <span className="text-xs font-mono font-bold text-indigo-600 lowercase ml-1">.win</span>
               </span>
             </div>
 
@@ -300,11 +341,11 @@ export default function App() {
                 onClick={() => { setTab('levels'); synths.playTick(); }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition duration-200 cursor-pointer ${
                   tab === 'levels' 
-                    ? 'bg-neutral-150 text-neutral-950' 
-                    : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-50'
+                    ? 'bg-red-50 text-red-600 font-bold' 
+                    : 'text-red-500 hover:text-red-600 hover:bg-red-50/50'
                 }`}
               >
-                Time Trials
+                Rush!
               </button>
               <button
                 id="saved-courses-tab-trigger"
@@ -350,23 +391,29 @@ export default function App() {
               </button>
             </nav>
 
-            {/* Quick calibration status and active custom profile indicator */}
-            <div className="hidden sm:flex items-center gap-4 text-xs font-mono">
-              <div className="flex items-center gap-1.5 text-neutral-400">
-                <Volume2 className="w-4 h-4 text-neutral-400" />
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={settings.sfxVolume}
-                  onChange={(e) => {
-                    handleUpdateSettings({ ...settings, sfxVolume: parseFloat(e.target.value) });
-                  }}
-                  className="w-16 accent-indigo-600 cursor-pointer"
-                  title="Master volume"
-                />
-              </div>
+            {/* Settings & Active User Badge */}
+            <div className="hidden sm:flex items-center gap-3 text-xs font-mono">
+              <button
+                onClick={() => {
+                  setIsHelpOpen(true);
+                  synths.playTick();
+                }}
+                className="p-1.5 rounded-xl hover:bg-neutral-100 text-neutral-500 hover:text-neutral-800 transition cursor-pointer flex items-center justify-center"
+                title="Help & Field Guide"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsSettingsOpen(true);
+                  synths.playTick();
+                }}
+                className="p-1.5 rounded-xl hover:bg-neutral-100 text-neutral-500 hover:text-neutral-800 transition cursor-pointer flex items-center justify-center"
+                title="System Settings & Runner Customization"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
 
               {/* Active User Badge */}
               <div className="flex items-center gap-2 pl-3 border-l border-neutral-200">
@@ -488,25 +535,46 @@ export default function App() {
           localBest={getPBTime(leaderboardLevel.id)}
           currentUser={currentUser}
           onClose={() => setLeaderboardOpen(false)}
-          exportGhostReplay={() => {
-            const data = localStorage.getItem(`ghost_replay_${leaderboardLevel.id}`);
-            if (data) {
-              navigator.clipboard.writeText(data);
-              alert('Ghost Telemetry JSON Copied!');
-            } else {
-              alert('No telemetry records registered yet.');
-            }
-          }}
         />
       )}
+
+      {/* Settings Modal Portal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        settings={settings}
+        onChangeSettings={handleUpdateSettings}
+        currentUser={currentUser}
+        onUpdateCurrentUser={handleUpdateCurrentUser}
+      />
+
+      {/* Help Modal Portal */}
+      <HelpModal
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+      />
+
+      {/* Privacy Policy Modal Portal */}
+      <PrivacyModal
+        isOpen={isPrivacyOpen}
+        onClose={() => setIsPrivacyOpen(false)}
+      />
 
       {/* Minimalistic Footer */}
       {tab !== 'play' && tab !== 'editor' && (
         <footer className="border-t border-neutral-200 py-6 bg-neutral-50">
           <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-neutral-400">
-            <p>© 2026 Momentum Engine. Dedicated to physical movement and speed.</p>
+            <p>© 2026 Delta Rush Engine. Dedicated to physical movement and speed.</p>
             <div className="flex gap-4">
-              <span className="hover:text-neutral-700 transition cursor-help" title="W,A,S,D: Move, Mouse: Camera rotation, Space: Jump, Shift: Slide slide">Controls Index</span>
+              <span
+                onClick={() => {
+                  setIsPrivacyOpen(true);
+                  synths.playTick();
+                }}
+                className="hover:text-neutral-700 transition cursor-pointer underline decoration-dotted underline-offset-2"
+              >
+                Privacy Policy
+              </span>
               <span>•</span>
               <span className="text-indigo-600 font-bold">Responsive 3D WebGL</span>
             </div>
