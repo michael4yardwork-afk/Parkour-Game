@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Plus, Trash2, Code, Upload, Award, Sparkles, FolderHeart, Check, Copy, Globe, User } from 'lucide-react';
+import { Play, Plus, Trash2, Code, Upload, Award, Sparkles, FolderHeart, Check, Copy, Globe, User, Search, RotateCcw, X } from 'lucide-react';
 import { LevelConfig, SceneTheme, UserAccount } from '../types';
 import { synths } from '../audio';
 
@@ -15,6 +15,9 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
   const [copiedLevelId, setCopiedLevelId] = useState<string | null>(null);
   const [deletingLevel, setDeletingLevel] = useState<LevelConfig | null>(null);
   const [publishingLevel, setPublishingLevel] = useState<LevelConfig | null>(null);
+
+  // Search & Filtering Amenities
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Load custom levels from storage
   const loadCustomLevels = () => {
@@ -172,6 +175,17 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
     return null;
   };
 
+  // Filter/sorting computation
+  const filteredLevels = customLevels.filter(lvl => {
+    const query = searchQuery.toLowerCase().trim();
+    return !query || 
+      lvl.name.toLowerCase().includes(query) ||
+      (lvl.description && lvl.description.toLowerCase().includes(query)) ||
+      (lvl.creator && lvl.creator.toLowerCase().includes(query));
+  });
+
+  const sortedLevels = [...filteredLevels].sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <div id="saved-courses-view" className="max-w-6xl mx-auto px-4 py-8 space-y-8 font-sans">
       
@@ -199,9 +213,23 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
         </div>
       </div>
 
+      {/* Search and Filters */}
+      {customLevels.length > 0 && (
+        <div className="flex items-center gap-3 bg-neutral-100 border border-neutral-200/50 p-2.5 rounded-2xl w-full max-w-xl shadow-inner">
+          <Search className="w-4 h-4 text-neutral-400 ml-1.5 shrink-0" />
+          <input
+            type="text"
+            placeholder="Filter courses by name, creator, or keywords..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="bg-transparent text-sm text-neutral-800 w-full focus:outline-none placeholder-neutral-400 font-medium"
+          />
+        </div>
+      )}
+
       {/* Grid List */}
       {customLevels.length === 0 ? (
-        <div className="bg-neutral-50 border border-dashed border-neutral-200 rounded-3xl py-16 px-6 text-center max-w-xl mx-auto my-6 shadow-sm">
+        <div className="bg-white border border-dashed border-neutral-200 rounded-3xl py-16 px-6 text-center max-w-xl mx-auto my-6 shadow-sm">
           <div className="w-14 h-14 bg-neutral-100 border border-neutral-200 rounded-2xl flex items-center justify-center mx-auto mb-4 text-neutral-400">
             <Code className="w-6 h-6 opacity-60" />
           </div>
@@ -218,9 +246,31 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
             </button>
           </div>
         </div>
+      ) : sortedLevels.length === 0 ? (
+        <div className="bg-white border border-dashed border-neutral-200 rounded-3xl py-12 px-6 text-center max-w-md mx-auto my-6 shadow-sm">
+          <div className="w-12 h-12 bg-neutral-50 border border-neutral-200 rounded-2xl flex items-center justify-center mx-auto mb-4 text-neutral-400">
+            <Search className="w-5 h-5 opacity-60" />
+          </div>
+          <h3 className="text-sm font-bold text-neutral-800">No courses match your criteria</h3>
+          <p className="text-xs text-neutral-500 mt-2 max-w-xs mx-auto leading-relaxed">
+            No saved courses found matching "{searchQuery}". Try a different name, creator, or keyword.
+          </p>
+          <div className="mt-5 flex justify-center">
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                synths.playTick();
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs transition duration-200 cursor-pointer shadow-sm"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Search</span>
+            </button>
+          </div>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {customLevels.map(level => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-3 duration-300">
+          {sortedLevels.map(level => {
             const pb = getPB(level.id);
             const isCreator = !level.creator || level.creator.toLowerCase().trim() === currentUser.username.toLowerCase().trim();
             const canEdit = isCreator && !level.isPublished;
@@ -254,17 +304,6 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
                   
                   {/* Small Utils Tools overlay */}
                   <div className="flex gap-1 opacity-60 group-hover:opacity-100 transition duration-200 select-none">
-                    <button
-                      onClick={(e) => exportLevelJSON(level, e)}
-                      className="p-1.5 text-neutral-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition opacity-100"
-                      title="Copy sharing key JSON code"
-                    >
-                      {copiedLevelId === level.id ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </button>
                     {canEdit && (
                       <button
                         onClick={(e) => {
@@ -277,13 +316,23 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
                         <Code className="w-3.5 h-3.5" />
                       </button>
                     )}
-                    <button
-                      onClick={(e) => deleteCustomLevel(level, e)}
-                      className="p-1.5 text-neutral-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                      title="Delete saved course"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {isCreator ? (
+                      <button
+                        onClick={(e) => deleteCustomLevel(level, e)}
+                        className="p-1.5 text-neutral-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                        title="Delete saved course"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => deleteCustomLevel(level, e)}
+                        className="p-1.5 text-neutral-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                        title="Remove course from saved"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -343,37 +392,71 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
 
 
 
-      {/* Custom Confirmation Screen Dialog for Deletion */}
+      {/* Custom Confirmation Screen Dialog for Deletion or Removal */}
       {deletingLevel && (
         <div className="fixed inset-0 z-50 bg-neutral-950/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl border border-neutral-200/80 animate-in fade-in zoom-in duration-200 text-center">
-            <div className="w-12 h-12 bg-rose-50 border border-rose-100 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500">
-              <Trash2 className="w-5 h-5 animate-bounce" />
-            </div>
-            <h3 className="text-base font-black tracking-tight text-neutral-850">Delete saved course?</h3>
-            <p className="text-xs text-neutral-500 mt-2.5 leading-relaxed">
-              Are you sure you want to delete <span className="font-bold text-neutral-850">"{deletingLevel.name}"</span>?
-            </p>
-            <p className="text-[11px] text-rose-600 bg-rose-50/50 border border-rose-100/30 rounded-lg p-2.5 mt-3 leading-normal font-medium">
-              This action is permanent and will clear all registered personal best times, records, and ghost runs for this course.
-            </p>
-            <div className="flex gap-2.5 justify-center mt-5">
-              <button
-                onClick={() => {
-                  setDeletingLevel(null);
-                  synths.playTick();
-                }}
-                className="px-4 py-2 bg-neutral-100 hover:bg-neutral-150 text-neutral-700 text-xs font-bold rounded-xl transition flex-1 cursor-pointer"
-              >
-                Go Back
-              </button>
-              <button
-                onClick={confirmDeleteLevel}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow shadow-rose-500/10 flex-1 cursor-pointer"
-              >
-                Delete Forever
-              </button>
-            </div>
+            {(!deletingLevel.creator || deletingLevel.creator.toLowerCase().trim() === currentUser.username.toLowerCase().trim()) ? (
+              <>
+                <div className="w-12 h-12 bg-rose-50 border border-rose-100 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500">
+                  <Trash2 className="w-5 h-5 animate-bounce" />
+                </div>
+                <h3 className="text-base font-black tracking-tight text-neutral-850">Delete saved course?</h3>
+                <p className="text-xs text-neutral-500 mt-2.5 leading-relaxed">
+                  Are you sure you want to delete <span className="font-bold text-neutral-850">"{deletingLevel.name}"</span>?
+                </p>
+                <p className="text-[11px] text-rose-600 bg-rose-50/50 border border-rose-100/30 rounded-lg p-2.5 mt-3 leading-normal font-medium">
+                  This action is permanent and will clear all registered personal best times, records, and ghost runs for this course.
+                </p>
+                <div className="flex gap-2.5 justify-center mt-5">
+                  <button
+                    onClick={() => {
+                      setDeletingLevel(null);
+                      synths.playTick();
+                    }}
+                    className="px-4 py-2 bg-neutral-100 hover:bg-neutral-150 text-neutral-700 text-xs font-bold rounded-xl transition flex-1 cursor-pointer"
+                  >
+                    Go Back
+                  </button>
+                  <button
+                    onClick={confirmDeleteLevel}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow shadow-rose-500/10 flex-1 cursor-pointer"
+                  >
+                    Delete Forever
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 bg-rose-50 border border-rose-100 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500">
+                  <X className="w-5 h-5 animate-bounce" />
+                </div>
+                <h3 className="text-base font-black tracking-tight text-neutral-850">Remove from Saved?</h3>
+                <p className="text-xs text-neutral-500 mt-2.5 leading-relaxed">
+                  Are you sure you want to remove this course from your saved courses?
+                </p>
+                <p className="text-[11px] text-rose-600 bg-rose-50/50 border border-rose-100/30 rounded-lg p-2.5 mt-3 leading-normal font-medium">
+                  This action will remove the course from your saved list and unclick its bookmark status in the Community workshop tab.
+                </p>
+                <div className="flex gap-2.5 justify-center mt-5">
+                  <button
+                    onClick={() => {
+                      setDeletingLevel(null);
+                      synths.playTick();
+                    }}
+                    className="px-4 py-2 bg-neutral-100 hover:bg-neutral-150 text-neutral-700 text-xs font-bold rounded-xl transition flex-1 cursor-pointer"
+                  >
+                    Go Back
+                  </button>
+                  <button
+                    onClick={confirmDeleteLevel}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition shadow shadow-rose-500/10 flex-1 cursor-pointer"
+                  >
+                    Remove Course
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

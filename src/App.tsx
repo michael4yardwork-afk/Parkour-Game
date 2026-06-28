@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Code, Volume2, LogOut, User, KeyRound, ShieldAlert, Users, Trophy, Settings, HelpCircle } from 'lucide-react';
+import { Code, Volume2, LogOut, User, KeyRound, ShieldAlert, Users, Trophy, Settings, HelpCircle, Bookmark } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import LevelSelector from './components/LevelSelector';
 import LevelEditor from './components/LevelEditor';
@@ -23,7 +23,8 @@ const DEFAULT_SETTINGS: GameSettings = {
   musicVolume: 0.5,
   sfxVolume: 0.5,
   showGhost: false,
-  invertY: false
+  invertY: false,
+  adjustablePerspective: false
 };
 
 type AppTab = 'home' | 'levels' | 'saved' | 'community' | 'editor' | 'play' | 'races';
@@ -147,7 +148,7 @@ export default function App() {
     const historyEntry = {
       id: `race_run_${Date.now()}`,
       levelId: activeLevel?.id || 'tutorial_skyway',
-      levelName: activeLevel?.name || 'Tutorial Skyway',
+      levelName: activeLevel?.name || 'Delta Skyway',
       playerName: currentUser.username,
       playerColor: localStorage.getItem(`racer_color_${currentUser.username}`) || '#3b82f6',
       place: ourPlace,
@@ -304,8 +305,10 @@ export default function App() {
     return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
+  const isCoolBlueTab = ['home', 'levels', 'saved', 'community'].includes(tab);
+
   return (
-    <div className="min-h-screen bg-white text-neutral-800 selection:bg-indigo-600 selection:text-white flex flex-col justify-between">
+    <div className={`min-h-screen text-neutral-800 selection:bg-indigo-600 selection:text-white flex flex-col justify-between transition-colors duration-300 ${isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-white'}`}>
       
       {/* Primary Navigation Shell */}
       {tab !== 'play' && tab !== 'editor' && (
@@ -350,13 +353,14 @@ export default function App() {
               <button
                 id="saved-courses-tab-trigger"
                 onClick={() => { setTab('saved'); synths.playTick(); }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition duration-200 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition duration-200 cursor-pointer flex items-center gap-1.5 ${
                   tab === 'saved' 
                     ? 'bg-neutral-150 text-neutral-950' 
                     : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-50'
                 }`}
               >
-                Saved Courses
+                <Bookmark className="w-3.5 h-3.5 text-neutral-400" />
+                <span>Saved Courses</span>
               </button>
               <button
                 id="community-workshop-tab-trigger"
@@ -428,7 +432,7 @@ export default function App() {
       )}
 
       {/* Screen Routing Outlet */}
-      <main className="flex-1 bg-white">
+      <main className={`flex-1 transition-colors duration-300 ${isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-white'}`}>
         {tab === 'home' && (
           <Dashboard
             settings={settings}
@@ -562,7 +566,7 @@ export default function App() {
 
       {/* Minimalistic Footer */}
       {tab !== 'play' && tab !== 'editor' && (
-        <footer className="border-t border-neutral-200 py-6 bg-neutral-50">
+        <footer className={`border-t border-neutral-200/60 py-6 transition-colors duration-300 ${isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-neutral-50'}`}>
           <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-neutral-400">
             <p>© 2026 Delta Rush Engine. Dedicated to physical movement and speed.</p>
             <div className="flex gap-4">

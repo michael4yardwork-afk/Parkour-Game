@@ -64,7 +64,6 @@ export default function GameCanvas({
   const lastJumpBlockCollisionTimeRef = useRef<number>(0);
   const lastWallTouchRef = useRef<{ normal: THREE.Vector3; time: number; blockId: string } | null>(null);
   const elapsedTimeRef = useRef<number>(0.0);
-  const sprintingRef = useRef<boolean>(false);
   const currentMaxSpeedRef = useRef<number>(12.0);
   const movementStartedRef = useRef<boolean>(false);
 
@@ -100,7 +99,7 @@ export default function GameCanvas({
     velocity: THREE.Vector3;
     grounded: boolean;
     stumbleTimer: number;
-    sprintTimer: number;
+    boostTimer: number;
     jumpCooldown: number;
     lastCheckpointDistance: number;
     lastCheckpointPos: THREE.Vector3;
@@ -429,7 +428,7 @@ export default function GameCanvas({
         opp.velocity.set(0, 0, 0);
         opp.grounded = true;
         opp.stumbleTimer = 0;
-        opp.sprintTimer = 0;
+        opp.boostTimer = 0;
         opp.jumpCooldown = 0;
         opp.lastCheckpointDistance = 0;
         opp.lastCheckpointPos = new THREE.Vector3(spawnX, spawnY, spawnZ);
@@ -454,7 +453,6 @@ export default function GameCanvas({
 
     currentRunFramesRef.current = [];
     elapsedTimeRef.current = 0.00;
-    sprintingRef.current = false;
     currentMaxSpeedRef.current = 12.0;
     movementStartedRef.current = false;
     setElapsedTime(0.00);
@@ -714,7 +712,7 @@ export default function GameCanvas({
       velocity: THREE.Vector3;
       grounded: boolean;
       stumbleTimer: number;
-      sprintTimer: number;
+      boostTimer: number;
       jumpCooldown: number;
       lastCheckpointDistance: number;
       lastCheckpointPos: THREE.Vector3;
@@ -793,7 +791,7 @@ export default function GameCanvas({
           velocity: new THREE.Vector3(0, 0, 0),
           grounded: true,
           stumbleTimer: 0,
-          sprintTimer: 0,
+          boostTimer: 0,
           jumpCooldown: 0,
           lastCheckpointDistance: 0,
           lastCheckpointPos: new THREE.Vector3(0, 1.2, 0)
@@ -849,7 +847,6 @@ export default function GameCanvas({
             ry: playerYaw.current,
             state: wallRunDirectionRef.current === 'left' ? 'wall_left' 
                    : wallRunDirectionRef.current === 'right' ? 'wall_right'
-                   : sprintingRef.current ? 'sprint' 
                    : climbingRef.current ? 'climb' 
                    : groundedRef.current ? 'run' : 'jump'
           });
@@ -1007,20 +1004,20 @@ export default function GameCanvas({
             if (opp.stumbleTimer > 0) {
               opp.stumbleTimer -= dt;
               speedMultiplier = 0.45; // stumble slows them down significantly
-            } else if (opp.sprintTimer > 0) {
-              opp.sprintTimer -= dt;
-              speedMultiplier = 1.35; // sprint speeds them up
+            } else if (opp.boostTimer > 0) {
+              opp.boostTimer -= dt;
+              speedMultiplier = 1.35; // boost speeds them up
             } else {
-              // Random stumbles or sprints for randomness!
+              // Random stumbles or speed boosts for randomness!
               const roll = Math.random();
-              // Faster bots stumble less and sprint more often
+              // Faster bots stumble less and boost more often
               const stumbleChance = opp.baseSpeed >= 11.0 ? 0.003 : (opp.baseSpeed >= 9.5 ? 0.008 : (opp.baseSpeed >= 7.5 ? 0.018 : 0.03));
-              const sprintChance = opp.baseSpeed >= 11.0 ? 0.30 : (opp.baseSpeed >= 9.5 ? 0.18 : (opp.baseSpeed >= 7.5 ? 0.08 : 0.02));
+              const boostChance = opp.baseSpeed >= 11.0 ? 0.30 : (opp.baseSpeed >= 9.5 ? 0.18 : (opp.baseSpeed >= 7.5 ? 0.08 : 0.02));
 
               if (roll < stumbleChance * dt * 60) {
                 opp.stumbleTimer = 0.8 + Math.random() * 0.8;
-              } else if (roll < sprintChance * dt * 60) {
-                opp.sprintTimer = 1.5 + Math.random() * 1.5;
+              } else if (roll < boostChance * dt * 60) {
+                opp.boostTimer = 1.5 + Math.random() * 1.5;
               }
             }
 
@@ -1042,10 +1039,9 @@ export default function GameCanvas({
             let botSpeed = opp.baseSpeed * speedMultiplier * speedBlockMultiplier * levelMultiplier;
 
             // Enforce that NPCs cannot move faster than a regular player under equivalent conditions:
-            // - Regular player base running limit is 12.0
-            // - Regular player sprint limit is 18.0
+            // - Regular player maximum speed is up to 18.0
             // - Speed block multiplies limit by 1.6
-            const playerLimit = (opp.sprintTimer > 0 ? 18.0 : 12.0) * speedBlockMultiplier * speedBoostCap;
+            const playerLimit = (opp.boostTimer > 0 ? 18.0 : 12.0) * speedBlockMultiplier * speedBoostCap;
             if (botSpeed > playerLimit) {
               botSpeed = playerLimit;
             }
@@ -1055,6 +1051,14 @@ export default function GameCanvas({
             // Limit speed for Monochrome Void to prevent completing before 24.0 seconds
             if (level.id === 'monochrome_void') {
               const maxAllowedProgress = (elapsedTimeRef.current / 24.05) * totalSplineLengthRef.current;
+              if (opp.progressDistance > maxAllowedProgress) {
+                opp.progressDistance = maxAllowedProgress;
+              }
+            }
+
+            // Limit speed for Sunset Ridge Trial to prevent completing before 20.0 seconds
+            if (level.id === 'sunset_ridge') {
+              const maxAllowedProgress = (elapsedTimeRef.current / 20.05) * totalSplineLengthRef.current;
               if (opp.progressDistance > maxAllowedProgress) {
                 opp.progressDistance = maxAllowedProgress;
               }
@@ -1303,6 +1307,12 @@ export default function GameCanvas({
       }
 
       if (renderer && scene && camera) {
+        // Force default camera forward orientation if perspective adjustment is off
+        if (!settings.adjustablePerspective) {
+          playerYaw.current = Math.PI;
+          playerPitch.current = 0;
+        }
+
         // Render Camera following Player offsets
         const playerHeightOffset = 1.7;
         
@@ -1499,7 +1509,7 @@ export default function GameCanvas({
         }
       } else {
         // Look control in the right half
-        if (lookTouchIdRef.current === null) {
+        if (lookTouchIdRef.current === null && settings.adjustablePerspective) {
           lookTouchIdRef.current = touch.identifier;
           touchLookStartRef.current = { x: touch.clientX, y: touch.clientY };
         }
@@ -1530,7 +1540,7 @@ export default function GameCanvas({
           touchJoystickOffsetRef.current = { x: ox, y: oy };
         }
       } else if (touch.identifier === lookTouchIdRef.current) {
-        if (touchLookStartRef.current) {
+        if (touchLookStartRef.current && settings.adjustablePerspective) {
           const dx = touch.clientX - touchLookStartRef.current.x;
           const dy = touch.clientY - touchLookStartRef.current.y;
           
@@ -1626,7 +1636,7 @@ export default function GameCanvas({
   // Handle Mouse movement looking rotations
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isLocked) return;
+      if (!isLocked || !settings.adjustablePerspective) return;
 
       const sensitivity = settings.mouseSensitivity * 0.0015;
       playerYaw.current -= e.movementX * sensitivity;
@@ -1640,7 +1650,7 @@ export default function GameCanvas({
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
     };
-  }, [isLocked, settings.mouseSensitivity, settings.invertY]);
+  }, [isLocked, settings.mouseSensitivity, settings.invertY, settings.adjustablePerspective]);
 
   // Main custom bounding-box collision checker and physics step solver
   const updatePhysics = (dt: number) => {
@@ -1663,8 +1673,8 @@ export default function GameCanvas({
                         keysRef.current['arrowright'] || keysRef.current['right'] ||
                         (isMobileRef.current && touchJoystickActiveRef.current && (Math.abs(touchJoystickOffsetRef.current.x) > 5 || Math.abs(touchJoystickOffsetRef.current.y) > 5));
 
-    // Air drag dampeners - lower when actively accelerating so we can reach max speed limits (normal / sprint)
-    const activeDrag = sprintingRef.current ? 2.5 : 4.02;
+    // Air drag dampeners - lower when actively accelerating so we can reach max speed limits (equivalent to previous sprint)
+    const activeDrag = 2.5;
     const dragX = groundedRef.current ? (keysPressed ? activeDrag : 8.5) : 1.5;
     const dragZ = groundedRef.current ? (keysPressed ? activeDrag : 8.5) : 1.5;
     playerVel.current.x -= playerVel.current.x * dragX * dt;
@@ -1702,28 +1712,21 @@ export default function GameCanvas({
 
     if (!movementStartedRef.current) {
       const hasInput = (Math.abs(moveForward) > 0.01) || (Math.abs(moveRight) > 0.01) || 
-                       keysRef.current[' '] || keysRef.current['space'] || 
-                       keysRef.current['shift'] || keysRef.current['c'];
+                       keysRef.current[' '] || keysRef.current['space'];
       if (hasInput) {
         movementStartedRef.current = true;
       }
     }
 
-    // Sprinting modifiers and dynamic max speed limits
+    // Dynamic running speed limits (equivalent to previous sprint parameters)
     let accelRate = groundedRef.current ? 50.0 : 18.0; // Air steering rate is lowered to 18.0 to make jumps less floaty and far
 
-    const isHoldingSprint = keysRef.current['shift'] || keysRef.current['c'];
-
     if (groundedRef.current) {
-      if (isHoldingSprint && inputVec.length() > 0.1) {
-        if (!sprintingRef.current) {
-          sprintingRef.current = true;
-        }
-        // Gradually accelerate max speed on the ground up to 6 m/s faster than typical running speed.
-        // Typical running speed is 12.0, sprinting limit is 18.0.
+      if (inputVec.length() > 0.1) {
+        // Gradually accelerate max speed on the ground up to 18.0 (previously sprinting speed).
         currentMaxSpeedRef.current = Math.min(18.0, currentMaxSpeedRef.current + 2.0 * dt);
 
-        // Apply exactly 2 m/s^2 linear acceleration during active sprint towards currentMaxSpeedRef
+        // Apply exactly 2 m/s^2 linear acceleration towards currentMaxSpeedRef
         const horizVel = new THREE.Vector2(playerVel.current.x, playerVel.current.z);
         const horizSpeed = horizVel.length();
         if (horizSpeed < currentMaxSpeedRef.current) {
@@ -1737,16 +1740,11 @@ export default function GameCanvas({
           }
         }
       } else {
-        sprintingRef.current = false;
-        // Gradually decay back to normal running speed on the ground
+        // Gradually decay back to base speed when not actively running on the ground
         currentMaxSpeedRef.current = Math.max(12.0, currentMaxSpeedRef.current - 12.0 * dt);
       }
     } else {
-      // In the air, sprinting state can be held, but we CANNOT increase max speed further.
-      // The current max speed limit is locked at whatever it was when taking off.
-      if (!isHoldingSprint) {
-        sprintingRef.current = false;
-      }
+      // In the air, max speed limit is locked at whatever it was when taking off.
     }
 
     const currentMaxSpeed = currentMaxSpeedRef.current;
@@ -2048,7 +2046,6 @@ export default function GameCanvas({
 
     // Dynamic HUD modifiers indicators lists
     const mods: string[] = [];
-    if (sprintingRef.current && groundedRef.current) mods.push('SPRINT');
     if (wallRunDirectionRef.current) mods.push('WALL-RUN');
     if (climbingRef.current) mods.push('CLIMBING');
     if (speedBoostRef.current > 1.0) mods.push('BOOST');
@@ -2086,21 +2083,17 @@ export default function GameCanvas({
     // Reset player back to last active Checkpoint coordinates or start pad
     if (activeCheckpointRef.current) {
       playerPos.current.copy(activeCheckpointRef.current);
+      playerVel.current.set(0, 0, 0);
+      slidingRef.current = false;
+      currentMaxSpeedRef.current = 12.0;
+      climbingRef.current = false;
+      wallRunDirectionRef.current = null;
+      lastWallTouchRef.current = null;
     } else {
-      const spawnBlock = level.blocks.find(b => b.type === 'start') || level.blocks[0];
-      playerPos.current.set(
-        spawnBlock ? spawnBlock.x : 0, 
-        spawnBlock ? spawnBlock.y + spawnBlock.h + 1.2 : 4,
-        spawnBlock ? spawnBlock.z : 0
-      );
+      // Since player has no active checkpoints, they respawn on the start block.
+      // Reset the timer and run states as if they had clicked the reset button.
+      initGame(true);
     }
-    playerVel.current.set(0, 0, 0);
-    slidingRef.current = false;
-    sprintingRef.current = false;
-    currentMaxSpeedRef.current = 12.0;
-    climbingRef.current = false;
-    wallRunDirectionRef.current = null;
-    lastWallTouchRef.current = null;
   };
 
   const handleLevelCompleted = () => {
@@ -2353,8 +2346,8 @@ export default function GameCanvas({
                 Leap Jump
               </div>
               <div className="p-2.5 bg-neutral-950 border border-neutral-800 rounded-xl">
-                <span className="text-neutral-500 font-bold block mb-1">L-SHIFT / C</span>
-                Sprint Hold
+                <span className="text-neutral-500 font-bold block mb-1">MOUSE</span>
+                Look Camera
               </div>
               <div className="p-2.5 bg-neutral-950 border border-neutral-800 rounded-xl">
                 <span className="text-neutral-500 font-bold block mb-1">R KEY</span>
@@ -2418,20 +2411,34 @@ export default function GameCanvas({
           {/* Top Panel stats */}
           <div className="flex justify-between items-start w-full">
             
-            {/* Left Box: Precision Time */}
-            <div className="bg-neutral-900/95 border border-neutral-800 p-4 rounded-2xl shadow-lg backdrop-blur flex items-baseline gap-2.5">
-              <div className="flex flex-col">
-                <span className="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-widest">Time</span>
-                <span className="text-2xl font-bold font-mono tracking-tight text-neutral-50">
-                  {formatTime(elapsedTime)}
-                </span>
+            {/* Left Box Container */}
+            <div className="flex flex-col gap-2">
+              {/* Left Box: Precision Time */}
+              <div className="bg-neutral-900/95 border border-neutral-800 p-4 rounded-2xl shadow-lg backdrop-blur flex items-baseline gap-2.5">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-widest">Time</span>
+                  <span className="text-2xl font-bold font-mono tracking-tight text-neutral-50">
+                    {formatTime(elapsedTime)}
+                  </span>
+                </div>
+                <div className="flex flex-col border-l border-neutral-800 pl-2.5 ml-1">
+                  <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest font-bold">Personal Best</span>
+                  <span className="text-xs font-bold font-mono text-amber-500 block min-w-[50px]">
+                    {personalBest ? formatTime(personalBest) : '--:--.--'}
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col border-l border-neutral-800 pl-2.5 ml-1">
-                <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest font-bold">Personal Best</span>
-                <span className="text-xs font-bold font-mono text-amber-500 block min-w-[50px]">
-                  {personalBest ? formatTime(personalBest) : '--:--.--'}
-                </span>
-              </div>
+
+              {/* Smaller Inst. Velocity box below time ONLY in mobile view */}
+              {isMobileRef.current && (
+                <div className="bg-neutral-900/95 border border-neutral-800 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg backdrop-blur self-start animate-in fade-in slide-in-from-top-2 duration-200">
+                  <Flame className="w-3.5 h-3.5 text-orange-500 animate-bounce" />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[8px] font-mono text-neutral-400 uppercase tracking-wider">Vel:</span>
+                    <span className="text-xs font-bold font-mono text-neutral-200">{speed} <span className="text-[9px] text-neutral-500">m/s</span></span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right Box: Course Title & Actions */}
@@ -2472,13 +2479,15 @@ export default function GameCanvas({
                     </span>
                   ))}
                 </div>
-                <div className="bg-neutral-900/95 border border-neutral-800 px-3.5 py-2.5 rounded-xl flex items-baseline gap-2 shadow-lg backdrop-blur">
-                  <Flame className="w-4 h-4 text-orange-500 self-center animate-bounce" />
-                  <div>
-                    <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest block">Inst. Velocity</span>
-                    <span className="text-sm font-bold font-mono text-neutral-200">{speed} <span className="text-[10px] text-neutral-500">m/s</span></span>
+                {!isMobileRef.current && (
+                  <div className="bg-neutral-900/95 border border-neutral-800 px-3.5 py-2.5 rounded-xl flex items-baseline gap-2 shadow-lg backdrop-blur">
+                    <Flame className="w-4 h-4 text-orange-500 self-center animate-bounce" />
+                    <div>
+                      <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest block">Inst. Velocity</span>
+                      <span className="text-sm font-bold font-mono text-neutral-200">{speed} <span className="text-[10px] text-neutral-500">m/s</span></span>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Instant screen restart button */}
@@ -2507,7 +2516,7 @@ export default function GameCanvas({
               >
                 
                 {/* Left zone: custom virtual joystick rendering */}
-                <div className="relative flex items-center justify-center">
+                <div className="relative flex items-center justify-center translate-y-6">
                   <div className={`w-28 h-28 rounded-full border border-neutral-800 bg-neutral-950/20 backdrop-blur-sm flex items-center justify-center transition-opacity duration-200 ${touchJoystickActive ? 'opacity-100' : 'opacity-40'}`}>
                     {/* Joystick knob handle */}
                     <div 
@@ -2520,26 +2529,7 @@ export default function GameCanvas({
                 </div>
 
                 {/* Right zone: Action execution buttons */}
-                <div className="flex gap-4 items-center justify-end pr-4">
-                  {/* SPRINT button */}
-                  <button
-                    onTouchStart={(e) => {
-                      e.stopPropagation();
-                      keysRef.current['shift'] = true;
-                    }}
-                    onTouchEnd={(e) => {
-                      e.stopPropagation();
-                      keysRef.current['shift'] = false;
-                    }}
-                    onTouchCancel={(e) => {
-                      e.stopPropagation();
-                      keysRef.current['shift'] = false;
-                    }}
-                    className="w-16 h-16 rounded-full bg-neutral-900/60 border border-neutral-800 flex flex-col items-center justify-center active:bg-indigo-600 transition animate-pulse"
-                  >
-                    <span className="text-[10px] font-bold text-neutral-400 font-mono">SPRINT</span>
-                  </button>
-
+                <div className="flex items-center justify-end pr-8">
                   {/* JUMP button */}
                   <button
                     onTouchStart={(e) => {

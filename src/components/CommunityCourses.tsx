@@ -12,7 +12,7 @@ export default function CommunityCourses({ onSelectLevel, currentUser }: Communi
   const [courses, setCourses] = useState<LevelConfig[]>([]);
   const [savedLevelIds, setSavedLevelIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'likes' | 'newest'>('likes');
+  const [sortBy, setSortBy] = useState<'likes' | 'newest' | 'most_liked'>('likes');
 
   // Track liked courses by user locally to render toggle status cleanly
   const [likedIds, setLikedIds] = useState<string[]>([]);
@@ -131,6 +131,11 @@ export default function CommunityCourses({ onSelectLevel, currentUser }: Communi
       let customList: LevelConfig[] = listStored ? JSON.parse(listStored) : [];
 
       if (customList.some(lvl => lvl.id === level.id)) {
+        // Guard: make courses that the user themselves publishes unable to be removed from saved unless they are deleted
+        if (level.creator && level.creator.toLowerCase().trim() === currentUser.username.toLowerCase().trim()) {
+          alert(`"${level.name}" is your own published course. It cannot be removed from your saved list unless it is fully deleted from the Saved Courses tab.`);
+          return;
+        }
         // Already bookmarked - remove it from bookmarks
         const updated = customList.filter(lvl => lvl.id !== level.id);
         localStorage.setItem('custom_parkour_levels', JSON.stringify(updated));
@@ -164,6 +169,17 @@ export default function CommunityCourses({ onSelectLevel, currentUser }: Communi
     }
   };
 
+  const getCompletionsCount = (course: LevelConfig) => {
+    try {
+      const stored = localStorage.getItem(`leaderboard_${course.id}`);
+      const entries = stored ? JSON.parse(stored) : [];
+      // Combine base likesCount (representing historical community engagement/completions) with live leaderboard runs
+      return (course.likesCount || 0) + entries.length;
+    } catch (e) {
+      return course.likesCount || 0;
+    }
+  };
+
   // Filter and sort
   const filteredCourses = courses.filter(course => {
     const searchLow = searchTerm.toLowerCase();
@@ -175,8 +191,12 @@ export default function CommunityCourses({ onSelectLevel, currentUser }: Communi
   });
 
   const sortedCourses = [...filteredCourses].sort((a, b) => {
-    if (sortBy === 'likes') {
+    if (sortBy === 'most_liked') {
       const diff = (b.likesCount || 0) - (a.likesCount || 0);
+      if (diff !== 0) return diff;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    } else if (sortBy === 'likes') {
+      const diff = getCompletionsCount(b) - getCompletionsCount(a);
       if (diff !== 0) return diff;
       return (b.createdAt || 0) - (a.createdAt || 0); // Newest first fallback
     } else {
@@ -210,6 +230,16 @@ export default function CommunityCourses({ onSelectLevel, currentUser }: Communi
               onClick={() => { setSortBy('likes'); synths.playTick(); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                 sortBy === 'likes' 
+                  ? 'bg-white text-indigo-700 shadow-sm' 
+                  : 'text-neutral-500 hover:text-neutral-800'
+              }`}
+            >
+              Most Completed
+            </button>
+            <button
+              onClick={() => { setSortBy('most_liked'); synths.playTick(); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                sortBy === 'most_liked' 
                   ? 'bg-white text-indigo-700 shadow-sm' 
                   : 'text-neutral-500 hover:text-neutral-800'
               }`}
@@ -338,9 +368,9 @@ export default function CommunityCourses({ onSelectLevel, currentUser }: Communi
                 {/* Launch section */}
                 <div className="flex items-center justify-between border-t border-neutral-150/40 pt-4 mt-5">
                   <span className="text-[10px] font-mono text-neutral-400 font-semibold italic">
-                    {course.likesCount && course.likesCount > 0 
-                      ? `${course.likesCount} runner likes`
-                      : 'Be the first to like'}
+                    {getCompletionsCount(course) > 0 
+                      ? `${getCompletionsCount(course)} ${getCompletionsCount(course) === 1 ? 'completion' : 'completions'}`
+                      : '0 completions'}
                   </span>
                   
                   <button className="flex items-center gap-1.5 px-4 py-1.5 text-white bg-neutral-900 group-hover:bg-indigo-600 rounded-lg text-xs font-bold transition duration-200 cursor-pointer">

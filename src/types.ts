@@ -86,6 +86,7 @@ export interface GameSettings {
   sfxVolume: number;
   showGhost: boolean;
   invertY: boolean;
+  adjustablePerspective: boolean;
 }
 
 export interface UserAccount {

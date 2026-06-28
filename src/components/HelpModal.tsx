@@ -87,14 +87,14 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
             Delta Rush is built on high-fidelity momentum conservation physics. Combine these standard kinetic tricks to maintain maximum flow rate:
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1 text-left">
-            {/* Sprint Boost */}
+            {/* Speed Acceleration */}
             <div className="p-4 bg-indigo-50/40 rounded-2xl border border-indigo-100 leading-relaxed">
               <span className="inline-block px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-md font-mono text-[9px] font-bold uppercase mb-1.5">
-                L-SHIFT / C Key
+                Move Forward
               </span>
-              <h4 className="font-bold text-xs text-neutral-800">Sprint Boost</h4>
+              <h4 className="font-bold text-xs text-neutral-800">Dynamic Running</h4>
               <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
-                Holding Sprint amplifies velocity and extends jump height, transferring speed into runs and higher leaps.
+                Running continuously builds speed automatically, accelerating you up to 18.0 m/s without needing any key modifiers.
               </p>
             </div>
 
@@ -238,12 +238,10 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
             </div>
 
             {/* Quick Controls Cheat Sheet Footer */}
-            <div className="mt-5 pt-3 border-t border-neutral-100 shrink-0 text-[10px] font-mono text-neutral-400 flex items-center justify-between">
+            <div className="mt-5 pt-3 border-t border-neutral-100 shrink-0 text-[10px] font-mono text-neutral-400 flex items-center justify-center gap-4">
               <span>W,A,S,D / ARROWS: Move</span>
               <span>•</span>
               <span>SPACE: Jump</span>
-              <span>•</span>
-              <span>SHIFT: Sprint</span>
             </div>
           </motion.div>
         </div>

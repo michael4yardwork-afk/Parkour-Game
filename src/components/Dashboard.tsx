@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Code, Settings, Trophy, ArrowRight, ShieldCheck, Info, LogOut, User, KeyRound, Sparkles, Check, Lock, ShieldAlert } from 'lucide-react';
 import { GameSettings, UserAccount } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
@@ -130,6 +130,156 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
     });
   };
 
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const bannerRef = useRef<HTMLDivElement | null>(null);
+  const particlesRef = useRef<{
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    size: number;
+    rotation: number;
+    rotationSpeed: number;
+    opacity: number;
+    fadeSpeed: number;
+    color: string;
+    isHollow: boolean;
+  }[]>([]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const banner = bannerRef.current;
+    if (!canvas || !banner) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    let isDragging = false;
+
+    const resizeCanvas = () => {
+      const rect = banner.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    };
+
+    resizeCanvas();
+    const resizeObserver = new ResizeObserver(() => resizeCanvas());
+    resizeObserver.observe(banner);
+
+    const colors = [
+      'rgba(99, 102, 241, #OP#)',  // Indigo
+      'rgba(168, 85, 247, #OP#)', // Purple
+      'rgba(236, 72, 153, #OP#)', // Pink/Magenta
+      'rgba(245, 158, 11, #OP#)',  // Gold
+      'rgba(34, 197, 94, #OP#)',   // Emerald
+    ];
+
+    const spawnParticle = (clientX: number, clientY: number, count = 1) => {
+      const rect = banner.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+
+      for (let i = 0; i < count; i++) {
+        const size = Math.random() * 12 + 6;
+        const colorTemplate = colors[Math.floor(Math.random() * colors.length)];
+        
+        particlesRef.current.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 1.5,
+          vy: -Math.random() * 1.5 - 0.5,
+          size,
+          rotation: Math.random() * Math.PI * 2,
+          rotationSpeed: (Math.random() - 0.5) * 0.1,
+          opacity: 1.0,
+          fadeSpeed: Math.random() * 0.02 + 0.015,
+          color: colorTemplate,
+          isHollow: Math.random() > 0.4,
+        });
+      }
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+      isDragging = true;
+      spawnParticle(e.clientX, e.clientY, 3);
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      const spawnCount = isDragging ? 3 : 1;
+      spawnParticle(e.clientX, e.clientY, spawnCount);
+    };
+
+    const handlePointerUp = () => {
+      isDragging = false;
+    };
+
+    banner.addEventListener('pointerdown', handlePointerDown);
+    banner.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const particles = particlesRef.current;
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rotation += p.rotationSpeed;
+        p.opacity -= p.fadeSpeed;
+
+        if (p.opacity <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        const color = p.color.replace('#OP#', p.opacity.toFixed(2));
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        
+        ctx.beginPath();
+        const r = p.size;
+        const angle1 = -Math.PI / 2;
+        const angle2 = Math.PI / 6;
+        const angle3 = 5 * Math.PI / 6;
+
+        ctx.moveTo(Math.cos(angle1) * r, Math.sin(angle1) * r);
+        ctx.lineTo(Math.cos(angle2) * r, Math.sin(angle2) * r);
+        ctx.lineTo(Math.cos(angle3) * r, Math.sin(angle3) * r);
+        ctx.closePath();
+
+        ctx.shadowBlur = p.size * 0.8;
+        ctx.shadowColor = color;
+
+        if (p.isHollow) {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = Math.max(1.5, p.size * 0.15);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = color;
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      banner.removeEventListener('pointerdown', handlePointerDown);
+      banner.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      resizeObserver.disconnect();
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-12 font-sans text-neutral-800 select-none">
       
@@ -166,24 +316,30 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
       </div>
 
       {/* Title Hero */}
-      <div className="relative rounded-3xl overflow-hidden bg-neutral-900 text-white p-8 md:p-12 shadow-2xl flex flex-col justify-between min-h-[340px] border border-neutral-800">
+      <div 
+        ref={bannerRef}
+        className="relative rounded-3xl overflow-hidden bg-neutral-900 text-white p-8 md:p-12 shadow-2xl flex flex-col justify-between min-h-[340px] border border-neutral-800 cursor-crosshair hover:border-indigo-500/40 hover:shadow-indigo-500/5 active:scale-[0.99] transition-all duration-300 select-none"
+      >
         {/* Sky glow effect */}
         <div className="absolute inset-x-0 bottom-0 top-1/2 bg-gradient-to-t from-indigo-500/10 via-transparent to-transparent pointer-events-none" />
 
-        <div className="max-w-xl">
+        {/* Dynamic Sparkle Canvas */}
+        <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-10" />
+
+        <div className="max-w-xl relative z-20 pointer-events-none">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/15 border border-indigo-500/20 text-indigo-400 rounded-full text-[10px] font-mono uppercase font-bold tracking-wider mb-5">
             <span className="text-sm font-black text-indigo-400 font-sans leading-none">Δ</span>
             V0.4 Community Release
           </span>
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-none">
+          <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-none text-white">
             Delta Rush
           </h1>
           <p className="text-sm text-neutral-300 mt-4 leading-relaxed max-w-lg">
-            A high-skill 3D parkour time-trial racer focused on flow, momentum preservation, and precision routing. Sprint, wall-run, leap off rails, and shave precious milliseconds off your runs as <span className="text-indigo-400 font-bold">{currentUser.username}</span>.
+            A high-skill 3D parkour time-trial racer focused on flow, momentum preservation, and precision routing. Run, wall-run, leap off rails, and shave precious milliseconds off your runs as <span className="text-indigo-400 font-bold">{currentUser.username}</span>.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3 mt-8 pt-6 border-t border-neutral-800/60">
+        <div className="flex flex-wrap gap-3 mt-8 pt-6 border-t border-neutral-800/60 relative z-20">
           <button
             onClick={() => onNavigate('levels')}
             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs transition duration-200 shadow-lg hover:shadow-indigo-500/10 hover:scale-102 cursor-pointer"

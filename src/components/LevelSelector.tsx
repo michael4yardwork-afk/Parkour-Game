@@ -9,6 +9,67 @@ interface LevelSelectorProps {
   onEditCustom: (level: LevelConfig) => void;
 }
 
+const getLevelTheme = (id: string) => {
+  switch (id) {
+    case 'tutorial_skyway':
+      return {
+        card: 'bg-[#ecf5fc] border-sky-200 hover:bg-[#e2eff9] hover:border-sky-300',
+        badge: 'bg-sky-100 text-sky-800 group-hover:bg-sky-200 group-hover:text-sky-900',
+        title: 'text-sky-950 group-hover:text-sky-800',
+        desc: 'text-sky-800/80',
+        button: 'bg-sky-900 group-hover:bg-sky-600 text-white'
+      };
+    case 'neon_velocity':
+      return {
+        card: 'bg-[#f0effd] border-indigo-200 hover:bg-[#e7e4fc] hover:border-indigo-300',
+        badge: 'bg-indigo-100 text-indigo-800 group-hover:bg-indigo-200 group-hover:text-indigo-900',
+        title: 'text-indigo-950 group-hover:text-indigo-800',
+        desc: 'text-indigo-800/80',
+        button: 'bg-indigo-900 group-hover:bg-indigo-600 text-white'
+      };
+    case 'rust_ascent':
+      return {
+        card: 'bg-[#fdf6e9] border-amber-200 hover:bg-[#fbf0da] hover:border-amber-300',
+        badge: 'bg-amber-100 text-amber-800 group-hover:bg-amber-200 group-hover:text-amber-900',
+        title: 'text-amber-950 group-hover:text-amber-800',
+        desc: 'text-amber-800/80',
+        button: 'bg-amber-900 group-hover:bg-amber-600 text-white'
+      };
+    case 'sunset_ridge':
+      return {
+        card: 'bg-[#fdf0f1] border-rose-200 hover:bg-[#fbe3e6] hover:border-rose-300',
+        badge: 'bg-rose-100 text-rose-800 group-hover:bg-rose-200 group-hover:text-rose-900',
+        title: 'text-rose-950 group-hover:text-rose-800',
+        desc: 'text-rose-800/80',
+        button: 'bg-rose-900 group-hover:bg-rose-600 text-white'
+      };
+    case 'monochrome_void':
+      return {
+        card: 'bg-[#eefcf5] border-emerald-200 hover:bg-[#e0f9ec] hover:border-emerald-300',
+        badge: 'bg-emerald-100 text-emerald-800 group-hover:bg-emerald-200 group-hover:text-emerald-900',
+        title: 'text-emerald-950 group-hover:text-emerald-800',
+        desc: 'text-emerald-800/80',
+        button: 'bg-emerald-900 group-hover:bg-emerald-600 text-white'
+      };
+    case 'lava_patchwork':
+      return {
+        card: 'bg-[#fdf2f2] border-red-200 hover:bg-[#fee2e2] hover:border-red-300',
+        badge: 'bg-red-100 text-red-800 group-hover:bg-red-200 group-hover:text-red-900',
+        title: 'text-red-950 group-hover:text-red-800',
+        desc: 'text-red-800/80',
+        button: 'bg-red-900 group-hover:bg-red-600 text-white'
+      };
+    default:
+      return {
+        card: 'bg-[#f9effc] border-purple-200 hover:bg-[#f4defa] hover:border-purple-300',
+        badge: 'bg-purple-100 text-purple-800 group-hover:bg-purple-200 group-hover:text-purple-900',
+        title: 'text-purple-950 group-hover:text-purple-800',
+        desc: 'text-purple-800/80',
+        button: 'bg-purple-900 group-hover:bg-purple-600 text-white'
+      };
+  }
+};
+
 export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEditCustom }: LevelSelectorProps) {
   const [customLevels, setCustomLevels] = useState<LevelConfig[]>([]);
 
@@ -80,7 +141,7 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
             Parkour Time Trials
           </h1>
           <p className="text-sm text-neutral-600 mt-2 max-w-xl">
-            Shave off milliseconds by mastering movement. Leap, sprint, wall-run, and discover shortcuts across high-skill courses.
+            Shave off milliseconds by mastering movement. Leap, run, wall-run, and discover shortcuts across high-skill courses.
           </p>
         </div>
 
@@ -106,23 +167,24 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
           {DEFAULT_LEVELS.map(level => {
             const pb = getPB(level.id);
             const themeName = formatTheme(level.theme);
+            const theme = getLevelTheme(level.id);
 
             return (
               <div
                 key={level.id}
                 onClick={() => onSelectLevel(level)}
-                className="group relative bg-white border border-neutral-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-neutral-300 transition-all duration-300 cursor-pointer overflow-hidden flex flex-col justify-between min-h-[190px]"
+                className={`group relative rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer overflow-hidden flex flex-col justify-between min-h-[190px] border ${theme.card}`}
               >
                 {/* Accent Tag */}
-                <span className={`absolute top-0 right-0 py-1 px-3 text-[10px] font-semibold tracking-wider font-mono uppercase bg-neutral-100 text-neutral-600 group-hover:bg-indigo-50 group-hover:text-indigo-600 rounded-bl-xl transition duration-300`}>
+                <span className={`absolute top-0 right-0 py-1 px-3 text-[10px] font-semibold tracking-wider font-mono uppercase rounded-bl-xl transition duration-300 ${theme.badge}`}>
                   {themeName}
                 </span>
 
                 <div>
-                  <h3 className="text-lg font-bold text-neutral-800 group-hover:text-indigo-600 transition duration-200 mr-20">
+                  <h3 className={`text-lg font-bold transition duration-200 mr-20 ${theme.title}`}>
                     {level.name}
                   </h3>
-                  <p className="text-xs text-neutral-500 mt-2 line-clamp-3 leading-relaxed">
+                  <p className={`text-xs mt-2 line-clamp-3 leading-relaxed ${theme.desc}`}>
                     {level.description}
                   </p>
                 </div>
@@ -138,7 +200,7 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
                       <span className="text-neutral-400">Not attempted yet</span>
                     )}
                   </div>
-                  <button className="flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-900 group-hover:bg-indigo-600 text-white rounded-xl text-xs font-semibold transition-all duration-300">
+                  <button className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-300 ${theme.button}`}>
                     <Play className="w-3.5 h-3.5 fill-current" />
                     <span>Run</span>
                   </button>
@@ -148,97 +210,6 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
           })}
         </div>
       </div>
-
-      {/* Custom Community Levels */}
-      <div>
-        <div className="flex items-center gap-2 mb-6 border-b border-neutral-100 pb-3">
-          <Sparkles className="w-4 h-4 text-emerald-500" />
-          <h2 className="text-xl font-bold text-neutral-800 tracking-tight">Your Custom &amp; Imported Levels</h2>
-        </div>
-
-        {customLevels.length === 0 ? (
-          <div className="bg-neutral-50 border border-dashed border-neutral-200 rounded-2xl py-12 px-6 text-center max-w-xl mx-auto">
-            <Code className="w-10 h-10 text-neutral-400 mx-auto opacity-40 mb-3" />
-            <h3 className="text-sm font-semibold text-neutral-700">No custom levels found</h3>
-            <p className="text-xs text-neutral-500 mt-1 max-w-xs mx-auto">
-              Open the Course Builder to design a layout from scratch!
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {customLevels.map(level => {
-              const pb = getPB(level.id);
-              return (
-                <div
-                  key={level.id}
-                  onClick={() => onSelectLevel(level)}
-                  className="group bg-white border border-neutral-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-neutral-300 transition-all duration-200 cursor-pointer flex flex-col justify-between"
-                >
-                  <div className="flex justify-between items-start gap-4">
-                    <div>
-                      <h3 className="text-base font-bold text-neutral-800 group-hover:text-emerald-600 transition duration-150">
-                        {level.name}
-                      </h3>
-                      <p className="text-xs text-neutral-500 mt-1 line-clamp-2">
-                        {level.description || 'Created in Custom Course Builder.'}
-                      </p>
-                      <div className="flex gap-2 items-center text-[10px] text-neutral-400 font-mono mt-2">
-                        <span>Theme: {formatTheme(level.theme)}</span>
-                        <span>•</span>
-                        <span>{level.blocks.length} elements</span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-1.5 shrink-0">
-                      <button
-                        onClick={(e) => exportLevelJSON(level, e)}
-                        className="p-1.5 text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                        title="Copy level code string to share"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEditCustom(level);
-                        }}
-                        className="p-1.5 text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                        title="Edit level"
-                      >
-                        <Code className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={(e) => deleteCustomLevel(level.id, e)}
-                        className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                        title="Delete level"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between border-t border-neutral-100 pt-3 mt-4">
-                    <div className="font-mono text-[11px]">
-                      {pb ? (
-                        <span className="flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded font-bold border border-amber-200">
-                          PB: {pb}
-                        </span>
-                      ) : (
-                        <span className="text-neutral-400">No attempts</span>
-                      )}
-                    </div>
-                    <button className="flex items-center gap-1 py-1.5 px-3 bg-neutral-900 group-hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold transition duration-200">
-                      <Play className="w-3 h-3 fill-current" />
-                      <span>Play</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
 
     </div>
   );

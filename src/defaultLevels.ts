@@ -3,7 +3,7 @@ import { LevelConfig } from './types';
 export const DEFAULT_LEVELS: LevelConfig[] = [
   {
     id: 'tutorial_skyway',
-    name: 'Tutorial Skyway',
+    name: 'Delta Skyway',
     description: 'Learn the fundamentals of momentum, wall-running, and sliding on these floating sky platforms.',
     theme: 'sky_islands',
     blocks: [

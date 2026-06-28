@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { Save, Play, Trash2, ArrowLeft, Move } from 'lucide-react';
+import { Save, Play, Trash2, ArrowLeft, Move, RotateCcw, Compass, ZoomIn, ZoomOut } from 'lucide-react';
 import { LevelConfig, BlockConfig, BlockType, SceneTheme } from '../types';
 
 interface LevelEditorProps {
@@ -40,6 +40,75 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
 
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>('start_pad');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  // Camera viewport adjustment states
+  const [cameraZoom, setCameraZoom] = useState<number>(30); // camera distance from target
+  const [cameraRotation, setCameraRotation] = useState<number>(31); // orbit angle in degrees
+  const [cameraHeight, setCameraHeight] = useState<number>(18); // height above target
+  const [panX, setPanX] = useState<number>(0);
+  const [panZ, setPanZ] = useState<number>(-15);
+
+  const handleResetCamera = () => {
+    setCameraZoom(30);
+    setCameraRotation(31);
+    setCameraHeight(18);
+    setPanX(0);
+    setPanZ(-15);
+  };
+
+  // Drag-to-rotate state
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setIsDragging(true);
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDragging || !dragStartRef.current) return;
+    e.preventDefault();
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+
+    if (e.shiftKey) {
+      // Shift drag pans the target targetX/targetZ
+      const cosRot = Math.cos((cameraRotation * Math.PI) / 180);
+      const sinRot = Math.sin((cameraRotation * Math.PI) / 180);
+      const panSpeed = cameraZoom * 0.003; // speed scales with zoom level
+      setPanX(prev => prev - (dx * cosRot + dy * sinRot) * panSpeed);
+      setPanZ(prev => prev - (-dx * sinRot + dy * cosRot) * panSpeed);
+    } else {
+      // Normal drag orbits
+      setCameraRotation(prev => {
+        let next = prev - dx * 0.4;
+        if (next > 180) next -= 360;
+        if (next < -180) next += 360;
+        return next;
+      });
+      setCameraHeight(prev => Math.min(75, Math.max(-15, prev + dy * 0.2)));
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    setIsDragging(false);
+    dragStartRef.current = null;
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    setCameraZoom(prev => Math.min(150, Math.max(5, prev + e.deltaY * 0.05)));
+  };
+
+  useEffect(() => {
+    // Reset panning offset to default when a new block is selected to focus on it
+    setPanX(0);
+    setPanZ(-15);
+  }, [selectedBlockId]);
 
   const handleResetCourse = () => {
     setBlocks([
@@ -247,15 +316,33 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
       meshesRef.current[block.id] = mesh;
     });
 
-    // Update camera target to center around selected block if available, or start pad
-    if (cameraRef.current) {
-      const active = selectedBlock || blocks[0];
-      if (active) {
-        cameraRef.current.lookAt(active.x, active.y, active.z);
-      }
-    }
-
+    // Clear camera target centering from here as it is handled in a dedicated viewport useEffect below
+    sceneRef.current = scene;
   }, [blocks, selectedBlockId]);
+
+  // Update camera position & orientation dynamically based on viewport control parameters
+  useEffect(() => {
+    if (!cameraRef.current) return;
+    
+    const active = selectedBlock || blocks[0];
+    if (!active) return;
+
+    // Calculate base target with manual pan offsets
+    const targetX = active.x + panX;
+    const targetY = active.y;
+    const targetZ = active.z + panZ;
+
+    // Orbit coordinates around target using cameraRotation & cameraZoom
+    const angleRad = (cameraRotation * Math.PI) / 180;
+    
+    cameraRef.current.position.set(
+      targetX + Math.sin(angleRad) * cameraZoom,
+      targetY + cameraHeight,
+      targetZ + Math.cos(angleRad) * cameraZoom
+    );
+    
+    cameraRef.current.lookAt(targetX, targetY, targetZ);
+  }, [blocks, selectedBlockId, cameraZoom, cameraRotation, cameraHeight, panX, panZ, selectedBlock]);
 
   const handleAddBlock = (type: BlockType) => {
     // Determine random offset relative to last selected coordinate to make stacking quick
@@ -353,18 +440,49 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
       
       {/* 3D Visualizer Panel (Left or top) */}
       <div className="flex-1 relative h-2/5 lg:h-full flex flex-col border-b lg:border-b-0 lg:border-r border-neutral-800">
-        <canvas ref={canvasRef} className="w-full h-full block" />
+        <canvas 
+          ref={canvasRef} 
+          className="w-full h-full block cursor-grab active:cursor-grabbing touch-none select-none"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onWheel={handleWheel}
+        />
         
-        {/* Visualizer Floating Controls */}
-        <div className="absolute top-4 left-4 p-4 bg-neutral-900/95 border border-neutral-800 rounded-xl max-w-sm backdrop-blur shadow-lg">
-          <div className="flex items-center gap-2">
-            <Move className="w-4 h-4 text-indigo-400" />
-            <h3 className="text-xs font-bold text-neutral-200">Course Preview Controls</h3>
+        {/* Sleek, minimal floating viewport tools */}
+        <div className="absolute top-4 left-4 flex flex-col gap-2 z-20 select-none">
+          {/* Zoom & View Reset controls */}
+          <div className="flex items-center gap-1.5 p-1.5 bg-neutral-900/95 border border-neutral-800 rounded-xl backdrop-blur shadow-xl">
+            <button
+              onClick={() => setCameraZoom(prev => Math.max(5, prev - 5))}
+              className="p-2 bg-neutral-800 hover:bg-neutral-700 active:scale-95 text-neutral-200 hover:text-indigo-400 rounded-lg transition cursor-pointer"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setCameraZoom(prev => Math.min(120, prev + 5))}
+              className="p-2 bg-neutral-800 hover:bg-neutral-700 active:scale-95 text-neutral-200 hover:text-indigo-400 rounded-lg transition cursor-pointer"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <div className="w-px h-6 bg-neutral-800 mx-0.5" />
+            <button
+              onClick={handleResetCamera}
+              className="p-2 bg-neutral-800 hover:bg-neutral-700 active:scale-95 text-neutral-300 hover:text-white rounded-lg transition cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+              title="Reset View"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Reset</span>
+            </button>
           </div>
-          <p className="text-[10px] text-neutral-400 mt-1 leading-relaxed">
-            Double click a block in parameters on the right to focus the editing camera.
-            Green represents Spawns, Blue is the Finish, Red consists of hazards.
-          </p>
+
+          {/* Guidance helper */}
+          <div className="px-3 py-1.5 bg-neutral-950/80 border border-neutral-900/60 text-[9px] font-mono text-neutral-400 rounded-full shadow-lg backdrop-blur pointer-events-none max-w-xs leading-none">
+            Drag to Orbit • Shift+Drag to Pan • Scroll to Zoom
+          </div>
         </div>
 
         {/* Hot keys actions overlay */}
