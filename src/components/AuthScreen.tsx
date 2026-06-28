@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Sparkles, Check } from 'lucide-react';
 import { UserAccount } from '../types';
 import { synths } from '../audio';
+import { hasVulgarLanguage } from '../utils';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: UserAccount) => void;
@@ -16,6 +17,10 @@ const AVATARS = [
   { emoji: '🤖', name: 'Cybernetic' },
   { emoji: '🐱', name: 'Ninja Cat' },
   { emoji: '🦊', name: 'Swift Fox' },
+  { emoji: '🎯', name: 'Apex Precision' },
+  { emoji: '🔥', name: 'Overdrive' },
+  { emoji: '👑', name: 'Championship' },
+  { emoji: '🦁', name: 'Primal Spirit' },
 ];
 
 const AVATAR_BGS = [
@@ -35,7 +40,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   
   // Avatar selections
   const [selectedAvatar, setSelectedAvatar] = useState('🚀');
-  const [selectedBg, setSelectedBg] = useState('bg-indigo-500');
+  const [selectedBg, setSelectedBg] = useState('');
 
   // Password visibility
   const [showPassword, setShowPassword] = useState(false);
@@ -43,6 +48,156 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
   // Error/Success States
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const particlesRef = useRef<{
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    size: number;
+    rotation: number;
+    rotationSpeed: number;
+    opacity: number;
+    fadeSpeed: number;
+    color: string;
+    isHollow: boolean;
+  }[]>([]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    let isDragging = false;
+
+    const resizeCanvas = () => {
+      const rect = container.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    };
+
+    resizeCanvas();
+    const resizeObserver = new ResizeObserver(() => resizeCanvas());
+    resizeObserver.observe(container);
+
+    const colors = [
+      'rgba(99, 102, 241, #OP#)',  // Indigo
+      'rgba(168, 85, 247, #OP#)', // Purple
+      'rgba(236, 72, 153, #OP#)', // Pink/Magenta
+      'rgba(245, 158, 11, #OP#)',  // Gold
+      'rgba(34, 197, 94, #OP#)',   // Emerald
+    ];
+
+    const spawnParticle = (clientX: number, clientY: number, count = 1) => {
+      const rect = container.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+
+      for (let i = 0; i < count; i++) {
+        const size = Math.random() * 12 + 6;
+        const colorTemplate = colors[Math.floor(Math.random() * colors.length)];
+        
+        particlesRef.current.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 1.5,
+          vy: -Math.random() * 1.5 - 0.5,
+          size,
+          rotation: Math.random() * Math.PI * 2,
+          rotationSpeed: (Math.random() - 0.5) * 0.1,
+          opacity: 1.0,
+          fadeSpeed: Math.random() * 0.02 + 0.015,
+          color: colorTemplate,
+          isHollow: Math.random() > 0.4,
+        });
+      }
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+      isDragging = true;
+      spawnParticle(e.clientX, e.clientY, 3);
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      const spawnCount = isDragging ? 3 : 1;
+      spawnParticle(e.clientX, e.clientY, spawnCount);
+    };
+
+    const handlePointerUp = () => {
+      isDragging = false;
+    };
+
+    container.addEventListener('pointerdown', handlePointerDown);
+    container.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const particles = particlesRef.current;
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rotation += p.rotationSpeed;
+        p.opacity -= p.fadeSpeed;
+
+        if (p.opacity <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        const color = p.color.replace('#OP#', p.opacity.toFixed(2));
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        
+        ctx.beginPath();
+        const r = p.size;
+        const angle1 = -Math.PI / 2;
+        const angle2 = Math.PI / 6;
+        const angle3 = 5 * Math.PI / 6;
+
+        ctx.moveTo(Math.cos(angle1) * r, Math.sin(angle1) * r);
+        ctx.lineTo(Math.cos(angle2) * r, Math.sin(angle2) * r);
+        ctx.lineTo(Math.cos(angle3) * r, Math.sin(angle3) * r);
+        ctx.closePath();
+
+        ctx.shadowBlur = p.size * 0.8;
+        ctx.shadowColor = color;
+
+        if (p.isHollow) {
+          ctx.strokeStyle = color;
+          ctx.lineWidth = Math.max(1.5, p.size * 0.15);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = color;
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      container.removeEventListener('pointerdown', handlePointerDown);
+      container.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      cancelAnimationFrame(animationFrameId);
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   const clearInputs = () => {
     setUsername('');
@@ -93,9 +248,19 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     }
 
     if (isSignUp) {
+      if (hasVulgarLanguage(trimmedUsername)) {
+        notifyFeedback('error', 'Explicit or vulgar language is prohibited.');
+        return;
+      }
+
       // Validate confirm password
       if (password !== confirmPassword) {
         notifyFeedback('error', 'Passwords do not match.');
+        return;
+      }
+
+      if (!selectedBg) {
+        notifyFeedback('error', 'Please select an icon theme.');
         return;
       }
 
@@ -153,10 +318,13 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-4 relative overflow-hidden font-sans select-none">
+    <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-black via-neutral-950 to-blue-950 animate-gradient-flow text-neutral-100 flex items-center justify-center p-4 relative overflow-hidden font-sans select-none">
       {/* Background Ambience circles */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-900/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-900/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Delta pixie dust canvas */}
+      <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0" />
 
       <div className="w-full max-w-md relative z-10 space-y-8 animate-in fade-in zoom-in-95 duration-300">
         
@@ -227,6 +395,11 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                   required
                 />
               </div>
+              {isSignUp && hasVulgarLanguage(username) && (
+                <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">
+                  Explicit or vulgar language is prohibited.
+                </p>
+              )}
             </div>
 
             {/* Password Input */}
@@ -315,7 +488,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
                   <div>
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">
-                      Icon Signature Theme
+                      Icon Theme
                     </span>
                     <div className="flex gap-2">
                       {AVATAR_BGS.map(bg => (
@@ -331,6 +504,11 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                         </button>
                       ))}
                     </div>
+                    {isSignUp && !selectedBg && (
+                      <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">
+                        Please select an icon theme.
+                      </p>
+                    )}
                   </div>
                 </div>
               </>

@@ -22,6 +22,55 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
     setCurrentLocalBest(localBest);
   }, [localBest]);
 
+  const [allUsers, setAllUsers] = useState<UserAccount[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('momentum_users');
+      if (stored) {
+        setAllUsers(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const getPlayerIcon = (playerName: string): { avatar: string; avatarBg: string } => {
+    const normName = playerName.toLowerCase().trim();
+    
+    // 1. If it matches current user
+    if (currentUser && currentUser.username.toLowerCase().trim() === normName) {
+      return {
+        avatar: currentUser.avatar || '🚀',
+        avatarBg: currentUser.avatarBg || 'bg-rose-500'
+      };
+    }
+    
+    // 2. If it's stored in momentum_users
+    const found = allUsers.find(u => u.username.toLowerCase().trim() === normName);
+    if (found) {
+      return {
+        avatar: found.avatar || '🚀',
+        avatarBg: found.avatarBg || 'bg-rose-500'
+      };
+    }
+    
+    // 3. Fallback: deterministic selection based on hash of the playerName
+    const emojis = ['🚀', '⚡', '🛹', '🐺', '🐉', '🤖', '🐱', '🦊', '🎯', '🔥', '👑', '🦁'];
+    const bgs = ['bg-rose-500', 'bg-green-500', 'bg-purple-500', 'bg-blue-500', 'bg-amber-500', 'bg-indigo-505'];
+    
+    let hash = 0;
+    for (let i = 0; i < normName.length; i++) {
+      hash = normName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    hash = Math.abs(hash);
+    
+    const avatar = emojis[hash % emojis.length];
+    const avatarBg = bgs[hash % bgs.length];
+    
+    return { avatar, avatarBg };
+  };
+
   // Load leaderboard data
   useEffect(() => {
     loadScores();
@@ -339,6 +388,16 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
                         )}
                       </div>
 
+                      {/* Player Icon (Emoji and Theme Background) */}
+                      {(() => {
+                        const playerIcon = getPlayerIcon(entry.playerName);
+                        return (
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm shadow-sm border border-neutral-700/50 flex-shrink-0 ${playerIcon.avatarBg}`}>
+                            {playerIcon.avatar}
+                          </div>
+                        );
+                      })()}
+
                       {/* Name & Device */}
                       <div>
                         <div className="flex items-center gap-2">
@@ -394,6 +453,17 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
                       <div className="w-8 flex justify-center">
                         <span className="text-xs font-mono font-bold text-emerald-400">#{userRankIndexWorld + 1}</span>
                       </div>
+
+                      {/* Player Icon (Emoji and Theme Background) */}
+                      {(() => {
+                        const playerIcon = getPlayerIcon(currentUser?.username || 'Guest');
+                        return (
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm shadow-sm border border-neutral-700/50 flex-shrink-0 ${playerIcon.avatarBg}`}>
+                            {playerIcon.avatar}
+                          </div>
+                        );
+                      })()}
+
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-emerald-400 font-bold">
@@ -422,23 +492,6 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
               )}
             </>
           )}
-        </div>
-
-        {/* Clear Stats & Refresh */}
-        <div className="p-4 border-t border-neutral-800/80 bg-neutral-900/50 flex gap-2 justify-between">
-          <button
-            onClick={clearLocalScores}
-            className="text-[10px] text-red-400/80 hover:text-red-400 font-mono hover:underline"
-          >
-            Clear my local runs
-          </button>
-          <button
-            onClick={loadScores}
-            className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-neutral-200 font-mono"
-          >
-            <RefreshCw className="w-3 h-3" />
-            Reload
-          </button>
         </div>
 
       </div>

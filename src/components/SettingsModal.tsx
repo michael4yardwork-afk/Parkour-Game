@@ -22,6 +22,10 @@ const AVATARS = [
   { emoji: '🤖', name: 'Cybernetic' },
   { emoji: '🐱', name: 'Ninja Cat' },
   { emoji: '🦊', name: 'Swift Fox' },
+  { emoji: '🎯', name: 'Apex Precision' },
+  { emoji: '🔥', name: 'Overdrive' },
+  { emoji: '👑', name: 'Championship' },
+  { emoji: '🦁', name: 'Primal Spirit' },
 ];
 
 const AVATAR_BGS = [
@@ -177,7 +181,7 @@ export default function SettingsModal({
 
                 <div>
                   <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block mb-2 text-left">
-                    Icon Theme Signature
+                    Icon Theme
                   </span>
                   <div className="flex flex-wrap gap-2.5">
                     {AVATAR_BGS.map((bg) => (

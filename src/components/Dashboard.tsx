@@ -22,6 +22,10 @@ const AVATARS = [
   { emoji: '🤖', name: 'Cybernetic' },
   { emoji: '🐱', name: 'Ninja Cat' },
   { emoji: '🦊', name: 'Swift Fox' },
+  { emoji: '🎯', name: 'Apex Precision' },
+  { emoji: '🔥', name: 'Overdrive' },
+  { emoji: '👑', name: 'Championship' },
+  { emoji: '🦁', name: 'Primal Spirit' },
 ];
 
 const AVATAR_BGS = [
@@ -331,8 +335,28 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
             <span className="text-sm font-black text-indigo-400 font-sans leading-none">Δ</span>
             V0.4 Community Release
           </span>
+          <style dangerouslySetInnerHTML={{__html: `
+            @keyframes rainbow-flow {
+              0% { background-position: 0% 50%; }
+              50% { background-position: 100% 50%; }
+              100% { background-position: 0% 50%; }
+            }
+            .rainbow-text {
+              background: linear-gradient(
+                90deg,
+                #ff3366, #ff9933, #33cc66, #3399ff, #9933ff, #ff3366
+              );
+              background-size: 300% 100%;
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+              text-fill-color: transparent;
+              animation: rainbow-flow 6s linear infinite;
+              display: inline-block;
+            }
+          `}} />
           <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-none text-white">
-            Delta Rush
+            <span className="rainbow-text">Delta Rush</span>
           </h1>
           <p className="text-sm text-neutral-300 mt-4 leading-relaxed max-w-lg">
             A high-skill 3D parkour time-trial racer focused on flow, momentum preservation, and precision routing. Run, wall-run, leap off rails, and shave precious milliseconds off your runs as <span className="text-indigo-400 font-bold">{currentUser.username}</span>.

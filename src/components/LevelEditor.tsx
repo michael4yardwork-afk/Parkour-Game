@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { Save, Play, Trash2, ArrowLeft, Move, RotateCcw, Compass, ZoomIn, ZoomOut } from 'lucide-react';
 import { LevelConfig, BlockConfig, BlockType, SceneTheme } from '../types';
+import { hasVulgarLanguage } from '../utils';
 
 interface LevelEditorProps {
   initialLevel?: LevelConfig | null;
@@ -386,6 +387,11 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
   };
 
   const handleSave = () => {
+    if (hasVulgarLanguage(levelName)) {
+      alert('Explicit or vulgar language is prohibited.');
+      return;
+    }
+
     // Validate levels must have start and end pad
     const hasStart = blocks.some(b => b.type === 'start');
     const hasEnd = blocks.some(b => b.type === 'end');
@@ -412,6 +418,11 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
   };
 
   const handleTestLevel = () => {
+    if (hasVulgarLanguage(levelName)) {
+      alert('Explicit or vulgar language is prohibited.');
+      return;
+    }
+
     const compiled: LevelConfig = {
       id: 'test_level_active',
       name: levelName.trim() || 'Course Test Run',
@@ -424,6 +435,11 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
   };
 
   const handleExit = () => {
+    if (hasVulgarLanguage(levelName)) {
+      alert('Explicit or vulgar language is prohibited.');
+      return;
+    }
+
     const compiled: LevelConfig = {
       id: initialLevel?.id || `level_${Date.now()}`,
       name: levelName.trim() || 'Custom course',
@@ -528,6 +544,11 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
                 placeholder="Level Title"
                 className="w-full mt-1.5 p-2 bg-neutral-950 border border-neutral-800 rounded-lg text-xs text-neutral-100 focus:border-indigo-500 focus:outline-none"
               />
+              {hasVulgarLanguage(levelName) && (
+                <p className="text-rose-500 text-[10px] mt-1 pl-0.5">
+                  Explicit or vulgar language is prohibited.
+                </p>
+              )}
             </div>
 
             <div>
@@ -628,9 +649,21 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
                       b.type === 'end' ? 'bg-blue-500' :
                       b.type === 'hazard' ? 'bg-red-500' :
                       b.type === 'wallrun' ? 'bg-purple-500' :
-                      b.type === 'jump' ? 'bg-amber-500' : 'bg-neutral-500'
+                      b.type === 'jump' ? 'bg-amber-500' :
+                      b.type === 'speed' ? 'bg-pink-500' :
+                      b.type === 'checkpoint' ? 'bg-lime-500' :
+                      b.type === 'climb' ? 'bg-cyan-500' :
+                      b.type === 'glass' ? 'bg-sky-300' : 'bg-neutral-500'
                     }`} />
-                    <span className="text-neutral-300 capitalize">{b.type} block</span>
+                    <span className="text-neutral-300">
+                      {b.type === 'climb' ? 'Ladder Block' : 
+                       b.type === 'wallrun' ? 'Wallrun Block' :
+                       b.type === 'checkpoint' ? 'Checkpoint Block' :
+                       b.type === 'speed' ? 'Speed Block' :
+                       b.type === 'hazard' ? 'Hazard Block' :
+                       b.type === 'glass' ? 'Glass Block' :
+                       b.type.charAt(0).toUpperCase() + b.type.slice(1) + ' Block'}
+                    </span>
                     <span className="text-[10px] text-neutral-500">({b.x},{b.y},{b.z})</span>
                   </div>
                   <button
