@@ -22,3 +22,12 @@
   background-size: 200% 200%;
   animation: gradient-flow 15s ease infinite;
 }
+
+@keyframes progress-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.animate-progress-grow {
+  animation: progress-grow 5s linear forwards;
+}

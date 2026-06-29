@@ -63,8 +63,8 @@ const getPercentileForLevel = (levelId: string, time: number | null, username: s
     const rankIdx = otherPlayerTimes.indexOf(time);
     const totalLen = otherPlayerTimes.length;
     
-    if (totalLen === 0) return 0;
-    return Math.round((rankIdx / totalLen) * 100);
+    if (totalLen <= 1) return 0;
+    return Math.round((rankIdx / (totalLen - 1)) * 100);
   } catch (e) {
     return 0;
   }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Sparkles, Check } from 'lucide-react';
+import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Sparkles, Check, Zap, Hammer, Users, Trophy } from 'lucide-react';
 import { UserAccount } from '../types';
 import { synths } from '../audio';
 import { hasVulgarLanguage } from '../utils';
@@ -32,6 +32,45 @@ const AVATAR_BGS = [
   { class: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300', value: 'bg-indigo-505' },
 ];
 
+const GAME_FEATURES = [
+  {
+    id: 'gameplay',
+    title: 'Velocity Rush',
+    badge: 'Momentum',
+    shortDesc: 'High-Velocity Physics Parkour',
+    color: 'from-amber-500/10 to-orange-500/10 border-amber-500/30 text-amber-400',
+    accentColor: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+    accentBg: 'bg-amber-500'
+  },
+  {
+    id: 'editor',
+    title: 'Level Creator',
+    badge: 'Sandbox',
+    shortDesc: 'Create & Share Custom Courses',
+    color: 'from-emerald-500/10 to-teal-500/10 border-emerald-500/30 text-emerald-400',
+    accentColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+    accentBg: 'bg-emerald-500'
+  },
+  {
+    id: 'multiplayer',
+    title: 'Speedrun Races',
+    badge: 'Multiplayer',
+    shortDesc: 'Real-Time Matchmaking Arenas',
+    color: 'from-indigo-500/10 to-violet-500/10 border-indigo-500/30 text-indigo-400',
+    accentColor: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
+    accentBg: 'bg-indigo-500'
+  },
+  {
+    id: 'leaderboard',
+    title: 'Hall of Fame',
+    badge: 'Ranked',
+    shortDesc: 'Shave Milliseconds & Collect Medals',
+    color: 'from-rose-500/10 to-pink-500/10 border-rose-500/30 text-rose-400',
+    accentColor: 'text-rose-400 bg-rose-500/10 border-rose-500/20',
+    accentBg: 'bg-rose-500'
+  }
+];
+
 export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState('');
@@ -48,6 +87,19 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
   // Error/Success States
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+
+  // Advertising Tabs State
+  const [activeTabIdx, setActiveTabIdx] = useState(0);
+  const [isAutoPlay, setIsAutoPlay] = useState(true);
+
+  // Auto-rotation for features preview
+  useEffect(() => {
+    if (!isAutoPlay) return;
+    const interval = setInterval(() => {
+      setActiveTabIdx((prev) => (prev + 1) % GAME_FEATURES.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isAutoPlay, activeTabIdx]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -326,7 +378,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       {/* Delta pixie dust canvas */}
       <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0" />
 
-      <div className="w-full max-w-md relative z-10 space-y-8 animate-in fade-in zoom-in-95 duration-300">
+      <div className="w-full max-w-md md:max-w-2xl relative z-10 space-y-6 animate-in fade-in zoom-in-95 duration-300">
         
         {/* Header Logo */}
         <div className="flex flex-col items-center justify-center space-y-3">
@@ -541,6 +593,84 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
             <span>Telemetry data secured on this device.</span>
           </div>
 
+        </div>
+
+        {/* Game Features Advertising Tabs */}
+        <div className="bg-neutral-900/80 border border-neutral-800 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md space-y-6">
+          <div className="flex items-center justify-between border-b border-neutral-800/60 pb-4">
+            <h3 className="text-sm md:text-base font-mono font-bold uppercase tracking-wider text-neutral-300 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
+              <span>Explore Game Features</span>
+            </h3>
+            <span className="text-xs font-mono text-neutral-500">Auto-rotating</span>
+          </div>
+
+          {/* Tab Selection Row */}
+          <div className="grid grid-cols-4 gap-2 bg-neutral-950 p-1.5 rounded-2xl border border-neutral-800/60">
+            {GAME_FEATURES.map((feat, idx) => {
+              const isActive = activeTabIdx === idx;
+              return (
+                <button
+                  key={feat.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTabIdx(idx);
+                    setIsAutoPlay(false); // Pause auto rotation on manual interaction
+                    synths.playTick();
+                  }}
+                  className={`py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${
+                    isActive
+                      ? 'bg-neutral-900 text-neutral-100 border border-neutral-800 shadow-lg scale-[1.02]'
+                      : 'text-neutral-500 hover:text-neutral-300 hover:bg-neutral-900/40 border border-transparent'
+                  }`}
+                >
+                  {/* Icon */}
+                  {feat.id === 'gameplay' && <Zap className={`w-5 h-5 md:w-6 h-6 ${isActive ? 'text-amber-400' : 'text-neutral-500'}`} />}
+                  {feat.id === 'editor' && <Hammer className={`w-5 h-5 md:w-6 h-6 ${isActive ? 'text-emerald-400' : 'text-neutral-500'}`} />}
+                  {feat.id === 'multiplayer' && <Users className={`w-5 h-5 md:w-6 h-6 ${isActive ? 'text-indigo-400' : 'text-neutral-500'}`} />}
+                  {feat.id === 'leaderboard' && <Trophy className={`w-5 h-5 md:w-6 h-6 ${isActive ? 'text-rose-400' : 'text-neutral-500'}`} />}
+                  
+                  <span className="text-[10px] md:text-xs font-bold font-mono uppercase tracking-wider hidden sm:inline">
+                    {feat.badge}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Active Tab Panel */}
+          <div className="min-h-[100px] flex flex-col justify-between">
+            {GAME_FEATURES.map((feat, idx) => {
+              if (activeTabIdx !== idx) return null;
+              return (
+                <div
+                  key={feat.id}
+                  className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300 py-2"
+                >
+                  <div className="flex flex-col space-y-3 text-left">
+                    <div className="flex items-center gap-2.5">
+                      <span className={`text-xs font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${feat.accentColor}`}>
+                        {feat.badge}
+                      </span>
+                      <h4 className="text-lg md:text-2xl font-black font-sans tracking-tight text-neutral-100">
+                        {feat.title}
+                      </h4>
+                    </div>
+                    <p className="text-sm md:text-base text-neutral-300 font-medium leading-relaxed">
+                      {feat.shortDesc}
+                    </p>
+                  </div>
+
+                  {/* Tiny progress timer bar (only active if auto-playing) */}
+                  {isAutoPlay && (
+                    <div className="w-full h-[3px] bg-neutral-950 rounded-full overflow-hidden mt-4">
+                      <div className="h-full bg-indigo-500/80 animate-progress-grow origin-left w-full" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
       </div>

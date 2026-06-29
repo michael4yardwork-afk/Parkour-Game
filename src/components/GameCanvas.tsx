@@ -2090,9 +2090,26 @@ export default function GameCanvas({
       wallRunDirectionRef.current = null;
       lastWallTouchRef.current = null;
     } else {
-      // Since player has no active checkpoints, they respawn on the start block.
-      // Reset the timer and run states as if they had clicked the reset button.
-      initGame(true);
+      if (raceMode) {
+        // Since we are in a race, we do not want to reset the timer or race opponents.
+        // We just reset the player back to the start block coordinates.
+        const spawnBlock = level.blocks.find(b => b.type === 'start') || level.blocks[0];
+        const spawnY = spawnBlock ? spawnBlock.y + spawnBlock.h + 1.2 : 4;
+        const spawnX = spawnBlock ? spawnBlock.x : 0;
+        const spawnZ = spawnBlock ? spawnBlock.z : 0;
+
+        playerPos.current.set(spawnX, spawnY, spawnZ);
+        playerVel.current.set(0, 0, 0);
+        slidingRef.current = false;
+        currentMaxSpeedRef.current = 12.0;
+        climbingRef.current = false;
+        wallRunDirectionRef.current = null;
+        lastWallTouchRef.current = null;
+      } else {
+        // Since player has no active checkpoints, they respawn on the start block.
+        // Reset the timer and run states as if they had clicked the reset button.
+        initGame(true);
+      }
     }
   };
 
@@ -2222,8 +2239,10 @@ export default function GameCanvas({
         const worldRank = rankIdx + 1;
         
         let percentileVal = 0;
-        if (totalLen > 0) {
-          percentileVal = Math.round((rankIdx / totalLen) * 100);
+        if (totalLen > 1) {
+          percentileVal = Math.round((rankIdx / (totalLen - 1)) * 100);
+        } else {
+          percentileVal = 0;
         }
         
         if (isNewPb && level.id !== 'test_level_active') {
