@@ -37,7 +37,7 @@ export default function GameCanvas({
   const [elapsedTime, setElapsedTime] = useState(0.00);
   const [personalBest, setPersonalBest] = useState<number | null>(null);
   const [speed, setSpeed] = useState(0);
-  const [deaths, setDeaths] = useState(0);
+  const [attempts, setAttempts] = useState(1);
   const [activeModifiers, setActiveModifiers] = useState<string[]>([]);
 
   // Refs to prevent physics and telemetry loops from triggering effect resets
@@ -78,6 +78,8 @@ export default function GameCanvas({
 
   // Ghost information
   const currentRunFramesRef = useRef<GhostFrame[]>([]);
+  const currentRunSpeedsRef = useRef<number[]>([]);
+  const currentRunActionsRef = useRef<string[]>([]);
   const ghostFramesRef = useRef<GhostFrame[]>([]);
   const ghostMeshRef = useRef<THREE.Mesh | null>(null);
   const ghostActiveRef = useRef<boolean>(false);
@@ -264,8 +266,16 @@ export default function GameCanvas({
   };
 
   // Restart / Setup Game Loop
-  const initGame = (isManualRestart = false) => {
+  const initGame = (isManualRestart = false, isDeathReset = false) => {
     isLeaderboardLoggedRef.current = false;
+
+    if (isManualRestart) {
+      if (!isDeathReset) {
+        setAttempts(prev => prev + 1);
+      }
+    } else {
+      setAttempts(1);
+    }
 
     // Load Personal Best ghost dynamically for the current course
     const score = localStorage.getItem(`best_time_${level.id}`);
@@ -452,6 +462,8 @@ export default function GameCanvas({
     lastJumpBlockCollisionTimeRef.current = 0;
 
     currentRunFramesRef.current = [];
+    currentRunSpeedsRef.current = [];
+    currentRunActionsRef.current = [];
     elapsedTimeRef.current = 0.00;
     currentMaxSpeedRef.current = 12.0;
     movementStartedRef.current = false;
@@ -851,6 +863,15 @@ export default function GameCanvas({
                    : groundedRef.current ? 'run' : 'jump'
           });
 
+          currentRunSpeedsRef.current.push(playerVel.current.length());
+          
+          const currentAction = slidingRef.current ? 'Sliding'
+                               : wallRunDirectionRef.current ? 'Wall Riding'
+                               : climbingRef.current ? 'Climbing'
+                               : groundedRef.current ? 'Sprinting'
+                               : 'Airborne';
+          currentRunActionsRef.current.push(currentAction);
+
           elapsedTimeRef.current += dt;
           updateGhostReplay();
           setElapsedTime(elapsedTimeRef.current);
@@ -864,6 +885,8 @@ export default function GameCanvas({
             ry: playerYaw.current,
             state: 'run'
           }];
+          currentRunSpeedsRef.current = [0];
+          currentRunActionsRef.current = ['Sprinting'];
           setElapsedTime(0.00);
           updateGhostReplay();
         }
@@ -1496,8 +1519,8 @@ export default function GameCanvas({
     for (let i = 0; i < changedTouches.length; i++) {
       const touch = changedTouches[i];
       if (touch.clientX < halfWidth) {
-        // If joystick not active, start tracking
-        if (joystickTouchIdRef.current === null) {
+        // If joystick not active, start tracking (if enabled)
+        if (settings.showJoystick !== false && joystickTouchIdRef.current === null) {
           joystickTouchIdRef.current = touch.identifier;
           touchStartRef.current = { x: touch.clientX, y: touch.clientY };
           touchMoveRef.current = { x: touch.clientX, y: touch.clientY };
@@ -2077,7 +2100,7 @@ export default function GameCanvas({
   };
 
   const handlePlayerDeath = () => {
-    setDeaths(prev => prev + 1);
+    setAttempts(prev => prev + 1);
     synths.playDeath();
 
     // Reset player back to last active Checkpoint coordinates or start pad
@@ -2108,7 +2131,7 @@ export default function GameCanvas({
       } else {
         // Since player has no active checkpoints, they respawn on the start block.
         // Reset the timer and run states as if they had clicked the reset button.
-        initGame(true);
+        initGame(true, true);
       }
     }
   };
@@ -2260,7 +2283,9 @@ export default function GameCanvas({
             playerName: currentUser?.username || 'Guest',
             time: elapsedTimeRef.current,
             date: Date.now(),
-            device: isMobileRef.current ? 'mobile' : 'desktop'
+            device: isMobileRef.current ? 'mobile' : 'desktop',
+            speeds: currentRunSpeedsRef.current,
+            actions: currentRunActionsRef.current
           };
           localStorage.setItem(`leaderboard_${level.id}`, JSON.stringify([...entries, newEntry]));
         }
@@ -2467,7 +2492,7 @@ export default function GameCanvas({
                   <h3 className="text-xs font-bold text-neutral-50">{level.name}</h3>
                   <div className="flex gap-2 justify-end items-center mt-0.5">
                     <span className="text-[9px] font-mono text-neutral-500 block uppercase">Gate {calculateProgress()}%</span>
-                    <span className="text-[9px] font-mono text-neutral-400 block px-1.5 py-0.5 bg-neutral-950/80 border border-neutral-800/50 rounded uppercase">Deaths: {deaths}</span>
+                    <span className="text-[9px] font-mono text-neutral-400 block px-1.5 py-0.5 bg-neutral-950/80 border border-neutral-800/50 rounded uppercase">ATTEMPTS: {attempts}</span>
                   </div>
                 </div>
               </div>
@@ -2525,7 +2550,7 @@ export default function GameCanvas({
             </div>
 
             {/* Touch overlay inputs (Visualizes joystick on Left half, Jump on Right) */}
-            {isMobileRef.current && (
+            {isMobileRef.current && (settings.showJoystick !== false || settings.showJumpButton !== false) && (
               <div 
                 className="pointer-events-auto w-full grid grid-cols-2 h-44 gap-4"
                 onTouchStart={handleTouchStart}
@@ -2536,37 +2561,41 @@ export default function GameCanvas({
                 
                 {/* Left zone: custom virtual joystick rendering */}
                 <div className="relative flex items-center justify-center translate-y-6">
-                  <div className={`w-28 h-28 rounded-full border border-neutral-800 bg-neutral-950/20 backdrop-blur-sm flex items-center justify-center transition-opacity duration-200 ${touchJoystickActive ? 'opacity-100' : 'opacity-40'}`}>
-                    {/* Joystick knob handle */}
-                    <div 
-                      className="absolute w-12 h-12 rounded-full bg-neutral-50 border border-neutral-300 shadow-xl"
-                      style={{
-                        transform: `translate(${touchJoystickOffset.x}px, ${touchJoystickOffset.y}px)`
-                      }}
-                    />
-                  </div>
+                  {settings.showJoystick !== false && (
+                    <div className={`w-28 h-28 rounded-full border border-neutral-800 bg-neutral-950/20 backdrop-blur-sm flex items-center justify-center transition-opacity duration-200 ${touchJoystickActive ? 'opacity-100' : 'opacity-40'}`}>
+                      {/* Joystick knob handle */}
+                      <div 
+                        className="absolute w-12 h-12 rounded-full bg-neutral-50 border border-neutral-300 shadow-xl"
+                        style={{
+                          transform: `translate(${touchJoystickOffset.x}px, ${touchJoystickOffset.y}px)`
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Right zone: Action execution buttons */}
                 <div className="flex items-center justify-end pr-8">
                   {/* JUMP button */}
-                  <button
-                    onTouchStart={(e) => {
-                      e.stopPropagation();
-                      keysRef.current[' '] = true;
-                    }}
-                    onTouchEnd={(e) => {
-                      e.stopPropagation();
-                      keysRef.current[' '] = false;
-                    }}
-                    onTouchCancel={(e) => {
-                      e.stopPropagation();
-                      keysRef.current[' '] = false;
-                    }}
-                    className="w-20 h-20 rounded-full bg-indigo-600 border border-indigo-500 flex flex-col items-center justify-center text-white active:bg-indigo-700 active:scale-95 shadow-xl transition"
-                  >
-                    <span className="text-xs font-bold font-mono">JUMP</span>
-                  </button>
+                  {settings.showJumpButton !== false && (
+                    <button
+                      onTouchStart={(e) => {
+                        e.stopPropagation();
+                        keysRef.current[' '] = true;
+                      }}
+                      onTouchEnd={(e) => {
+                        e.stopPropagation();
+                        keysRef.current[' '] = false;
+                      }}
+                      onTouchCancel={(e) => {
+                        e.stopPropagation();
+                        keysRef.current[' '] = false;
+                      }}
+                      className="w-20 h-20 rounded-full bg-indigo-600 border border-indigo-500 flex flex-col items-center justify-center text-white active:bg-indigo-700 active:scale-95 shadow-xl transition"
+                    >
+                      <span className="text-xs font-bold font-mono">JUMP</span>
+                    </button>
+                  )}
                 </div>
 
               </div>

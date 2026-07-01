@@ -29,7 +29,7 @@ const AVATAR_BGS = [
   { class: 'bg-purple-500/20 border-purple-500/40 text-purple-300', value: 'bg-purple-500' },
   { class: 'bg-blue-500/20 border-blue-500/40 text-blue-300', value: 'bg-blue-500' },
   { class: 'bg-amber-500/20 border-amber-500/40 text-amber-300', value: 'bg-amber-500' },
-  { class: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300', value: 'bg-indigo-505' },
+  { class: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300', value: 'bg-indigo-500' },
 ];
 
 const GAME_FEATURES = [

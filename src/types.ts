@@ -77,6 +77,8 @@ export interface LeaderboardEntry {
   time: number;
   date: number;
   device?: string;
+  speeds?: number[];
+  actions?: string[];
 }
 
 export interface GameSettings {
@@ -87,6 +89,8 @@ export interface GameSettings {
   showGhost: boolean;
   invertY: boolean;
   adjustablePerspective: boolean;
+  showJoystick?: boolean;
+  showJumpButton?: boolean;
 }
 
 export interface UserAccount {
@@ -119,5 +123,15 @@ export interface RaceHistoryEntry {
   newRating: number;
   date: number;
 }
+
+export interface CourseNotification {
+  id: string;
+  creator: string;
+  courseId: string;
+  courseName: string;
+  createdAt: number;
+  read: boolean;
+}
+
 
 

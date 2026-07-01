@@ -28,7 +28,14 @@ function getCurrentUser(): string | null {
 
 function getPrefixedKey(key: string): string {
   // Do not prefix top-level authenticated session tracking, the global accounts registry, or shared leaderboards
-  if (key === 'momentum_current_user' || key === 'momentum_users' || key.startsWith('leaderboard_') || key.startsWith('community_')) {
+  if (
+    key === 'momentum_current_user' ||
+    key === 'momentum_users' ||
+    key.startsWith('leaderboard_') ||
+    key.startsWith('community_') ||
+    key.startsWith('momentum_follows_') ||
+    key.startsWith('momentum_notifications_')
+  ) {
     return key;
   }
 

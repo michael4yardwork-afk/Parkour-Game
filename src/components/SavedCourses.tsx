@@ -105,6 +105,40 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
       setCustomLevels(updatedList);
       localStorage.setItem('custom_parkour_levels', JSON.stringify(updatedList));
 
+      // Distribute notifications to all followers
+      try {
+        const usersStored = localStorage.getItem('momentum_users');
+        const allUsers: UserAccount[] = usersStored ? JSON.parse(usersStored) : [];
+        allUsers.forEach((usr) => {
+          // Skip notifying self
+          if (usr.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim()) return;
+
+          const followsKey = `momentum_follows_${usr.username.toLowerCase().trim()}`;
+          const followsStored = localStorage.getItem(followsKey);
+          const followedUsers: string[] = followsStored ? JSON.parse(followsStored) : [];
+
+          if (followedUsers.map(u => u.toLowerCase().trim()).includes(currentUser.username.toLowerCase().trim())) {
+            // This user is a follower! Add a notification for them
+            const notifKey = `momentum_notifications_${usr.username.toLowerCase().trim()}`;
+            const notifsStored = localStorage.getItem(notifKey);
+            const currentNotifs = notifsStored ? JSON.parse(notifsStored) : [];
+            
+            const newNotif = {
+              id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+              creator: currentUser.username,
+              courseId: published.id,
+              courseName: published.name,
+              createdAt: now,
+              read: false
+            };
+
+            localStorage.setItem(notifKey, JSON.stringify([newNotif, ...currentNotifs]));
+          }
+        });
+      } catch (err) {
+        console.error('Error distributing notifications to followers:', err);
+      }
+
       // Decouple the builder draft if it matches the level being published
       const savedDraft = localStorage.getItem('momentum_builder_draft');
       if (savedDraft) {

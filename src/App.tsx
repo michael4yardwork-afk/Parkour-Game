@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Code, Volume2, LogOut, User, KeyRound, ShieldAlert, Users, Trophy, Settings, HelpCircle, Bookmark } from 'lucide-react';
+import { Code, Volume2, LogOut, User, KeyRound, ShieldAlert, Users, Trophy, Settings, HelpCircle, Bookmark, Bell } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import LevelSelector from './components/LevelSelector';
 import LevelEditor from './components/LevelEditor';
@@ -9,10 +9,12 @@ import Races from './components/Races';
 import GameCanvas from './components/GameCanvas';
 import Leaderboard from './components/Leaderboard';
 import AuthScreen from './components/AuthScreen';
+import UserProfile from './components/UserProfile';
+import NotificationsTab from './components/NotificationsTab';
 import SettingsModal from './components/SettingsModal';
 import HelpModal from './components/HelpModal';
 import PrivacyModal from './components/PrivacyModal';
-import { LevelConfig, GameSettings, UserAccount, RaceParticipant } from './types';
+import { LevelConfig, GameSettings, UserAccount, RaceParticipant, CourseNotification } from './types';
 import { synths } from './audio';
 
 
@@ -24,10 +26,12 @@ const DEFAULT_SETTINGS: GameSettings = {
   sfxVolume: 0.5,
   showGhost: false,
   invertY: false,
-  adjustablePerspective: false
+  adjustablePerspective: false,
+  showJoystick: true,
+  showJumpButton: true
 };
 
-type AppTab = 'home' | 'levels' | 'saved' | 'community' | 'editor' | 'play' | 'races';
+type AppTab = 'home' | 'levels' | 'saved' | 'community' | 'editor' | 'play' | 'races' | 'profile' | 'notifications';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
@@ -44,6 +48,33 @@ export default function App() {
 
   const [tab, setTab] = useState<AppTab>('home');
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
+
+  // Profile page states
+  const [viewingProfileUsername, setViewingProfileUsername] = useState<string | null>(null);
+  const [previousTab, setPreviousTab] = useState<AppTab>('home');
+
+  // Notifications state
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+
+  const checkUnreadNotifications = () => {
+    if (!currentUser) return;
+    try {
+      const notifKey = `momentum_notifications_${currentUser.username.toLowerCase().trim()}`;
+      const stored = localStorage.getItem(notifKey);
+      if (stored) {
+        const notifs: CourseNotification[] = JSON.parse(stored);
+        setHasUnreadNotifications(notifs.some(n => !n.read));
+      } else {
+        setHasUnreadNotifications(false);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    checkUnreadNotifications();
+  }, [currentUser, tab]);
 
   
   // Game session states
@@ -257,6 +288,16 @@ export default function App() {
     setLeaderboardOpen(true);
   };
 
+  const handleViewProfile = (profileUsername: string) => {
+    if (tab !== 'profile') {
+      setPreviousTab(tab);
+    }
+    setViewingProfileUsername(profileUsername);
+    setTab('profile');
+    setLeaderboardOpen(false);
+    synths.playTick();
+  };
+
   // Helper: fetch PB to display in stats summary
   const getPBTime = (id: string) => {
     const score = localStorage.getItem(`best_time_${id}`);
@@ -305,7 +346,7 @@ export default function App() {
     return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
-  const isCoolBlueTab = ['home', 'levels', 'saved', 'community'].includes(tab);
+  const isCoolBlueTab = ['home', 'levels', 'saved', 'community', 'races', 'profile', 'notifications'].includes(tab);
 
   return (
     <div className={`min-h-screen text-neutral-800 selection:bg-indigo-600 selection:text-white flex flex-col justify-between transition-colors duration-300 ${isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-white'}`}>
@@ -398,6 +439,29 @@ export default function App() {
             {/* Settings & Active User Badge */}
             <div className="hidden sm:flex items-center gap-3 text-xs font-mono">
               <button
+                id="notifications-icon-trigger"
+                onClick={() => {
+                  setTab('notifications');
+                  synths.playTick();
+                }}
+                className={`p-1.5 rounded-xl transition cursor-pointer flex items-center justify-center relative ${
+                  tab === 'notifications' 
+                    ? 'bg-neutral-150 text-neutral-950' 
+                    : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100'
+                }`}
+                title="Notifications Inbox"
+              >
+                <span className="relative flex items-center justify-center">
+                  <Bell className="w-4 h-4" />
+                  {hasUnreadNotifications && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-600 text-[8px] font-black text-white ring-1 ring-white animate-pulse">
+                      !
+                    </span>
+                  )}
+                </span>
+              </button>
+
+              <button
                 onClick={() => {
                   setIsHelpOpen(true);
                   synths.playTick();
@@ -420,11 +484,15 @@ export default function App() {
               </button>
 
               {/* Active User Badge */}
-              <div className="flex items-center gap-2 pl-3 border-l border-neutral-200">
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm shadow-sm border border-neutral-100 ${currentUser.avatarBg || 'bg-rose-500'}`}>
+              <div 
+                onClick={() => handleViewProfile(currentUser.username)}
+                className="flex items-center gap-2 pl-3 border-l border-neutral-200 cursor-pointer hover:opacity-85 active:scale-[0.98] transition group select-none"
+                title="View your public profile"
+              >
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm shadow-sm border border-neutral-100 ${currentUser.avatarBg || 'bg-rose-500'} group-hover:scale-105 transition-transform duration-200`}>
                   {currentUser.avatar}
                 </div>
-                <span className="font-semibold text-neutral-700 hidden md:inline">{currentUser.username}</span>
+                <span className="font-semibold text-neutral-700 hidden md:inline group-hover:text-indigo-600 transition-colors duration-200">{currentUser.username}</span>
               </div>
             </div>
           </div>
@@ -465,6 +533,7 @@ export default function App() {
           <CommunityCourses
             onSelectLevel={handleSelectLevel}
             currentUser={currentUser}
+            onViewProfile={handleViewProfile}
           />
         )}
 
@@ -474,6 +543,25 @@ export default function App() {
             onSelectLevel={(rl, isRacesMode, opponents) => {
               handleSelectRaceLevel(rl, isRacesMode, opponents);
             }}
+          />
+        )}
+
+        {tab === 'profile' && viewingProfileUsername && currentUser && (
+          <UserProfile
+            username={viewingProfileUsername}
+            currentUser={currentUser}
+            onBack={() => setTab(previousTab)}
+            onSelectLevel={handleSelectLevel}
+            onUpdateCurrentUser={handleUpdateCurrentUser}
+          />
+        )}
+
+        {tab === 'notifications' && currentUser && (
+          <NotificationsTab
+            currentUser={currentUser}
+            onSelectLevel={handleSelectLevel}
+            onViewProfile={handleViewProfile}
+            onNotificationsChanged={checkUnreadNotifications}
           />
         )}
 
@@ -539,6 +627,7 @@ export default function App() {
           localBest={getPBTime(leaderboardLevel.id)}
           currentUser={currentUser}
           onClose={() => setLeaderboardOpen(false)}
+          onViewProfile={handleViewProfile}
         />
       )}
 

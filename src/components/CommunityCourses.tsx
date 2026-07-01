@@ -6,9 +6,10 @@ import { synths } from '../audio';
 interface CommunityCoursesProps {
   onSelectLevel: (level: LevelConfig) => void;
   currentUser: UserAccount;
+  onViewProfile: (username: string) => void;
 }
 
-export default function CommunityCourses({ onSelectLevel, currentUser }: CommunityCoursesProps) {
+export default function CommunityCourses({ onSelectLevel, currentUser, onViewProfile }: CommunityCoursesProps) {
   const [courses, setCourses] = useState<LevelConfig[]>([]);
   const [savedLevelIds, setSavedLevelIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -353,7 +354,15 @@ export default function CommunityCourses({ onSelectLevel, currentUser }: Communi
                   
                   {/* Creator and details info */}
                   <div className="flex items-center gap-3 mt-4 text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">
-                    <div className="flex items-center gap-1 text-teal-600" title="Course Creator">
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        synths.playTick();
+                        onViewProfile(isOurOwn ? currentUser.username : (course.creator || 'Runner'));
+                      }}
+                      className="flex items-center gap-1 text-teal-600 hover:text-indigo-600 hover:scale-[1.02] transition cursor-pointer underline decoration-dotted underline-offset-2" 
+                      title="View Athlete Profile"
+                    >
                       <User className="w-3.5 h-3.5 shrink-0" />
                       <span>{isOurOwn ? 'You' : course.creator || 'Runner'}</span>
                     </div>

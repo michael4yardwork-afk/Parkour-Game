@@ -34,11 +34,11 @@ const AVATAR_BGS = [
   { class: 'bg-purple-500/20 border-purple-500/40 text-purple-300', value: 'bg-purple-500', label: 'Neon' },
   { class: 'bg-blue-500/20 border-blue-500/40 text-blue-300', value: 'bg-blue-500', label: 'Cyber' },
   { class: 'bg-amber-500/20 border-amber-500/40 text-amber-300', value: 'bg-amber-500', label: 'Solar' },
-  { class: 'bg-indigo-505/20 border-indigo-505/40 text-indigo-300', value: 'bg-indigo-505', label: 'Slate' },
+  { class: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300', value: 'bg-indigo-500', label: 'Slate' },
 ];
 
-const getPercentileForLevel = (levelId: string, time: number | null, username: string) => {
-  if (time === null || time <= 0.05) return null;
+const getWorldRankAndPercentile = (levelId: string, time: number | null, username: string) => {
+  if (time === null || time <= 0.05) return { rank: null, total: 0, percentile: null };
   try {
     const stored = localStorage.getItem(`leaderboard_${levelId}`);
     const entries = stored ? JSON.parse(stored) : [];
@@ -61,12 +61,19 @@ const getPercentileForLevel = (levelId: string, time: number | null, username: s
     otherPlayerTimes.sort((a, b) => a - b);
     
     const rankIdx = otherPlayerTimes.indexOf(time);
+    const rank = rankIdx + 1;
     const totalLen = otherPlayerTimes.length;
     
-    if (totalLen <= 1) return 0;
-    return Math.round((rankIdx / (totalLen - 1)) * 100);
+    let percentile = 0;
+    if (totalLen > 1) {
+      percentile = Math.round((rankIdx / (totalLen - 1)) * 100);
+    } else {
+      percentile = 0;
+    }
+    
+    return { rank, total: totalLen, percentile };
   } catch (e) {
-    return 0;
+    return { rank: null, total: 0, percentile: null };
   }
 };
 
@@ -428,14 +435,20 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
 
                 {time !== null && (
                   <div id={`standing-percentile-lvl-${lvl.id}`} className="mt-3 text-[10px] font-mono flex items-center justify-between text-neutral-500 border-t border-neutral-100/60 pt-2.5">
-                    <span className="uppercase tracking-wider">Standing:</span>
                     {(() => {
-                      const pct = getPercentileForLevel(lvl.id, time, currentUser?.username || 'Guest');
-                      if (pct === null) return <span className="font-bold text-neutral-400">N/A</span>;
+                      const { rank, total, percentile } = getWorldRankAndPercentile(lvl.id, time, currentUser?.username || 'Guest');
                       return (
-                        <span className="font-bold font-sans text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px]">
-                          Top {pct}%
-                        </span>
+                        <>
+                          <span className="uppercase tracking-wider">
+                            World Rank: <span className="font-bold text-neutral-700">#{rank ?? 'N/A'}</span>
+                            {rank !== null && <span className="text-neutral-400 font-normal font-sans"> / {total}</span>}
+                          </span>
+                          {percentile !== null && (
+                            <span className="font-bold font-sans text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px]">
+                              Top {percentile}%
+                            </span>
+                          )}
+                        </>
                       );
                     })()}
                   </div>

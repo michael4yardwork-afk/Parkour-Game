@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, HelpCircle, ChevronDown, ChevronUp, Gamepad2, Zap, Trophy, Play, Edit3, Heart, Users } from 'lucide-react';
+import { X, HelpCircle, ChevronDown, ChevronUp, Gamepad2, Zap, Trophy, Play, Edit3, Heart, Users, Keyboard } from 'lucide-react';
 import { synths } from '../audio';
 
 interface HelpModalProps {
@@ -16,7 +16,7 @@ interface HelpSection {
 }
 
 export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
-  const [openSection, setOpenSection] = useState<string | null>('lexicon'); // Default to open Lexicon first since we moved it here
+  const [openSection, setOpenSection] = useState<string | null>('controls'); // Default to open the new controls first so users see it immediately
 
   const toggleSection = (id: string) => {
     synths.playTick();
@@ -24,6 +24,85 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
   };
 
   const sections: HelpSection[] = [
+    {
+      id: 'controls',
+      title: 'Keyboard & Touch Controls',
+      icon: <Keyboard className="w-5 h-5 text-indigo-600 animate-pulse" />,
+      content: (
+        <div className="space-y-4">
+          <p className="text-xs text-neutral-500 leading-relaxed">
+            Delta Rush is optimized for high-performance runs. Use these inputs to maneuver your athlete through the obstacle grids:
+          </p>
+          <div className="space-y-3.5 text-xs">
+            {/* Desktop Section */}
+            <div>
+              <h4 className="font-bold text-neutral-800 border-b border-neutral-200/50 pb-1 mb-2 font-mono uppercase tracking-wider text-[10px] flex items-center gap-1">
+                <span>💻</span> Desktop / Keyboard &amp; Mouse
+              </h4>
+              <div className="grid grid-cols-1 gap-1.5">
+                <div className="flex items-center justify-between p-2 bg-neutral-50 rounded-xl border border-neutral-200/40">
+                  <span className="font-bold text-neutral-700">Movement / Run</span>
+                  <span className="px-2 py-0.5 bg-white border border-neutral-200 text-neutral-800 font-mono text-[10px] rounded shadow-sm">
+                    W, A, S, D / Arrow Keys
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-neutral-50 rounded-xl border border-neutral-200/40">
+                  <span className="font-bold text-neutral-700">Jump / Climb Wall</span>
+                  <span className="px-2 py-0.5 bg-white border border-neutral-200 text-neutral-800 font-mono text-[10px] rounded shadow-sm">
+                    Spacebar
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-neutral-50 rounded-xl border border-neutral-200/40">
+                  <span className="font-bold text-neutral-700">Restart Course</span>
+                  <span className="px-2 py-0.5 bg-white border border-neutral-200 text-neutral-800 font-mono text-[10px] rounded shadow-sm">
+                    R Key
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-neutral-50 rounded-xl border border-neutral-200/40">
+                  <span className="font-bold text-neutral-700">Camera / Look around</span>
+                  <span className="px-2 py-0.5 bg-white border border-neutral-200 text-neutral-500 font-mono text-[10px] rounded shadow-sm">
+                    Mouse Move (Click canvas to Lock)
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-neutral-50 rounded-xl border border-neutral-200/40">
+                  <span className="font-bold text-neutral-700">Release Mouse cursor</span>
+                  <span className="px-2 py-0.5 bg-white border border-neutral-200 text-neutral-800 font-mono text-[10px] rounded shadow-sm">
+                    Escape Key
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile Section */}
+            <div>
+              <h4 className="font-bold text-neutral-800 border-b border-neutral-200/50 pb-1 mb-2 font-mono uppercase tracking-wider text-[10px] flex items-center gap-1">
+                <span>📱</span> Mobile / Touch Gestures
+              </h4>
+              <div className="grid grid-cols-1 gap-1.5">
+                <div className="flex items-center justify-between p-2 bg-neutral-50 rounded-xl border border-neutral-200/40">
+                  <span className="font-bold text-neutral-700">Virtual Joystick Move</span>
+                  <span className="px-2 py-0.5 bg-white border border-neutral-200 text-neutral-500 font-mono text-[10px] rounded shadow-sm">
+                    Drag on Left half of screen
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-neutral-50 rounded-xl border border-neutral-200/40">
+                  <span className="font-bold text-neutral-700">Turn Camera angle</span>
+                  <span className="px-2 py-0.5 bg-white border border-neutral-200 text-neutral-500 font-mono text-[10px] rounded shadow-sm">
+                    Swipe on Right half of screen
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-2 bg-neutral-50 rounded-xl border border-neutral-200/40">
+                  <span className="font-bold text-neutral-700">Execute Jumps</span>
+                  <span className="px-2 py-0.5 bg-white border border-neutral-200 text-neutral-500 font-mono text-[10px] rounded shadow-sm">
+                    Tap Virtual JUMP Button
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    },
     {
       id: 'modes',
       title: 'Game Modes & Interfaces',

@@ -34,7 +34,7 @@ const AVATAR_BGS = [
   { class: 'bg-purple-500/20 border-purple-500/40 text-purple-300', value: 'bg-purple-500', label: 'Neon' },
   { class: 'bg-blue-500/20 border-blue-500/40 text-blue-300', value: 'bg-blue-500', label: 'Cyber' },
   { class: 'bg-amber-500/20 border-amber-500/40 text-amber-300', value: 'bg-amber-500', label: 'Solar' },
-  { class: 'bg-indigo-505/20 border-indigo-505/40 text-indigo-300', value: 'bg-indigo-505', label: 'Slate' },
+  { class: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300', value: 'bg-indigo-500', label: 'Slate' },
 ];
 
 export default function SettingsModal({
@@ -149,64 +149,8 @@ export default function SettingsModal({
               </button>
             </div>
 
-            {/* Profile Avatar / BG Customization */}
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold text-neutral-950 uppercase tracking-wider font-mono flex items-center gap-2">
-                <User className="w-4 h-4 text-neutral-600" />
-                Runner Customization
-              </h3>
-
-              <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200/50 space-y-4">
-                <div>
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block mb-2 text-left">
-                    Signature Emoji Glyph
-                  </span>
-                  <div className="grid grid-cols-4 gap-2">
-                    {AVATARS.map((avatar) => (
-                      <button
-                        key={avatar.emoji}
-                        onClick={() => selectAvatar(avatar.emoji)}
-                        className={`py-2 rounded-xl text-lg flex items-center justify-center border transition cursor-pointer ${
-                          currentUser.avatar === avatar.emoji
-                            ? 'bg-indigo-600/10 border-indigo-600 text-indigo-700 font-bold'
-                            : 'bg-white border-neutral-200 text-neutral-500 hover:border-neutral-300'
-                        }`}
-                        title={avatar.name}
-                      >
-                        {avatar.emoji}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block mb-2 text-left">
-                    Icon Theme
-                  </span>
-                  <div className="flex flex-wrap gap-2.5">
-                    {AVATAR_BGS.map((bg) => (
-                      <button
-                        key={bg.value}
-                        onClick={() => selectBg(bg.value)}
-                        className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition focus:outline-none cursor-pointer ${
-                          bg.value === (currentUser.avatarBg || 'bg-rose-500')
-                            ? 'border-indigo-600 shadow-sm scale-105'
-                            : 'border-transparent'
-                        } ${bg.value}`}
-                        title={bg.label}
-                      >
-                        {bg.value === (currentUser.avatarBg || 'bg-rose-500') && (
-                          <Check className="w-3.5 h-3.5 stroke-[3] text-white" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Volume Control */}
-            <div className="space-y-4 pt-2 border-t border-neutral-100">
+            <div className="space-y-4">
               <h3 className="text-xs font-bold text-neutral-950 uppercase tracking-wider font-mono flex items-center gap-2">
                 <Volume2 className="w-4 h-4 text-neutral-600" />
                 Master Audio Volume
@@ -289,6 +233,46 @@ export default function SettingsModal({
                     <span
                       className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
                         settings.adjustablePerspective ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Toggle Show Virtual Joystick */}
+                <div className="flex items-center justify-between py-2 border-t border-neutral-200/30">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-neutral-800">Virtual Mobile Joystick</span>
+                    <span className="text-[10px] text-neutral-400 mt-0.5">Display on-screen joystick for movement on mobile devices</span>
+                  </div>
+                  <button
+                    onClick={() => onChangeSettings({ ...settings, showJoystick: settings.showJoystick !== false ? false : true })}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      settings.showJoystick !== false ? 'bg-indigo-600' : 'bg-neutral-300'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        settings.showJoystick !== false ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Toggle Show Virtual Jump Button */}
+                <div className="flex items-center justify-between py-2 border-t border-neutral-200/30">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-neutral-800">Virtual Mobile Jump Button</span>
+                    <span className="text-[10px] text-neutral-400 mt-0.5">Display on-screen jump trigger for mobile devices</span>
+                  </div>
+                  <button
+                    onClick={() => onChangeSettings({ ...settings, showJumpButton: settings.showJumpButton !== false ? false : true })}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      settings.showJumpButton !== false ? 'bg-indigo-600' : 'bg-neutral-300'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        settings.showJumpButton !== false ? 'translate-x-4' : 'translate-x-0'
                       }`}
                     />
                   </button>
