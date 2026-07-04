@@ -37,6 +37,16 @@ type AppTab = 'home' | 'levels' | 'saved' | 'community' | 'editor' | 'play' | 'r
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
     const saved = localStorage.getItem('momentum_current_user');
+    const token = localStorage.getItem('delta_rush_token');
+    if (saved && !token) {
+      // A user record exists without a matching auth token (e.g. leftover from
+      // an older version of the app, or a token that was cleared separately).
+      // Treat this as logged out — otherwise every authenticated request
+      // (like saving a completed run) will silently fail with no way to recover.
+      console.warn('Found saved user without an auth token — clearing stale session.');
+      localStorage.removeItem('momentum_current_user');
+      return null;
+    }
     if (saved) {
       try {
         return JSON.parse(saved) as UserAccount;

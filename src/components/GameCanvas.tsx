@@ -2296,7 +2296,7 @@ export default function GameCanvas({
               speeds: newEntry.speeds,
               actions: newEntry.actions
             }).catch((e: any) => {
-              console.warn('Leaderboard submit failed, queuing for retry after re-login:', e?.message || e);
+              console.warn(`Leaderboard submit failed for level="${level.id}" time=${newEntry.time} user="${newEntry.playerName}": ${e?.message || e}`);
               queuePendingSubmission(level.id, {
                 time: newEntry.time,
                 date: newEntry.date,

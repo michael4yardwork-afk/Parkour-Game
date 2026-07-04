@@ -43,14 +43,20 @@ router.get('/:levelId', async (req: Request, res: Response) => {
 router.post('/:levelId', async (req: Request, res: Response) => {
   try {
     const username = getAuth(req);
-    if (!username) return res.status(401).json({ error: 'Unauthorized.' });
-
     const { levelId } = req.params;
     const { time, date, device, speeds, actions } = req.body;
 
+    if (!username) {
+      console.warn(`[leaderboard] Rejected submit for level="${levelId}": missing/invalid auth token. hasAuthHeader=${!!req.headers.authorization}`);
+      return res.status(401).json({ error: 'Unauthorized.' });
+    }
+
     if (!time || time <= 0.05) {
+      console.warn(`[leaderboard] Rejected submit for level="${levelId}" user="${username}": invalid time value=${JSON.stringify(time)}`);
       return res.status(400).json({ error: 'Invalid run time.' });
     }
+
+    console.log(`[leaderboard] Accepting submit for level="${levelId}" user="${username}" time=${time}`);
 
     const id = `run_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
