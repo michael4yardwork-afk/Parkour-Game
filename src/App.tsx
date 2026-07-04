@@ -16,7 +16,7 @@ import HelpModal from './components/HelpModal';
 import PrivacyModal from './components/PrivacyModal';
 import { LevelConfig, GameSettings, UserAccount, RaceParticipant, CourseNotification } from './types';
 import { synths } from './audio';
-import { api } from './api';
+import { api, flushPendingSubmissions } from './api';
 
 
 // Initial default settings
@@ -300,6 +300,8 @@ export default function App() {
   const handleLoginSuccess = (user: UserAccount) => {
     setCurrentUser(user);
     localStorage.setItem('momentum_current_user', JSON.stringify(user));
+    // Retry any runs that failed to save earlier (e.g. due to an expired session)
+    flushPendingSubmissions().catch(e => console.warn('Failed to flush pending submissions:', e));
   };
 
   const handleLogout = () => {
@@ -317,6 +319,15 @@ export default function App() {
     };
     window.addEventListener('delta_rush_session_expired', handleSessionExpired);
     return () => window.removeEventListener('delta_rush_session_expired', handleSessionExpired);
+  }, []);
+
+  useEffect(() => {
+    // On app load, if we already have a logged-in session, retry any runs
+    // that previously failed to save (e.g. from an expired session before relogin).
+    if (currentUser) {
+      flushPendingSubmissions().catch(e => console.warn('Failed to flush pending submissions:', e));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleUpdateCurrentUser = async (updatedUser: UserAccount) => {

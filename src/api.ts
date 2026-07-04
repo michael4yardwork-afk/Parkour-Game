@@ -35,6 +35,50 @@ export interface AuthResult {
   user: UserAccount;
 }
 
+const PENDING_SUBMISSIONS_KEY = 'delta_rush_pending_submissions';
+
+interface PendingSubmission {
+  levelId: string;
+  entry: { time: number; date: number; device?: string; speeds?: number[]; actions?: string[] };
+}
+
+export function queuePendingSubmission(levelId: string, entry: PendingSubmission['entry']) {
+  try {
+    const raw = localStorage.getItem(PENDING_SUBMISSIONS_KEY);
+    const list: PendingSubmission[] = raw ? JSON.parse(raw) : [];
+    list.push({ levelId, entry });
+    localStorage.setItem(PENDING_SUBMISSIONS_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.warn('Failed to queue pending leaderboard submission:', e);
+  }
+}
+
+export async function flushPendingSubmissions(): Promise<void> {
+  let list: PendingSubmission[] = [];
+  try {
+    const raw = localStorage.getItem(PENDING_SUBMISSIONS_KEY);
+    list = raw ? JSON.parse(raw) : [];
+  } catch {
+    list = [];
+  }
+  if (!list.length) return;
+
+  localStorage.removeItem(PENDING_SUBMISSIONS_KEY);
+
+  const stillFailed: PendingSubmission[] = [];
+  for (const pending of list) {
+    try {
+      await api.leaderboard.submit(pending.levelId, pending.entry);
+    } catch (e) {
+      console.warn('Retry of pending leaderboard submission failed:', (e as any)?.message || e);
+      stillFailed.push(pending);
+    }
+  }
+  if (stillFailed.length) {
+    localStorage.setItem(PENDING_SUBMISSIONS_KEY, JSON.stringify(stillFailed));
+  }
+}
+
 export const api = {
   auth: {
     async signup(username: string, password: string, avatar: string, avatarBg: string): Promise<AuthResult> {

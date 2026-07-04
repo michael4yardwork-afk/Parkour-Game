@@ -2288,14 +2288,23 @@ export default function GameCanvas({
             actions: currentRunActionsRef.current
           };
           // Submit to backend — fire and forget to not block game flow
-          import('../api').then(({ api }) => {
+          import('../api').then(({ api, queuePendingSubmission }) => {
             api.leaderboard.submit(level.id, {
               time: newEntry.time,
               date: newEntry.date,
               device: newEntry.device,
               speeds: newEntry.speeds,
               actions: newEntry.actions
-            }).catch((e: any) => console.warn('Leaderboard submit failed:', e));
+            }).catch((e: any) => {
+              console.warn('Leaderboard submit failed, queuing for retry after re-login:', e?.message || e);
+              queuePendingSubmission(level.id, {
+                time: newEntry.time,
+                date: newEntry.date,
+                device: newEntry.device,
+                speeds: newEntry.speeds,
+                actions: newEntry.actions
+              });
+            });
           });
         }
       } catch (e) {
