@@ -47,4 +47,3 @@ run = ["node", "./dist/index.cjs"]
 [userenv]
 
 [userenv.shared]
-JWT_SECRET = "be27c25cd3364cc19a540b215ee4952520f2f985954b4b2b5d3ac1548de8460d"
