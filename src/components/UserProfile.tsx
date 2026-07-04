@@ -40,12 +40,18 @@ const AVATARS = [
 ];
 
 const AVATAR_BGS = [
-  { class: 'bg-rose-500/20 border-rose-500/40 text-rose-300', value: 'bg-rose-500', label: 'Crimson' },
-  { class: 'bg-green-500/20 border-green-500/40 text-green-300', value: 'bg-green-500', label: 'Volt' },
-  { class: 'bg-purple-500/20 border-purple-500/40 text-purple-300', value: 'bg-purple-500', label: 'Neon' },
-  { class: 'bg-blue-500/20 border-blue-500/40 text-blue-300', value: 'bg-blue-500', label: 'Cyber' },
-  { class: 'bg-amber-500/20 border-amber-500/40 text-amber-300', value: 'bg-amber-500', label: 'Solar' },
-  { class: 'bg-indigo-505/20 border-indigo-505/40 text-indigo-300', value: 'bg-indigo-505', label: 'Slate' },
+  { class: 'bg-rose-500/20 border-rose-500/40 text-rose-300', value: 'bg-rose-500' },
+  { class: 'bg-orange-500/20 border-orange-500/40 text-orange-300', value: 'bg-orange-500' },
+  { class: 'bg-amber-500/20 border-amber-500/40 text-amber-300', value: 'bg-amber-500' },
+  { class: 'bg-lime-500/20 border-lime-500/40 text-lime-300', value: 'bg-lime-500' },
+  { class: 'bg-green-500/20 border-green-500/40 text-green-300', value: 'bg-green-500' },
+  { class: 'bg-teal-500/20 border-teal-500/40 text-teal-300', value: 'bg-teal-500' },
+  { class: 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300', value: 'bg-cyan-500' },
+  { class: 'bg-blue-500/20 border-blue-500/40 text-blue-300', value: 'bg-blue-500' },
+  { class: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300', value: 'bg-indigo-500' },
+  { class: 'bg-violet-500/20 border-violet-500/40 text-violet-300', value: 'bg-violet-500' },
+  { class: 'bg-purple-500/20 border-purple-500/40 text-purple-300', value: 'bg-purple-500' },
+  { class: 'bg-pink-500/20 border-pink-500/40 text-pink-300', value: 'bg-pink-500' },
 ];
 
 export default function UserProfile({ username, currentUser, onBack, onSelectLevel, onUpdateCurrentUser }: UserProfileProps) {
@@ -421,20 +427,20 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                 <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block text-left">
                   Icon Theme Background
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="flex flex-wrap gap-2">
                   {AVATAR_BGS.map((bg) => (
                     <button
                       key={bg.value}
                       onClick={() => selectBg(bg.value)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                      className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition cursor-pointer ${bg.value} ${
                         bg.value === (currentUser.avatarBg || 'bg-rose-500')
-                          ? 'bg-indigo-600/10 border-indigo-600 text-indigo-700 font-bold'
-                          : 'bg-white border-neutral-250 hover:border-neutral-400 text-neutral-600'
+                          ? 'border-white scale-110 shadow-md'
+                          : 'border-transparent hover:scale-105 hover:border-white/50'
                       }`}
-                      title={bg.label}
                     >
-                      <span className={`w-3.5 h-3.5 rounded-full border border-black/10 shrink-0 ${bg.value}`} />
-                      <span className="truncate">{bg.label}</span>
+                      {bg.value === (currentUser.avatarBg || 'bg-rose-500') && (
+                        <svg className="w-3.5 h-3.5 text-white drop-shadow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      )}
                     </button>
                   ))}
                 </div>
