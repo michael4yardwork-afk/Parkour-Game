@@ -27,8 +27,17 @@ function getCurrentUser(): string | null {
 }
 
 function getPrefixedKey(key: string): string {
-  // Do not prefix top-level authenticated session tracking, the global accounts registry, or shared leaderboards
-  if (key === 'momentum_current_user' || key === 'momentum_users' || key.startsWith('leaderboard_') || key.startsWith('community_')) {
+  // Do not prefix top-level authenticated session tracking, the global accounts registry,
+  // shared leaderboards, the auth token (needed before/independent of the active user being
+  // set), or the pending-submission retry queue (must survive across login state changes).
+  if (
+    key === 'momentum_current_user' ||
+    key === 'momentum_users' ||
+    key === 'delta_rush_token' ||
+    key === 'delta_rush_pending_submissions' ||
+    key.startsWith('leaderboard_') ||
+    key.startsWith('community_')
+  ) {
     return key;
   }
 
