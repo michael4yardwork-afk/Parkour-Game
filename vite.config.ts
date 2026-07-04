@@ -14,9 +14,16 @@ export default defineConfig(() => {
     server: {
       host: '0.0.0.0',
       port: 5000,
-      allowedHosts: true,
+      allowedHosts: true as unknown as true,
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      proxy: {
+        '/api': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          secure: false,
+        }
+      }
     },
   };
 });

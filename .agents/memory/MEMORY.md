@@ -1,0 +1,1 @@
+- [Backend architecture](backend-arch.md) — Express on port 3001, proxied via Vite /api, PostgreSQL with JWT auth (bcrypt). Both workflows must run.

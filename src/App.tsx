@@ -16,6 +16,7 @@ import HelpModal from './components/HelpModal';
 import PrivacyModal from './components/PrivacyModal';
 import { LevelConfig, GameSettings, UserAccount, RaceParticipant, CourseNotification } from './types';
 import { synths } from './audio';
+import { api } from './api';
 
 
 // Initial default settings
@@ -56,19 +57,13 @@ export default function App() {
   // Notifications state
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
 
-  const checkUnreadNotifications = () => {
+  const checkUnreadNotifications = async () => {
     if (!currentUser) return;
     try {
-      const notifKey = `momentum_notifications_${currentUser.username.toLowerCase().trim()}`;
-      const stored = localStorage.getItem(notifKey);
-      if (stored) {
-        const notifs: CourseNotification[] = JSON.parse(stored);
-        setHasUnreadNotifications(notifs.some(n => !n.read));
-      } else {
-        setHasUnreadNotifications(false);
-      }
+      const notifs = await api.users.getNotifications(currentUser.username);
+      setHasUnreadNotifications(notifs.some(n => !n.read));
     } catch (e) {
-      console.error(e);
+      setHasUnreadNotifications(false);
     }
   };
 
@@ -151,13 +146,12 @@ export default function App() {
     synths.playTick();
   };
 
-  const handleSaveRaceResults = (
+  const handleSaveRaceResults = async (
     finalTime: number,
     rankings: { username: string; time?: number; finished: boolean; isNpc: boolean; color: string }[]
   ) => {
     if (!currentUser) return;
 
-    // Find our finished place
     const ourRankIndex = rankings.findIndex(r => r.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim());
     const ourPlace = ourRankIndex !== -1 ? ourRankIndex + 1 : 6;
 
@@ -169,32 +163,25 @@ export default function App() {
     else if (ourPlace === 5) ratingChange = -5;
     else ratingChange = -10;
 
-    const currentRatingStr = localStorage.getItem(`racer_rating_${currentUser.username}`);
-    const currentRating = currentRatingStr ? parseInt(currentRatingStr) : 1000;
-    const newRating = Math.max(100, currentRating + ratingChange);
-
-    localStorage.setItem(`racer_rating_${currentUser.username}`, newRating.toString());
-
-    // Prepare history entry
     const historyEntry = {
       id: `race_run_${Date.now()}`,
       levelId: activeLevel?.id || 'tutorial_skyway',
       levelName: activeLevel?.name || 'Delta Skyway',
       playerName: currentUser.username,
-      playerColor: localStorage.getItem(`racer_color_${currentUser.username}`) || '#3b82f6',
+      playerColor: '#3b82f6',
       place: ourPlace,
       time: finalTime,
       opponents: rankings.filter(r => r.username.toLowerCase().trim() !== currentUser.username.toLowerCase().trim()),
-      ratingChange: ratingChange,
-      newRating: newRating,
+      ratingChange,
+      newRating: 1000,
       date: Date.now()
     };
 
-    const savedHistoryStr = localStorage.getItem(`race_history_${currentUser.username}`);
-    const savedHistory = savedHistoryStr ? JSON.parse(savedHistoryStr) : [];
-    const updatedHistory = [historyEntry, ...savedHistory].slice(0, 100);
-
-    localStorage.setItem(`race_history_${currentUser.username}`, JSON.stringify(updatedHistory));
+    try {
+      await api.users.saveRaceResult(currentUser.username, historyEntry as any);
+    } catch (e) {
+      console.error('Failed to save race result:', e);
+    }
   };
 
   const handleStartBuilder = () => {
@@ -316,29 +303,23 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    api.auth.logout();
     setCurrentUser(null);
     localStorage.removeItem('momentum_current_user');
     setTab('home');
     synths.playTick();
   };
 
-  const handleUpdateCurrentUser = (updatedUser: UserAccount) => {
+  const handleUpdateCurrentUser = async (updatedUser: UserAccount) => {
     setCurrentUser(updatedUser);
     localStorage.setItem('momentum_current_user', JSON.stringify(updatedUser));
-
-    // Also update this user in the users collective list
     try {
-      const stored = localStorage.getItem('momentum_users');
-      if (stored) {
-        let list: UserAccount[] = JSON.parse(stored);
-        const idx = list.findIndex(u => u.username.toLowerCase() === updatedUser.username.toLowerCase());
-        if (idx >= 0) {
-          list[idx] = updatedUser;
-          localStorage.setItem('momentum_users', JSON.stringify(list));
-        }
-      }
+      await api.auth.updateUser(updatedUser.username, {
+        avatar: updatedUser.avatar,
+        avatarBg: updatedUser.avatarBg
+      });
     } catch (e) {
-      console.error(e);
+      console.error('Failed to sync profile update:', e);
     }
   };
 

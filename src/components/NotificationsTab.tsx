@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Trash2, CheckCheck, Play, User, Sparkles } from 'lucide-react';
+import { Bell, Trash2, CheckCheck, Play, User, Sparkles, RefreshCw } from 'lucide-react';
 import { CourseNotification, LevelConfig, UserAccount } from '../types';
 import { synths } from '../audio';
+import { api } from '../api';
 
 interface NotificationsTabProps {
   currentUser: UserAccount;
@@ -17,278 +18,179 @@ export default function NotificationsTab({
   onNotificationsChanged
 }: NotificationsTabProps) {
   const [notifications, setNotifications] = useState<CourseNotification[]>([]);
-  const [followedPlayers, setFollowedPlayers] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const loadNotifications = () => {
+  const loadNotifications = async () => {
+    setLoading(true);
     try {
-      const notifKey = `momentum_notifications_${currentUser.username.toLowerCase().trim()}`;
-      const stored = localStorage.getItem(notifKey);
-      if (stored) {
-        setNotifications(JSON.parse(stored));
-      } else {
-        setNotifications([]);
-      }
+      const notifs = await api.users.getNotifications(currentUser.username);
+      setNotifications(notifs);
     } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const loadFollows = () => {
-    try {
-      const followsKey = `momentum_follows_${currentUser.username.toLowerCase().trim()}`;
-      const stored = localStorage.getItem(followsKey);
-      if (stored) {
-        setFollowedPlayers(JSON.parse(stored));
-      } else {
-        setFollowedPlayers([]);
-      }
-    } catch (e) {
-      console.error(e);
+      console.error('Failed to load notifications:', e);
+      setNotifications([]);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     loadNotifications();
-    loadFollows();
   }, [currentUser]);
 
-  const saveNotifications = (updated: CourseNotification[]) => {
+  const handleMarkAsRead = async (id: string) => {
     try {
-      const notifKey = `momentum_notifications_${currentUser.username.toLowerCase().trim()}`;
-      localStorage.setItem(notifKey, JSON.stringify(updated));
-      setNotifications(updated);
+      await api.users.markNotificationsRead(currentUser.username, [id]);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
       onNotificationsChanged();
+      synths.playTick();
     } catch (e) {
       console.error(e);
     }
   };
 
-  const handleMarkAsRead = (id: string) => {
-    const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
-    saveNotifications(updated);
-    synths.playTick();
-  };
-
-  const handleMarkAllRead = () => {
-    const updated = notifications.map(n => ({ ...n, read: true }));
-    saveNotifications(updated);
-    synths.playFinish();
-  };
-
-  const handleClearAll = () => {
-    saveNotifications([]);
-    synths.playTick();
-  };
-
-  const handleDeleteNotification = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = notifications.filter(n => n.id !== id);
-    saveNotifications(updated);
-    synths.playTick();
-  };
-
-  const handleRunCourse = (courseId: string) => {
+  const handleMarkAllRead = async () => {
     try {
-      const communityStored = localStorage.getItem('community_published_courses');
-      if (communityStored) {
-        const communityCourses: LevelConfig[] = JSON.parse(communityStored);
-        const course = communityCourses.find(c => c.id === courseId);
-        if (course) {
-          // Mark notification as read
-          const updated = notifications.map(n => n.courseId === courseId ? { ...n, read: true } : n);
-          saveNotifications(updated);
-          onSelectLevel(course);
-          synths.playFinish();
-          return;
-        }
-      }
-      alert("This course could not be loaded. It might have been deleted by the creator.");
+      await api.users.markNotificationsRead(currentUser.username);
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      onNotificationsChanged();
+      synths.playFinish();
     } catch (e) {
       console.error(e);
     }
   };
+
+  const handlePlayCourse = async (notif: CourseNotification) => {
+    try {
+      if (!notif.read) {
+        await api.users.markNotificationsRead(currentUser.username, [notif.id]);
+        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+        onNotificationsChanged();
+      }
+      const { courses } = await api.community.getCourses();
+      const course = courses.find(c => c.id === notif.courseId);
+      if (course) {
+        onSelectLevel(course);
+        synths.playTick();
+      } else {
+        alert('This course may have been removed from the community workshop.');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12 flex items-center justify-center gap-3 text-neutral-500">
+        <RefreshCw className="w-5 h-5 animate-spin" />
+        <span className="text-sm font-mono">Loading notifications...</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      
-      {/* Title Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-neutral-200/80 pb-5">
+    <div className="max-w-2xl mx-auto px-4 py-8 space-y-6 font-sans">
+      <div className="flex items-center justify-between border-b border-neutral-200 pb-6">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl border border-indigo-100">
-            <Bell className="w-6 h-6 animate-swing" />
+          <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100">
+            <Bell className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-neutral-900 tracking-tight uppercase">
-              Inbox Notifications
-            </h1>
-            <p className="text-xs text-neutral-400 font-mono">
-              REAL-TIME ALERTS FROM RUNNERS YOU FOLLOW
+            <h1 className="text-xl font-black text-neutral-900 tracking-tight">Notifications</h1>
+            <p className="text-xs text-neutral-500 font-mono mt-0.5">
+              {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up!'}
             </p>
           </div>
         </div>
 
-        {/* Quick actions */}
-        {notifications.length > 0 && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadNotifications}
+            className="p-2 rounded-xl border border-neutral-200 text-neutral-500 hover:text-indigo-600 hover:border-indigo-300 transition cursor-pointer"
+            title="Refresh notifications"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          {unreadCount > 0 && (
             <button
               onClick={handleMarkAllRead}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold text-neutral-600 transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:text-indigo-700 bg-neutral-100 hover:bg-indigo-50 border border-neutral-200 rounded-xl transition cursor-pointer"
             >
               <CheckCheck className="w-3.5 h-3.5" />
-              <span>Mark all read</span>
+              Mark all read
             </button>
-            <button
-              onClick={handleClearAll}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-xl text-xs font-bold text-rose-600 transition cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Clear inbox</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Main Notifications Feed */}
-        <div className="lg:col-span-2 space-y-4">
-          
-          {notifications.length === 0 ? (
-            <div className="bg-white border border-neutral-200/80 rounded-2xl p-8 text-center space-y-4 shadow-sm">
-              <div className="w-12 h-12 bg-neutral-50 rounded-full flex items-center justify-center text-neutral-400 mx-auto border border-neutral-100">
-                <Bell className="w-5 h-5" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-extrabold text-neutral-800 text-sm">Your notifications inbox is empty</h3>
-                <p className="text-xs text-neutral-400 max-w-sm mx-auto leading-relaxed">
-                  Follow other players via their profiles, and you will get notified whenever they publish brand new custom parkour courses!
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {notifications.map((notif) => {
-                const isFollowed = followedPlayers.map(p => p.toLowerCase()).includes(notif.creator.toLowerCase());
-
-                return (
-                  <div
-                    key={notif.id}
-                    onClick={() => handleMarkAsRead(notif.id)}
-                    className={`bg-white border rounded-2xl p-4 transition-all duration-200 hover:shadow-md cursor-pointer flex gap-4 items-start relative ${
-                      notif.read ? 'border-neutral-200/80 opacity-80' : 'border-indigo-200 bg-indigo-50/5 shadow-sm'
-                    }`}
-                  >
-                    {/* Unread dot indicator */}
-                    {!notif.read && (
-                      <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
-                    )}
-
-                    {/* Left Icon */}
-                    <div className={`p-2.5 rounded-xl shrink-0 ${
-                      notif.read ? 'bg-neutral-50 text-neutral-400' : 'bg-indigo-50 text-indigo-600'
-                    }`}>
-                      <Sparkles className="w-5 h-5" />
-                    </div>
-
-                    {/* Middle Info */}
-                    <div className="space-y-2 flex-1 min-w-0">
-                      <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onViewProfile(notif.creator);
-                            }}
-                            className="font-extrabold text-neutral-900 text-xs hover:underline cursor-pointer flex items-center gap-1"
-                          >
-                            <User className="w-3 h-3 text-neutral-400" />
-                            {notif.creator}
-                          </span>
-                          {isFollowed && (
-                            <span className="py-0.5 px-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 font-extrabold font-mono text-[8px] rounded uppercase tracking-wider">
-                              Followed
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
-                          published a new parkour course: <span className="font-bold text-neutral-800">"{notif.courseName}"</span>!
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3 pt-1">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRunCourse(notif.courseId);
-                          }}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-[10px] font-mono uppercase tracking-wider rounded-lg transition"
-                        >
-                          <Play className="w-3 h-3 fill-current text-indigo-400" />
-                          <span>Run Course</span>
-                        </button>
-
-                        <span className="text-[10px] text-neutral-400 font-mono">
-                          {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Delete item button */}
-                    <button
-                      onClick={(e) => handleDeleteNotification(notif.id, e)}
-                      className="p-1.5 text-neutral-400 hover:text-rose-500 rounded-lg hover:bg-neutral-50 shrink-0 self-center"
-                      title="Delete Notification"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
           )}
-
         </div>
-
-        {/* Sidebar Info & Follows List */}
-        <div className="space-y-6">
-          
-          {/* Follows Directory Card */}
-          <div className="bg-white border border-neutral-200/80 rounded-2xl p-5 shadow-sm space-y-4">
-            <h3 className="text-xs font-mono font-bold text-neutral-400 uppercase tracking-wider border-b border-neutral-100 pb-2">
-              Following Athletes ({followedPlayers.length})
-            </h3>
-
-            {followedPlayers.length === 0 ? (
-              <p className="text-xs text-neutral-400 italic leading-relaxed py-2">
-                You aren't following any other runners yet. When you browse the community workshop or look at race leaderboards, click on any username to view their profile and follow them!
-              </p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {followedPlayers.map((player) => (
-                  <div
-                    key={player}
-                    onClick={() => onViewProfile(player)}
-                    className="flex items-center justify-between p-2 rounded-xl border border-neutral-100 hover:border-indigo-100 hover:bg-neutral-50/50 transition cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-md bg-indigo-50 flex items-center justify-center text-xs">
-                        🏃
-                      </div>
-                      <span className="text-xs font-bold text-neutral-700">{player}</span>
-                    </div>
-                    <span className="text-[9px] font-mono font-bold text-neutral-400 uppercase">
-                      Profile
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-        </div>
-
       </div>
 
+      {notifications.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="w-14 h-14 bg-neutral-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Sparkles className="w-6 h-6 text-neutral-300" />
+          </div>
+          <h3 className="text-base font-bold text-neutral-700">No notifications yet</h3>
+          <p className="text-xs text-neutral-400 mt-2 leading-relaxed max-w-xs mx-auto">
+            Follow other athletes to get notified when they publish new courses.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {notifications.map(notif => (
+            <div
+              key={notif.id}
+              className={`p-4 rounded-2xl border transition-all duration-200 ${
+                notif.read
+                  ? 'bg-white border-neutral-200/60 opacity-75'
+                  : 'bg-indigo-50/60 border-indigo-200/60 shadow-sm'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {!notif.read && (
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0 mt-1" />
+                    )}
+                    <p className="text-sm text-neutral-800 font-medium leading-snug">
+                      <button
+                        onClick={() => onViewProfile(notif.creator)}
+                        className="font-bold text-indigo-600 hover:underline cursor-pointer"
+                      >
+                        {notif.creator}
+                      </button>
+                      {' '}published a new course: <span className="font-semibold text-neutral-900">"{notif.courseName}"</span>
+                    </p>
+                  </div>
+                  <p className="text-[10px] font-mono text-neutral-400 mt-1.5">
+                    {new Date(notif.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => handlePlayCourse(notif)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-neutral-900 hover:bg-indigo-600 text-white rounded-lg text-[10px] font-bold transition cursor-pointer"
+                    title="Play this course"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    Play
+                  </button>
+                  {!notif.read && (
+                    <button
+                      onClick={() => handleMarkAsRead(notif.id)}
+                      className="p-1.5 rounded-lg text-neutral-400 hover:text-indigo-600 hover:bg-neutral-100 transition cursor-pointer"
+                      title="Mark as read"
+                    >
+                      <CheckCheck className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

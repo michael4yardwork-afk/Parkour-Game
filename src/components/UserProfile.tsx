@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Trophy, Activity, Sparkles, Clock, User, Award, Play, ChevronRight, BookmarkCheck, Heart, Check, Plus, Users, Bookmark } from 'lucide-react';
+import { ArrowLeft, Trophy, Activity, Sparkles, Clock, User, Award, Play, ChevronRight, BookmarkCheck, Heart, Check, Plus, Users, Bookmark, RefreshCw } from 'lucide-react';
 import { LevelConfig, SceneTheme, UserAccount, LeaderboardEntry } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { synths } from '../audio';
+import { api } from '../api';
 
 interface UserProfileProps {
   username: string;
@@ -97,265 +98,111 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
     }
   };
 
-  useEffect(() => {
-    // 1. Resolve exact casing and fetch avatar
-    const normName = username.toLowerCase().trim();
-    let exactName = username;
-    let avatar = '🚀';
-    let avatarBg = 'bg-rose-500';
-
-    try {
-      const stored = localStorage.getItem('momentum_users');
-      if (stored) {
-        const allUsers: UserAccount[] = JSON.parse(stored);
-        const found = allUsers.find(u => u.username.toLowerCase().trim() === normName);
-        if (found) {
-          exactName = found.username;
-          avatar = found.avatar || '🚀';
-          avatarBg = found.avatarBg || 'bg-rose-500';
-        }
-      }
-    } catch (e) {
-      console.error('Error resolving user casing', e);
-    }
-
-    // Fallback deterministic profile icon if not registered
-    if (exactName === username && normName !== (currentUser?.username || '').toLowerCase().trim()) {
-      const emojis = ['🚀', '⚡', '🛹', '🐺', '🐉', '🤖', '🐱', '🦊', '🎯', '🔥', '👑', '🦁'];
-      const bgs = ['bg-rose-500', 'bg-green-500', 'bg-purple-500', 'bg-blue-500', 'bg-amber-500', 'bg-indigo-505'];
-      
-      let hash = 0;
-      for (let i = 0; i < normName.length; i++) {
-        hash = normName.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      hash = Math.abs(hash);
-      
-      avatar = emojis[hash % emojis.length];
-      avatarBg = bgs[hash % bgs.length];
-    }
-
-    // Override if matching current user
-    if (currentUser && currentUser.username.toLowerCase().trim() === normName) {
-      exactName = currentUser.username;
-      avatar = currentUser.avatar || '🚀';
-      avatarBg = currentUser.avatarBg || 'bg-rose-500';
-    }
-
-    setResolvedName(exactName);
-    setAvatarInfo({ avatar, avatarBg });
-
-    // 2. Fetch Racing ELO
-    const savedElo = localStorage.getItem(`racer_rating_${normName}`);
-    setRacingElo(savedElo ? parseInt(savedElo, 10) : 1000);
-
-    // 3. Load bookmarks to render save state
-    try {
-      const list = localStorage.getItem('custom_parkour_levels');
-      if (list) {
-        const parsed: LevelConfig[] = JSON.parse(list);
-        setSavedLevelIds(parsed.map(lvl => lvl.id));
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
-    // 4. Fetch Published Courses
-    try {
-      const communityStored = localStorage.getItem('community_published_courses');
-      if (communityStored) {
-        const communityCourses: LevelConfig[] = JSON.parse(communityStored);
-        const filtered = communityCourses.filter(
-          c => c.creator?.toLowerCase().trim() === normName
-        );
-
-        // Dynamically map each course's likesCount
-        const updated = filtered.map(course => {
-          const likesKey = `community_likes_${course.id}_users`;
-          const likesStored = localStorage.getItem(likesKey);
-          const likedUsers: string[] = likesStored ? JSON.parse(likesStored) : [];
-          return {
-            ...course,
-            likesCount: likedUsers.length
-          };
-        });
-        setPublishedCourses(updated);
-
-        // Check which ones are liked by current user
-        const userLiked: string[] = [];
-        updated.forEach(course => {
-          const likesKey = `community_likes_${course.id}_users`;
-          const likesStored = localStorage.getItem(likesKey);
-          const likedUsers: string[] = likesStored ? JSON.parse(likesStored) : [];
-          if (likedUsers.includes(currentUser.username)) {
-            userLiked.push(course.id);
-          }
-        });
-        setLikedIds(userLiked);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
-    // 5. Fetch stats for the 6 default rush! courses
-    const statsMap: Record<string, any> = {};
-    DEFAULT_LEVELS.slice(0, 6).forEach(level => {
-      try {
-        const stored = localStorage.getItem(`leaderboard_${level.id}`);
-        const entries: LeaderboardEntry[] = stored ? JSON.parse(stored) : [];
-        const validEntries = entries.filter(e => e.time > 0.05);
-
-        // Find best run for this player
-        const playerRuns = validEntries.filter(
-          e => e.playerName.toLowerCase().trim() === normName
-        );
-
-        let pbTime = playerRuns.length > 0 ? Math.min(...playerRuns.map(r => r.time)) : null;
-
-        // If matching current user, check local best time too
-        if (currentUser && currentUser.username.toLowerCase().trim() === normName) {
-          const pbStored = localStorage.getItem(`best_time_${level.id}`);
-          if (pbStored) {
-            const pbVal = parseFloat(pbStored);
-            if (pbVal > 0.05) {
-              if (pbTime === null || pbVal < pbTime) {
-                pbTime = pbVal;
-              }
-            }
-          }
-        }
-
-        if (pbTime === null) {
-          statsMap[level.id] = { pbTime: null, rank: null, totalPlayers: null, percentile: null };
-          return;
-        }
-
-        // Group all world players
-        const playerBestRuns: Record<string, number> = {};
-        validEntries.forEach(r => {
-          const name = r.playerName.toLowerCase().trim();
-          if (!playerBestRuns[name] || r.time < playerBestRuns[name]) {
-            playerBestRuns[name] = r.time;
-          }
-        });
-
-        // Ensure this player's PB is accounted for in grouping
-        if (!playerBestRuns[normName] || pbTime < playerBestRuns[normName]) {
-          playerBestRuns[normName] = pbTime;
-        }
-
-        const sortedTimes = Object.values(playerBestRuns).sort((a, b) => a - b);
-        const rank = sortedTimes.indexOf(pbTime) + 1;
-        const totalPlayers = sortedTimes.length;
-
-        let percentile = 0;
-        if (totalPlayers > 1) {
-          percentile = Math.round((sortedTimes.indexOf(pbTime) / (totalPlayers - 1)) * 100);
-        }
-
-        statsMap[level.id] = { pbTime, rank, totalPlayers, percentile };
-      } catch (e) {
-        console.error(e);
-        statsMap[level.id] = { pbTime: null, rank: null, totalPlayers: null, percentile: null };
-      }
-    });
-
-    setCourseStats(statsMap);
-  }, [username, currentUser]);
-
-  const isSelf = resolvedName.toLowerCase().trim() === currentUser.username.toLowerCase().trim();
-
   const [isFollowing, setIsFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
+  const [profileLoading, setProfileLoading] = useState(true);
 
-  // Helper to dynamically calculate follower counts directly from current localStorage state
-  const recalculateFollowers = React.useCallback(() => {
+  const loadProfile = useCallback(async () => {
+    setProfileLoading(true);
+    const normName = username.toLowerCase().trim();
+    const isSelfView = currentUser.username.toLowerCase().trim() === normName;
+
     try {
-      const normName = resolvedName.toLowerCase().trim();
-      let realFollowers = 0;
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('momentum_follows_')) {
-          try {
-            const stored = localStorage.getItem(key);
-            if (stored) {
-              const list: string[] = JSON.parse(stored);
-              if (Array.isArray(list) && list.map(x => x.toLowerCase().trim()).includes(normName)) {
-                realFollowers++;
-              }
-            }
-          } catch (err) {
-            // ignore
-          }
+      // If viewing self, use local user data directly
+      if (isSelfView) {
+        setResolvedName(currentUser.username);
+        setAvatarInfo({ avatar: currentUser.avatar || '🚀', avatarBg: currentUser.avatarBg || 'bg-rose-500' });
+      }
+
+      // Load profile from API (follower counts, following status, published courses, rating)
+      const profileData = await api.users.getProfile(username);
+      if (profileData) {
+        if (!isSelfView) {
+          setResolvedName(profileData.user.username);
+          setAvatarInfo({ avatar: profileData.user.avatar || '🚀', avatarBg: profileData.user.avatarBg || 'bg-rose-500' });
         }
-      }
-      setFollowerCount(realFollowers);
-    } catch (e) {
-      console.error(e);
-    }
-  }, [resolvedName]);
-
-  // Sync follow state for current user
-  useEffect(() => {
-    try {
-      const normName = resolvedName.toLowerCase().trim();
-      const followsKey = `momentum_follows_${currentUser.username.toLowerCase().trim()}`;
-      const stored = localStorage.getItem(followsKey);
-      if (stored) {
-        const list: string[] = JSON.parse(stored);
-        setIsFollowing(list.map(u => u.toLowerCase().trim()).includes(normName));
+        setRacingElo(profileData.rating || 1000);
+        setPublishedCourses(profileData.courses || []);
+        setFollowerCount(profileData.followersCount || 0);
+        setIsFollowing(profileData.isFollowing || false);
       } else {
-        setIsFollowing(false);
+        // Fallback for users not found via API
+        setResolvedName(username);
+        const emojis = ['🚀', '⚡', '🛹', '🐺', '🐉', '🤖', '🐱', '🦊', '🎯', '🔥', '👑', '🦁'];
+        const bgs = ['bg-rose-500', 'bg-green-500', 'bg-purple-500', 'bg-blue-500', 'bg-amber-500', 'bg-indigo-505'];
+        let hash = 0;
+        for (let i = 0; i < normName.length; i++) hash = normName.charCodeAt(i) + ((hash << 5) - hash);
+        hash = Math.abs(hash);
+        setAvatarInfo({ avatar: emojis[hash % emojis.length], avatarBg: bgs[hash % bgs.length] });
       }
+
+      // Load bookmarked course IDs from API
+      const { bookmarkedIds } = await api.community.getCourses();
+      setSavedLevelIds(bookmarkedIds);
+
+      // Load which published courses are liked by current user
+      const { likedIds: fetchedLikes } = await api.community.getCourses();
+      setLikedIds(fetchedLikes);
+
+      // Load leaderboard stats for default levels
+      const statsMap: Record<string, any> = {};
+      const leaderboardPromises = DEFAULT_LEVELS.slice(0, 6).map(async (level) => {
+        try {
+          const entries = await api.leaderboard.get(level.id);
+          const validEntries = entries.filter(e => e.time > 0.05);
+          const playerRuns = validEntries.filter(e => e.playerName.toLowerCase().trim() === normName);
+          let pbTime = playerRuns.length > 0 ? Math.min(...playerRuns.map(r => r.time)) : null;
+
+          if (isSelfView) {
+            const pbStored = localStorage.getItem(`best_time_${level.id}`);
+            if (pbStored) {
+              const pbVal = parseFloat(pbStored);
+              if (pbVal > 0.05 && (pbTime === null || pbVal < pbTime)) pbTime = pbVal;
+            }
+          }
+
+          if (pbTime === null) {
+            statsMap[level.id] = { pbTime: null, rank: null, totalPlayers: null, percentile: null };
+            return;
+          }
+
+          const playerBests: Record<string, number> = {};
+          validEntries.forEach(r => {
+            const name = r.playerName.toLowerCase().trim();
+            if (!playerBests[name] || r.time < playerBests[name]) playerBests[name] = r.time;
+          });
+          if (!playerBests[normName] || pbTime < playerBests[normName]) playerBests[normName] = pbTime;
+
+          const sortedTimes = Object.values(playerBests).sort((a, b) => a - b);
+          const rank = sortedTimes.indexOf(pbTime) + 1;
+          const totalPlayers = sortedTimes.length;
+          const percentile = totalPlayers > 1 ? Math.round((sortedTimes.indexOf(pbTime) / (totalPlayers - 1)) * 100) : 0;
+          statsMap[level.id] = { pbTime, rank, totalPlayers, percentile };
+        } catch {
+          statsMap[level.id] = { pbTime: null, rank: null, totalPlayers: null, percentile: null };
+        }
+      });
+      await Promise.all(leaderboardPromises);
+      setCourseStats(statsMap);
     } catch (e) {
-      console.error(e);
+      console.error('Failed to load profile:', e);
+    } finally {
+      setProfileLoading(false);
     }
-  }, [resolvedName, currentUser]);
+  }, [username, currentUser]);
 
-  // Dynamic live updater effect (polls every 300ms + updates on key states)
   useEffect(() => {
-    recalculateFollowers();
+    loadProfile();
+  }, [loadProfile]);
 
-    const interval = setInterval(recalculateFollowers, 300);
-
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === null || e.key.startsWith('momentum_follows_')) {
-        recalculateFollowers();
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [resolvedName, isFollowing, recalculateFollowers]);
-
-  const handleToggleFollow = () => {
+  const handleToggleFollow = async () => {
     try {
-      const normName = resolvedName.trim();
-      const lowerName = normName.toLowerCase();
-      const followsKey = `momentum_follows_${currentUser.username.toLowerCase().trim()}`;
-      const stored = localStorage.getItem(followsKey);
-      let list: string[] = stored ? JSON.parse(stored) : [];
-
-      let nextFollowing = false;
-      if (list.map(u => u.toLowerCase().trim()).includes(lowerName)) {
-        list = list.filter(u => u.toLowerCase().trim() !== lowerName);
-        nextFollowing = false;
-        synths.playTick();
-      } else {
-        list.push(normName);
-        nextFollowing = true;
-        synths.playFinish();
-      }
-      
-      localStorage.setItem(followsKey, JSON.stringify(list));
-      setIsFollowing(nextFollowing);
-      
-      // Instantly update follower count in local component state
-      setTimeout(recalculateFollowers, 0);
+      const { following } = await api.users.toggleFollow(resolvedName);
+      setIsFollowing(following);
+      setFollowerCount(prev => following ? prev + 1 : Math.max(0, prev - 1));
+      if (following) synths.playFinish(); else synths.playTick();
     } catch (e) {
-      console.error(e);
+      console.error('Failed to toggle follow:', e);
     }
   };
 
@@ -364,87 +211,43 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
     onSelectLevel(level);
   };
 
-  const handleLike = (level: LevelConfig, e: React.MouseEvent) => {
+  const handleLike = async (level: LevelConfig, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const likesKey = `community_likes_${level.id}_users`;
-      const likesStored = localStorage.getItem(likesKey);
-      let likedUsers: string[] = likesStored ? JSON.parse(likesStored) : [];
-
-      let updatedLikes: string[];
-      if (likedUsers.includes(currentUser.username)) {
-        // Unlike
-        updatedLikes = likedUsers.filter(u => u !== currentUser.username);
-        synths.playTick();
-      } else {
-        // Like
-        updatedLikes = [...likedUsers, currentUser.username];
-        synths.playFinish();
-      }
-
-      localStorage.setItem(likesKey, JSON.stringify(updatedLikes));
-
-      // Update in local state list
-      setPublishedCourses(prev =>
-        prev.map(c => {
-          if (c.id === level.id) {
-            return { ...c, likesCount: updatedLikes.length };
-          }
-          return c;
-        })
-      );
-
-      // Also update is-liked lists
-      if (updatedLikes.includes(currentUser.username)) {
+      const { liked, likesCount } = await api.community.toggleLike(level.id);
+      setPublishedCourses(prev => prev.map(c => c.id === level.id ? { ...c, likesCount } : c));
+      if (liked) {
         setLikedIds(prev => [...prev, level.id]);
+        synths.playFinish();
       } else {
         setLikedIds(prev => prev.filter(id => id !== level.id));
-      }
-
-      // Sync likesCount back to the general community_published_courses store
-      const communityStored = localStorage.getItem('community_published_courses');
-      if (communityStored) {
-        let list: LevelConfig[] = JSON.parse(communityStored);
-        const targetIdx = list.findIndex(c => c.id === level.id);
-        if (targetIdx >= 0) {
-          list[targetIdx].likesCount = updatedLikes.length;
-          localStorage.setItem('community_published_courses', JSON.stringify(list));
-        }
+        synths.playTick();
       }
     } catch (e) {
       console.error(e);
     }
   };
 
-  const handleSaveCourse = (level: LevelConfig, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      const listStored = localStorage.getItem('custom_parkour_levels');
-      let customList: LevelConfig[] = listStored ? JSON.parse(listStored) : [];
+  const isSelf = resolvedName.toLowerCase().trim() === currentUser.username.toLowerCase().trim();
 
-      if (customList.some(lvl => lvl.id === level.id)) {
-        // Guard: make courses that the user themselves publishes unable to be removed from saved unless they are deleted
-        if (level.creator && level.creator.toLowerCase().trim() === currentUser.username.toLowerCase().trim()) {
-          alert(`"${level.name}" is your own published course. It cannot be removed from your saved list unless it is fully deleted from the Saved Courses tab.`);
-          return;
-        }
-        // Already bookmarked - remove it from bookmarks
-        const updated = customList.filter(lvl => lvl.id !== level.id);
-        localStorage.setItem('custom_parkour_levels', JSON.stringify(updated));
+  const handleSaveCourse = async (level: LevelConfig, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const isOwner = level.creator?.toLowerCase().trim() === currentUser.username.toLowerCase().trim();
+    const isBookmarked = savedLevelIds.includes(level.id);
+    if (isBookmarked && isOwner) {
+      alert(`"${level.name}" is your own published course. Delete it from Saved Courses to remove it.`);
+      return;
+    }
+    try {
+      const { bookmarked } = await api.community.toggleBookmark(level.id);
+      if (bookmarked) {
+        setSavedLevelIds(prev => [...prev, level.id]);
+        synths.playFinish();
+        alert(`"${level.name}" bookmarked and added to your Saved Courses!`);
+      } else {
         setSavedLevelIds(prev => prev.filter(id => id !== level.id));
         synths.playTick();
         alert(`"${level.name}" has been removed from your Saved Courses.`);
-      } else {
-        // Add to bookmarks (it preserves creator, isCustom: true)
-        const toSave: LevelConfig = {
-          ...level,
-          isCustom: true
-        };
-        customList.push(toSave);
-        localStorage.setItem('custom_parkour_levels', JSON.stringify(customList));
-        setSavedLevelIds(prev => [...prev, level.id]);
-        synths.playFinish();
-        alert(`"${level.name}" bookmarked and added to your Saved Courses! You can run it there anytime.`);
       }
     } catch (e) {
       console.error(e);

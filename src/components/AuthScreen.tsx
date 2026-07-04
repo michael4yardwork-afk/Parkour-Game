@@ -3,6 +3,7 @@ import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Spark
 import { UserAccount } from '../types';
 import { synths } from '../audio';
 import { hasVulgarLanguage } from '../utils';
+import { api } from '../api';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: UserAccount) => void;
@@ -77,22 +78,18 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
-  // Avatar selections
   const [selectedAvatar, setSelectedAvatar] = useState('🚀');
   const [selectedBg, setSelectedBg] = useState('');
 
-  // Password visibility
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Error/Success States
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Advertising Tabs State
   const [activeTabIdx, setActiveTabIdx] = useState(0);
   const [isAutoPlay, setIsAutoPlay] = useState(true);
 
-  // Auto-rotation for features preview
   useEffect(() => {
     if (!isAutoPlay) return;
     const interval = setInterval(() => {
@@ -104,24 +101,14 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const particlesRef = useRef<{
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    size: number;
-    rotation: number;
-    rotationSpeed: number;
-    opacity: number;
-    fadeSpeed: number;
-    color: string;
-    isHollow: boolean;
+    x: number; y: number; vx: number; vy: number; size: number; rotation: number;
+    rotationSpeed: number; opacity: number; fadeSpeed: number; color: string; isHollow: boolean;
   }[]>([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -139,25 +126,22 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     resizeObserver.observe(container);
 
     const colors = [
-      'rgba(99, 102, 241, #OP#)',  // Indigo
-      'rgba(168, 85, 247, #OP#)', // Purple
-      'rgba(236, 72, 153, #OP#)', // Pink/Magenta
-      'rgba(245, 158, 11, #OP#)',  // Gold
-      'rgba(34, 197, 94, #OP#)',   // Emerald
+      'rgba(99, 102, 241, #OP#)',
+      'rgba(168, 85, 247, #OP#)',
+      'rgba(236, 72, 153, #OP#)',
+      'rgba(245, 158, 11, #OP#)',
+      'rgba(34, 197, 94, #OP#)',
     ];
 
     const spawnParticle = (clientX: number, clientY: number, count = 1) => {
       const rect = container.getBoundingClientRect();
       const x = clientX - rect.left;
       const y = clientY - rect.top;
-
       for (let i = 0; i < count; i++) {
         const size = Math.random() * 12 + 6;
         const colorTemplate = colors[Math.floor(Math.random() * colors.length)];
-        
         particlesRef.current.push({
-          x,
-          y,
+          x, y,
           vx: (Math.random() - 0.5) * 1.5,
           vy: -Math.random() * 1.5 - 0.5,
           size,
@@ -171,19 +155,9 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
       }
     };
 
-    const handlePointerDown = (e: PointerEvent) => {
-      isDragging = true;
-      spawnParticle(e.clientX, e.clientY, 3);
-    };
-
-    const handlePointerMove = (e: PointerEvent) => {
-      const spawnCount = isDragging ? 3 : 1;
-      spawnParticle(e.clientX, e.clientY, spawnCount);
-    };
-
-    const handlePointerUp = () => {
-      isDragging = false;
-    };
+    const handlePointerDown = (e: PointerEvent) => { isDragging = true; spawnParticle(e.clientX, e.clientY, 3); };
+    const handlePointerMove = (e: PointerEvent) => { spawnParticle(e.clientX, e.clientY, isDragging ? 3 : 1); };
+    const handlePointerUp = () => { isDragging = false; };
 
     container.addEventListener('pointerdown', handlePointerDown);
     container.addEventListener('pointermove', handlePointerMove);
@@ -191,55 +165,26 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
 
     const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
       const particles = particlesRef.current;
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.rotation += p.rotationSpeed;
-        p.opacity -= p.fadeSpeed;
-
-        if (p.opacity <= 0) {
-          particles.splice(i, 1);
-          continue;
-        }
-
+        p.x += p.vx; p.y += p.vy; p.rotation += p.rotationSpeed; p.opacity -= p.fadeSpeed;
+        if (p.opacity <= 0) { particles.splice(i, 1); continue; }
         const color = p.color.replace('#OP#', p.opacity.toFixed(2));
-
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.rotation);
-        
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rotation);
         ctx.beginPath();
         const r = p.size;
-        const angle1 = -Math.PI / 2;
-        const angle2 = Math.PI / 6;
-        const angle3 = 5 * Math.PI / 6;
-
-        ctx.moveTo(Math.cos(angle1) * r, Math.sin(angle1) * r);
-        ctx.lineTo(Math.cos(angle2) * r, Math.sin(angle2) * r);
-        ctx.lineTo(Math.cos(angle3) * r, Math.sin(angle3) * r);
+        ctx.moveTo(Math.cos(-Math.PI / 2) * r, Math.sin(-Math.PI / 2) * r);
+        ctx.lineTo(Math.cos(Math.PI / 6) * r, Math.sin(Math.PI / 6) * r);
+        ctx.lineTo(Math.cos(5 * Math.PI / 6) * r, Math.sin(5 * Math.PI / 6) * r);
         ctx.closePath();
-
-        ctx.shadowBlur = p.size * 0.8;
-        ctx.shadowColor = color;
-
-        if (p.isHollow) {
-          ctx.strokeStyle = color;
-          ctx.lineWidth = Math.max(1.5, p.size * 0.15);
-          ctx.stroke();
-        } else {
-          ctx.fillStyle = color;
-          ctx.fill();
-        }
-
+        ctx.shadowBlur = p.size * 0.8; ctx.shadowColor = color;
+        if (p.isHollow) { ctx.strokeStyle = color; ctx.lineWidth = Math.max(1.5, p.size * 0.15); ctx.stroke(); }
+        else { ctx.fillStyle = color; ctx.fill(); }
         ctx.restore();
       }
-
       animationFrameId = requestAnimationFrame(render);
     };
-
     render();
 
     return () => {
@@ -251,162 +196,76 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
     };
   }, []);
 
-  const clearInputs = () => {
-    setUsername('');
-    setPassword('');
-    setConfirmPassword('');
-    setFeedback(null);
-  };
+  const clearInputs = () => { setUsername(''); setPassword(''); setConfirmPassword(''); setFeedback(null); };
 
   const notifyFeedback = (type: 'error' | 'success', message: string) => {
     setFeedback({ type, message });
-    if (type === 'error') {
-      synths.playDeath();
-    } else {
-      synths.playFinish();
-    }
+    if (type === 'error') synths.playDeath();
+    else synths.playFinish();
   };
 
-  const handleAuthSubmit = (e: React.FormEvent) => {
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
     synths.playTick();
 
     const trimmedUsername = username.trim();
-    if (!trimmedUsername) {
-      notifyFeedback('error', 'Please enter a valid username.');
-      return;
-    }
+    if (!trimmedUsername) { notifyFeedback('error', 'Please enter a valid username.'); return; }
+    if (trimmedUsername.length < 3) { notifyFeedback('error', 'Username must be at least 3 characters long.'); return; }
+    if (password.length < 6) { notifyFeedback('error', 'Password must be at least 6 characters long.'); return; }
 
-    if (trimmedUsername.length < 3) {
-      notifyFeedback('error', 'Username must be at least 3 characters long.');
-      return;
-    }
-
-    if (password.length < 6) {
-      notifyFeedback('error', 'Password must be at least 6 characters long.');
-      return;
-    }
-
-    // Load active users list
-    let usersList: UserAccount[] = [];
+    setIsLoading(true);
     try {
-      const stored = localStorage.getItem('momentum_users');
-      if (stored) {
-        usersList = JSON.parse(stored);
-      }
-    } catch (e) {
-      console.error(e);
-    }
+      if (isSignUp) {
+        if (hasVulgarLanguage(trimmedUsername)) {
+          notifyFeedback('error', 'Explicit or vulgar language is prohibited.');
+          return;
+        }
+        if (password !== confirmPassword) { notifyFeedback('error', 'Passwords do not match.'); return; }
+        if (!selectedBg) { notifyFeedback('error', 'Please select an icon theme.'); return; }
 
-    if (isSignUp) {
-      if (hasVulgarLanguage(trimmedUsername)) {
-        notifyFeedback('error', 'Explicit or vulgar language is prohibited.');
-        return;
-      }
-
-      // Validate confirm password
-      if (password !== confirmPassword) {
-        notifyFeedback('error', 'Passwords do not match.');
-        return;
-      }
-
-      if (!selectedBg) {
-        notifyFeedback('error', 'Please select an icon theme.');
-        return;
-      }
-
-      // Check duplicate usernames
-      const userExists = usersList.some(
-        u => u.username.toLowerCase() === trimmedUsername.toLowerCase()
-      );
-      if (userExists) {
-        notifyFeedback('error', 'Username is already taken. Please choose another one.');
-        return;
-      }
-
-      // Create new user account object
-      const newUser: UserAccount = {
-        username: trimmedUsername,
-        passwordHash: btoa(password), // Simple Base64 mock hash for demo persistence
-        avatar: selectedAvatar,
-        avatarBg: selectedBg,
-        createdAt: Date.now()
-      };
-
-      try {
-        usersList.push(newUser);
-        localStorage.setItem('momentum_users', JSON.stringify(usersList));
+        const result = await api.auth.signup(trimmedUsername, password, selectedAvatar, selectedBg);
         notifyFeedback('success', 'Account created successfully! Logging you in...');
-        
-        // Auto sign-in
-        setTimeout(() => {
-          onLoginSuccess(newUser);
-        }, 800);
-      } catch (err) {
-        notifyFeedback('error', 'Failed to save account details to local device storage.');
+        setTimeout(() => onLoginSuccess(result.user), 800);
+      } else {
+        const result = await api.auth.login(trimmedUsername, password);
+        notifyFeedback('success', 'Logged in successfully! Loading dashboard...');
+        setTimeout(() => onLoginSuccess(result.user), 800);
       }
-    } else {
-      // Login flow
-      const matchedUser = usersList.find(
-        u => u.username.toLowerCase() === trimmedUsername.toLowerCase()
-      );
-
-      if (!matchedUser) {
-        notifyFeedback('error', 'Account not found. Check spelling or create a new account.');
-        return;
-      }
-
-      if (matchedUser.passwordHash !== btoa(password)) {
-        notifyFeedback('error', 'Invalid password. Please inspect your inputs and try again.');
-        return;
-      }
-
-      notifyFeedback('success', 'Logged in successfully! Loading dashboard...');
-      setTimeout(() => {
-        onLoginSuccess(matchedUser);
-      }, 800);
+    } catch (err: any) {
+      notifyFeedback('error', err.message || 'Connection error. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-black via-neutral-950 to-blue-950 animate-gradient-flow text-neutral-100 flex items-center justify-center p-4 relative overflow-hidden font-sans select-none">
-      {/* Background Ambience circles */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-900/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-900/10 rounded-full blur-3xl pointer-events-none" />
-
-      {/* Delta pixie dust canvas */}
       <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0" />
 
       <div className="w-full max-w-md md:max-w-2xl relative z-10 space-y-6 animate-in fade-in zoom-in-95 duration-300">
         
-        {/* Header Logo */}
         <div className="flex flex-col items-center justify-center space-y-3">
           <div className="w-14 h-14 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-600/25 border border-indigo-500/30 scale-105 flex items-center justify-center">
             <span className="text-3xl font-black font-sans leading-none select-none">Δ</span>
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-black font-sans uppercase tracking-widest text-neutral-50">
-              DELTA RUSH
-              <span className="text-sm font-mono font-bold text-indigo-500 lowercase ml-1">.win</span>
+              DELTA RUSH<span className="text-sm font-mono font-bold text-indigo-500 lowercase ml-1">.win</span>
             </h1>
             <p className="text-xs text-neutral-400 font-mono uppercase tracking-widest mt-1">High Velocity Parkour Simulation</p>
           </div>
         </div>
 
-        {/* Auth form Card */}
         <div className="bg-neutral-900/80 border border-neutral-800 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md">
-          
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-bold font-mono uppercase tracking-wider text-neutral-25">
               {isSignUp ? 'Create Profile' : 'Member Portal'}
             </h2>
             <button
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                clearInputs();
-                synths.playTick();
-              }}
+              onClick={() => { setIsSignUp(!isSignUp); clearInputs(); synths.playTick(); }}
               className="text-xs text-indigo-400 hover:text-indigo-300 font-mono underline transition cursor-pointer"
             >
               {isSignUp ? 'Have an account? Sign In' : "No profile? Sign Up"}
@@ -414,124 +273,77 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           </div>
 
           <form onSubmit={handleAuthSubmit} className="space-y-4">
-            
-            {/* Display status messages */}
             {feedback && (
-              <div
-                className={`p-3.5 rounded-xl border text-xs font-medium leading-relaxed ${
-                  feedback.type === 'error'
-                    ? 'bg-rose-950/25 border-rose-800/40 text-rose-300'
-                    : 'bg-green-950/25 border-green-800/40 text-green-300'
-                }`}
-              >
+              <div className={`p-3.5 rounded-xl border text-xs font-medium leading-relaxed ${
+                feedback.type === 'error'
+                  ? 'bg-rose-950/25 border-rose-800/40 text-rose-300'
+                  : 'bg-green-950/25 border-green-800/40 text-green-300'
+              }`}>
                 {feedback.message}
               </div>
             )}
 
-            {/* Username Input */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">
-                Username
-              </label>
+              <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Username</label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500">
-                  <User className="w-4 h-4" />
-                </span>
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><User className="w-4 h-4" /></span>
                 <input
-                  type="text"
-                  placeholder="e.g. SpeedLeaper9"
-                  value={username}
+                  type="text" placeholder="e.g. SpeedLeaper9" value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-4 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
-                  maxLength={18}
-                  required
+                  maxLength={18} required
                 />
               </div>
               {isSignUp && hasVulgarLanguage(username) && (
-                <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">
-                  Explicit or vulgar language is prohibited.
-                </p>
+                <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Explicit or vulgar language is prohibited.</p>
               )}
             </div>
 
-            {/* Password Input */}
             <div className="space-y-1.55">
-              <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">
-                Password
-              </label>
+              <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Password</label>
               <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500">
-                  <Lock className="w-4 h-4" />
-                </span>
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><Lock className="w-4 h-4" /></span>
                 <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Min. 6 alphanumeric"
-                  value={password}
+                  type={showPassword ? 'text' : 'password'} placeholder="Min. 6 alphanumeric" value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-10 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
-                  minLength={6}
-                  required
+                  minLength={6} required
                 />
-                <button
-                  type="button"
-                  onClick={() => { setShowPassword(!showPassword); synths.playTick(); }}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition"
-                >
+                <button type="button" onClick={() => { setShowPassword(!showPassword); synths.playTick(); }}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Sign Up Exclusive Properties */}
             {isSignUp && (
               <>
-                {/* Confirm Password */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">
-                    Confirm Password
-                  </label>
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Confirm Password</label>
                   <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500">
-                      <KeyRound className="w-4 h-4" />
-                    </span>
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><KeyRound className="w-4 h-4" /></span>
                     <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      placeholder="Repeat password"
-                      value={confirmPassword}
+                      type={showConfirmPassword ? 'text' : 'password'} placeholder="Repeat password" value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-10 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
-                      minLength={6}
-                      required
+                      minLength={6} required
                     />
-                    <button
-                      type="button"
-                      onClick={() => { setShowConfirmPassword(!showConfirmPassword); synths.playTick(); }}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition"
-                    >
+                    <button type="button" onClick={() => { setShowConfirmPassword(!showConfirmPassword); synths.playTick(); }}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition">
                       {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
 
-                {/* Profile Avatar Amenities */}
                 <div className="space-y-3.5 pt-2 border-t border-neutral-800/40">
                   <div>
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">
-                      Select Runner Glyph
-                    </span>
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">Select Runner Glyph</span>
                     <div className="grid grid-cols-4 gap-2">
                       {AVATARS.map(item => (
-                        <button
-                          key={item.emoji}
-                          type="button"
-                          onClick={() => { setSelectedAvatar(item.emoji); synths.playTick(); }}
+                        <button key={item.emoji} type="button" onClick={() => { setSelectedAvatar(item.emoji); synths.playTick(); }}
                           className={`py-2 rounded-xl text-lg flex items-center justify-center border transition ${
-                            selectedAvatar === item.emoji
-                              ? 'bg-indigo-600/25 border-indigo-500 text-white'
-                              : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700'
-                          }`}
-                          title={item.name}
-                        >
+                            selectedAvatar === item.emoji ? 'bg-indigo-600/25 border-indigo-500 text-white' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                          }`} title={item.name}>
                           {item.emoji}
                         </button>
                       ))}
@@ -539,140 +351,87 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">
-                      Icon Theme
-                    </span>
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">Icon Theme</span>
                     <div className="flex gap-2">
                       {AVATAR_BGS.map(bg => (
-                        <button
-                          key={bg.value}
-                          type="button"
-                          onClick={() => { setSelectedBg(bg.value); synths.playTick(); }}
-                          className={`w-8 h-8 rounded-full border flex items-center justify-center transition focus:outline-none ${bg.class} relative`}
-                        >
-                          {selectedBg === bg.value && (
-                            <Check className="w-3.5 h-3.5 stroke-[3] text-white" />
-                          )}
+                        <button key={bg.value} type="button" onClick={() => { setSelectedBg(bg.value); synths.playTick(); }}
+                          className={`w-8 h-8 rounded-full border flex items-center justify-center transition focus:outline-none ${bg.class} relative`}>
+                          {selectedBg === bg.value && <Check className="w-3.5 h-3.5 stroke-[3] text-white" />}
                         </button>
                       ))}
                     </div>
                     {isSignUp && !selectedBg && (
-                      <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">
-                        Please select an icon theme.
-                      </p>
+                      <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Please select an icon theme.</p>
                     )}
                   </div>
                 </div>
               </>
             )}
 
-            {/* Action Trigger Button */}
             <button
-              type="submit"
-              className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition flex items-center justify-center gap-2 cursor-pointer text-sm font-mono uppercase tracking-widest leading-none"
+              type="submit" disabled={isLoading}
+              className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition flex items-center justify-center gap-2 cursor-pointer text-sm font-mono uppercase tracking-widest leading-none"
             >
-              {isSignUp ? (
-                <>
-                  <UserPlus className="w-4 h-4" />
-                  Create Account
-                </>
+              {isLoading ? (
+                <span className="animate-pulse">Connecting...</span>
+              ) : isSignUp ? (
+                <><UserPlus className="w-4 h-4" />Create Account<ChevronRight className="w-4 h-4" /></>
               ) : (
-                <>
-                  <LogIn className="w-4 h-4" />
-                  Authenticate
-                </>
+                <><LogIn className="w-4 h-4" />Authenticate<ChevronRight className="w-4 h-4" /></>
               )}
-              <ChevronRight className="w-4 h-4" />
             </button>
-
           </form>
 
-          {/* Prompt footer info */}
           <div className="mt-5 text-center flex items-center justify-center gap-1.5 text-[10px] font-mono text-neutral-500">
             <Sparkles className="w-3 h-3 text-indigo-500" />
-            <span>Telemetry data secured on this device.</span>
+            <span>Accounts secured server-side with bcrypt.</span>
           </div>
-
         </div>
 
-        {/* Game Features Advertising Tabs */}
         <div className="bg-neutral-900/80 border border-neutral-800 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md space-y-6">
           <div className="flex items-center justify-between border-b border-neutral-800/60 pb-4">
             <h3 className="text-sm md:text-base font-mono font-bold uppercase tracking-wider text-neutral-300 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
               <span>Explore Game Features</span>
             </h3>
-            <span className="text-xs font-mono text-neutral-500">Auto-rotating</span>
+            <button
+              onClick={() => setIsAutoPlay(!isAutoPlay)}
+              className="text-[10px] font-mono text-neutral-500 hover:text-neutral-300 transition"
+            >
+              {isAutoPlay ? 'Auto-rotating' : 'Paused'}
+            </button>
           </div>
 
-          {/* Tab Selection Row */}
-          <div className="grid grid-cols-4 gap-2 bg-neutral-950 p-1.5 rounded-2xl border border-neutral-800/60">
-            {GAME_FEATURES.map((feat, idx) => {
-              const isActive = activeTabIdx === idx;
-              return (
-                <button
-                  key={feat.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveTabIdx(idx);
-                    setIsAutoPlay(false); // Pause auto rotation on manual interaction
-                    synths.playTick();
-                  }}
-                  className={`py-3 px-2 rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${
-                    isActive
-                      ? 'bg-neutral-900 text-neutral-100 border border-neutral-800 shadow-lg scale-[1.02]'
-                      : 'text-neutral-500 hover:text-neutral-300 hover:bg-neutral-900/40 border border-transparent'
-                  }`}
-                >
-                  {/* Icon */}
-                  {feat.id === 'gameplay' && <Zap className={`w-5 h-5 md:w-6 h-6 ${isActive ? 'text-amber-400' : 'text-neutral-500'}`} />}
-                  {feat.id === 'editor' && <Hammer className={`w-5 h-5 md:w-6 h-6 ${isActive ? 'text-emerald-400' : 'text-neutral-500'}`} />}
-                  {feat.id === 'multiplayer' && <Users className={`w-5 h-5 md:w-6 h-6 ${isActive ? 'text-indigo-400' : 'text-neutral-500'}`} />}
-                  {feat.id === 'leaderboard' && <Trophy className={`w-5 h-5 md:w-6 h-6 ${isActive ? 'text-rose-400' : 'text-neutral-500'}`} />}
-                  
-                  <span className="text-[10px] md:text-xs font-bold font-mono uppercase tracking-wider hidden sm:inline">
-                    {feat.badge}
-                  </span>
-                </button>
-              );
-            })}
+          <div className="flex gap-2 flex-wrap">
+            {GAME_FEATURES.map((feature, idx) => (
+              <button
+                key={feature.id}
+                onClick={() => { setActiveTabIdx(idx); setIsAutoPlay(false); synths.playTick(); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                  activeTabIdx === idx ? feature.accentColor : 'bg-neutral-800/50 border-neutral-700/50 text-neutral-400 hover:text-neutral-200'
+                }`}
+              >
+                <span className="text-[10px] font-mono uppercase tracking-wider">{feature.badge}</span>
+              </button>
+            ))}
           </div>
 
-          {/* Active Tab Panel */}
-          <div className="min-h-[100px] flex flex-col justify-between">
-            {GAME_FEATURES.map((feat, idx) => {
-              if (activeTabIdx !== idx) return null;
-              return (
-                <div
-                  key={feat.id}
-                  className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300 py-2"
-                >
-                  <div className="flex flex-col space-y-3 text-left">
-                    <div className="flex items-center gap-2.5">
-                      <span className={`text-xs font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border ${feat.accentColor}`}>
-                        {feat.badge}
-                      </span>
-                      <h4 className="text-lg md:text-2xl font-black font-sans tracking-tight text-neutral-100">
-                        {feat.title}
-                      </h4>
-                    </div>
-                    <p className="text-sm md:text-base text-neutral-300 font-medium leading-relaxed">
-                      {feat.shortDesc}
-                    </p>
-                  </div>
-
-                  {/* Tiny progress timer bar (only active if auto-playing) */}
-                  {isAutoPlay && (
-                    <div className="w-full h-[3px] bg-neutral-950 rounded-full overflow-hidden mt-4">
-                      <div className="h-full bg-indigo-500/80 animate-progress-grow origin-left w-full" />
-                    </div>
-                  )}
+          {GAME_FEATURES.map((feature, idx) => (
+            activeTabIdx === idx && (
+              <div key={feature.id} className={`bg-gradient-to-br ${feature.color} border rounded-2xl p-5 space-y-2 animate-in fade-in duration-200`}>
+                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border ${feature.accentColor}`}>
+                  {feature.badge === 'Momentum' && <Zap className="w-3 h-3" />}
+                  {feature.badge === 'Sandbox' && <Hammer className="w-3 h-3" />}
+                  {feature.badge === 'Multiplayer' && <Users className="w-3 h-3" />}
+                  {feature.badge === 'Ranked' && <Trophy className="w-3 h-3" />}
+                  {feature.badge}
                 </div>
-              );
-            })}
-          </div>
+                <h4 className="text-base font-black text-neutral-100 tracking-tight">{feature.title}</h4>
+                <p className="text-xs text-neutral-400 leading-relaxed">{feature.shortDesc}</p>
+              </div>
+            )
+          ))}
         </div>
-
       </div>
     </div>
   );

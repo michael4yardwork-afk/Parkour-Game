@@ -2287,7 +2287,16 @@ export default function GameCanvas({
             speeds: currentRunSpeedsRef.current,
             actions: currentRunActionsRef.current
           };
-          localStorage.setItem(`leaderboard_${level.id}`, JSON.stringify([...entries, newEntry]));
+          // Submit to backend — fire and forget to not block game flow
+          import('../api').then(({ api }) => {
+            api.leaderboard.submit(level.id, {
+              time: newEntry.time,
+              date: newEntry.date,
+              device: newEntry.device,
+              speeds: newEntry.speeds,
+              actions: newEntry.actions
+            }).catch((e: any) => console.warn('Leaderboard submit failed:', e));
+          });
         }
       } catch (e) {
         console.error(e);
