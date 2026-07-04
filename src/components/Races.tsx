@@ -36,7 +36,7 @@ const BOT_NAMES = [
 
 export default function Races({ currentUser, onSelectLevel }: RacesProps) {
   // Stats
-  const [rating, setRating] = useState<number>(1000);
+  const [rating, setRating] = useState<number>(100);
   const [history, setHistory] = useState<RaceHistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
 

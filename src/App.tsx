@@ -176,12 +176,12 @@ export default function App() {
     else ratingChange = -10;
 
     // Fetch current rating so newRating is accurate
-    let currentRating = 1000;
+    let currentRating = 100;
     try {
       const ratingData = await api.users.getRating(currentUser.username);
       currentRating = ratingData.rating;
     } catch (e) {
-      console.warn('Could not fetch current rating, defaulting to 1000');
+      console.warn('Could not fetch current rating, defaulting to 100');
     }
     const newRating = Math.max(0, currentRating + ratingChange);
 

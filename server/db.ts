@@ -81,7 +81,7 @@ export async function initDb() {
       time REAL NOT NULL,
       opponents JSONB,
       rating_change INTEGER NOT NULL DEFAULT 0,
-      new_rating INTEGER NOT NULL DEFAULT 1000,
+      new_rating INTEGER NOT NULL DEFAULT 100,
       date BIGINT NOT NULL
     );
 
@@ -89,7 +89,7 @@ export async function initDb() {
 
     CREATE TABLE IF NOT EXISTS user_ratings (
       username TEXT PRIMARY KEY,
-      rating INTEGER NOT NULL DEFAULT 1000,
+      rating INTEGER NOT NULL DEFAULT 100,
       color TEXT DEFAULT '#3b82f6'
     );
   `);

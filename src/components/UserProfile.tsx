@@ -57,7 +57,7 @@ const AVATAR_BGS = [
 export default function UserProfile({ username, currentUser, onBack, onSelectLevel, onUpdateCurrentUser }: UserProfileProps) {
   const [resolvedName, setResolvedName] = useState(username);
   const [avatarInfo, setAvatarInfo] = useState({ avatar: '🚀', avatarBg: 'bg-rose-500' });
-  const [racingElo, setRacingElo] = useState(1000);
+  const [racingElo, setRacingElo] = useState(100);
   const [publishedCourses, setPublishedCourses] = useState<LevelConfig[]>([]);
   const [savedLevelIds, setSavedLevelIds] = useState<string[]>([]);
   const [likedIds, setLikedIds] = useState<string[]>([]);
@@ -127,7 +127,7 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
           setResolvedName(profileData.user.username);
           setAvatarInfo({ avatar: profileData.user.avatar || '🚀', avatarBg: profileData.user.avatarBg || 'bg-rose-500' });
         }
-        setRacingElo(profileData.rating || 1000);
+        setRacingElo(profileData.rating || 100);
         setPublishedCourses(profileData.courses || []);
         setFollowerCount(profileData.followersCount || 0);
         setIsFollowing(profileData.isFollowing || false);
