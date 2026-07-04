@@ -1,7 +1,7 @@
 modules = ["nodejs-20", "web"]
 [agent]
 expertMode = true
-stack = "BEST_EFFORT_FALLBACK"
+stack = "GAMESTACK_JS"
 
 [nix]
 channel = "stable-25_05"
@@ -18,33 +18,17 @@ author = "agent"
 task = "workflow.run"
 args = "Start application"
 
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Backend server"
-
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
 
-[[workflows.workflow]]
-name = "Backend server"
-author = "agent"
-
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run server"
-waitForPort = 3001
-
-[workflows.workflow.metadata]
-outputType = "console"
+args = "npm run server & npm run dev"
+waitForPort = 5000
 
 [[ports]]
 localPort = 3001
@@ -55,6 +39,12 @@ localPort = 5000
 externalPort = 80
 
 [deployment]
-deploymentTarget = "static"
+deploymentTarget = "autoscale"
 build = ["npm", "run", "build"]
 publicDir = "dist"
+run = ["node", "./dist/index.cjs"]
+
+[userenv]
+
+[userenv.shared]
+JWT_SECRET = "be27c25cd3364cc19a540b215ee4952520f2f985954b4b2b5d3ac1548de8460d"
