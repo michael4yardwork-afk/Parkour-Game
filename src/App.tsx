@@ -162,8 +162,10 @@ export default function App() {
   ) => {
     if (!currentUser) return;
 
+    const ourEntry = rankings.find(r => r.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim());
     const ourRankIndex = rankings.findIndex(r => r.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim());
     const ourPlace = ourRankIndex !== -1 ? ourRankIndex + 1 : 6;
+    const playerColor = ourEntry?.color || '#3b82f6';
 
     let ratingChange = 0;
     if (ourPlace === 1) ratingChange = 10;
@@ -173,17 +175,27 @@ export default function App() {
     else if (ourPlace === 5) ratingChange = -5;
     else ratingChange = -10;
 
+    // Fetch current rating so newRating is accurate
+    let currentRating = 1000;
+    try {
+      const ratingData = await api.users.getRating(currentUser.username);
+      currentRating = ratingData.rating;
+    } catch (e) {
+      console.warn('Could not fetch current rating, defaulting to 1000');
+    }
+    const newRating = Math.max(0, currentRating + ratingChange);
+
     const historyEntry = {
       id: `race_run_${Date.now()}`,
       levelId: activeLevel?.id || 'tutorial_skyway',
       levelName: activeLevel?.name || 'Delta Skyway',
       playerName: currentUser.username,
-      playerColor: '#3b82f6',
+      playerColor,
       place: ourPlace,
       time: finalTime,
       opponents: rankings.filter(r => r.username.toLowerCase().trim() !== currentUser.username.toLowerCase().trim()),
       ratingChange,
-      newRating: 1000,
+      newRating,
       date: Date.now()
     };
 

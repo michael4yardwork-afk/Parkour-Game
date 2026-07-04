@@ -3,6 +3,7 @@ import { Trophy, Timer, Bot, User, Users, Flame, History, Play, Sparkles } from 
 import { LevelConfig, UserAccount, RaceParticipant, RaceHistoryEntry } from '../types';
 import { synths } from '../audio';
 import { DEFAULT_LEVELS } from '../defaultLevels';
+import { api } from '../api';
 
 interface RacesProps {
   currentUser: UserAccount;
@@ -35,15 +36,33 @@ const BOT_NAMES = [
 
 export default function Races({ currentUser, onSelectLevel }: RacesProps) {
   // Stats
-  const [rating, setRating] = useState<number>(() => {
-    const saved = localStorage.getItem(`racer_rating_${currentUser.username}`);
-    return saved ? parseInt(saved) : 1000;
-  });
+  const [rating, setRating] = useState<number>(1000);
+  const [history, setHistory] = useState<RaceHistoryEntry[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
 
-  const [history, setHistory] = useState<RaceHistoryEntry[]>(() => {
-    const saved = localStorage.getItem(`race_history_${currentUser.username}`);
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Fetch history and rating from server on every mount (i.e. every time user opens the Races tab)
+  useEffect(() => {
+    let cancelled = false;
+    const fetchData = async () => {
+      setLoadingHistory(true);
+      try {
+        const [raceHistory, ratingData] = await Promise.all([
+          api.users.getRaceHistory(currentUser.username),
+          api.users.getRating(currentUser.username),
+        ]);
+        if (!cancelled) {
+          setHistory(raceHistory);
+          setRating(ratingData.rating);
+        }
+      } catch (e) {
+        console.error('Failed to load race data:', e);
+      } finally {
+        if (!cancelled) setLoadingHistory(false);
+      }
+    };
+    fetchData();
+    return () => { cancelled = true; };
+  }, [currentUser.username]);
 
   // Player selected color (randomized dynamically)
   const [playerColor, setPlayerColor] = useState<string>(() => {
@@ -466,7 +485,11 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
             League Race History Log
           </h2>
           
-          {history.length === 0 ? (
+          {loadingHistory ? (
+            <div className="bg-neutral-900/40 border border-neutral-800/60 rounded-2xl p-8 text-center text-xs text-neutral-400">
+              Loading race history...
+            </div>
+          ) : history.length === 0 ? (
             <div className="bg-neutral-900/40 border border-neutral-800/60 rounded-2xl p-8 text-center text-xs text-neutral-400">
               No league records registered yet. Complete matchmaking races to pop up records.
             </div>
