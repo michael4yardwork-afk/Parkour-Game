@@ -34,7 +34,7 @@ const AVATAR_BGS = [
   { class: 'bg-purple-500/20 border-purple-500/40 text-purple-300', value: 'bg-purple-500', label: 'Neon' },
   { class: 'bg-blue-500/20 border-blue-500/40 text-blue-300', value: 'bg-blue-500', label: 'Cyber' },
   { class: 'bg-amber-500/20 border-amber-500/40 text-amber-300', value: 'bg-amber-500', label: 'Solar' },
-  { class: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300', value: 'bg-indigo-500', label: 'Slate' },
+  { class: 'bg-indigo-505/20 border-indigo-505/40 text-indigo-300', value: 'bg-indigo-505', label: 'Slate' },
 ];
 
 export default function SettingsModal({

@@ -44,17 +44,7 @@ const AVATAR_BGS = [
   { class: 'bg-purple-500/20 border-purple-500/40 text-purple-300', value: 'bg-purple-500', label: 'Neon' },
   { class: 'bg-blue-500/20 border-blue-500/40 text-blue-300', value: 'bg-blue-500', label: 'Cyber' },
   { class: 'bg-amber-500/20 border-amber-500/40 text-amber-300', value: 'bg-amber-500', label: 'Solar' },
-  { class: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300', value: 'bg-indigo-500', label: 'Slate' },
-  { class: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300', value: 'bg-emerald-500', label: 'Emerald' },
-  { class: 'bg-orange-500/20 border-orange-500/40 text-orange-300', value: 'bg-orange-500', label: 'Orange' },
-  { class: 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300', value: 'bg-cyan-500', label: 'Cyan' },
-  { class: 'bg-fuchsia-500/20 border-fuchsia-500/40 text-fuchsia-300', value: 'bg-fuchsia-500', label: 'Fuchsia' },
-  { class: 'bg-red-600/20 border-red-600/40 text-red-300', value: 'bg-red-600', label: 'Ruby' },
-  { class: 'bg-pink-500/20 border-pink-500/40 text-pink-300', value: 'bg-pink-500', label: 'Pink' },
-  { class: 'bg-white/20 border-white/40 text-white', value: 'bg-white', label: 'White' },
-  { class: 'bg-neutral-900/20 border-neutral-900/40 text-neutral-300', value: 'bg-neutral-900', label: 'Black' },
-  { class: 'bg-yellow-400/20 border-yellow-400/40 text-yellow-300', value: 'bg-yellow-400', label: 'Yellow' },
-  { class: 'bg-neutral-500/20 border-neutral-500/40 text-neutral-300', value: 'bg-neutral-500', label: 'Grey' },
+  { class: 'bg-indigo-505/20 border-indigo-505/40 text-indigo-300', value: 'bg-indigo-505', label: 'Slate' },
 ];
 
 export default function UserProfile({ username, currentUser, onBack, onSelectLevel, onUpdateCurrentUser }: UserProfileProps) {
@@ -582,10 +572,10 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
             <div className="flex items-center justify-between border-b border-neutral-200/60 pb-3">
               <div className="flex items-center gap-2">
                 <span className="p-1.5 bg-indigo-500/10 text-indigo-600 rounded-lg">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-smile"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>
+                  <svg xmlns="http://www.w3.org/2500/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-smile"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>
                 </span>
                 <h3 className="text-sm font-black text-neutral-800 uppercase tracking-wide">
-                  CUSTOMIZE ICON
+                  Customize Your Speedrunner Profile Icon
                 </h3>
               </div>
               <button
@@ -628,21 +618,20 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                 <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block text-left">
                   Icon Theme Background
                 </span>
-                <div className="flex flex-wrap gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {AVATAR_BGS.map((bg) => (
                     <button
                       key={bg.value}
                       onClick={() => selectBg(bg.value)}
-                      className={`w-9 h-9 rounded-full border-2 transition-all duration-200 cursor-pointer flex items-center justify-center shrink-0 relative hover:scale-110 ${bg.value} ${
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold transition cursor-pointer ${
                         bg.value === (currentUser.avatarBg || 'bg-rose-500')
-                          ? 'border-indigo-600 scale-105 shadow-md shadow-indigo-500/20'
-                          : 'border-neutral-200 hover:border-neutral-400'
+                          ? 'bg-indigo-600/10 border-indigo-600 text-indigo-700 font-bold'
+                          : 'bg-white border-neutral-250 hover:border-neutral-400 text-neutral-600'
                       }`}
                       title={bg.label}
                     >
-                      {bg.value === (currentUser.avatarBg || 'bg-rose-500') && (
-                        <Check className={`w-4 h-4 ${(bg.value === 'bg-white' || bg.value === 'bg-yellow-400') ? 'text-neutral-900' : 'text-white'} drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]`} />
-                      )}
+                      <span className={`w-3.5 h-3.5 rounded-full border border-black/10 shrink-0 ${bg.value}`} />
+                      <span className="truncate">{bg.label}</span>
                     </button>
                   ))}
                 </div>

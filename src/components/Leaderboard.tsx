@@ -36,7 +36,7 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
     } catch (e) {
       console.error(e);
     }
-  }, [currentUser]);
+  }, []);
 
   const getPlayerIcon = (playerName: string): { avatar: string; avatarBg: string } => {
     const normName = playerName.toLowerCase().trim();
@@ -49,25 +49,16 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
       };
     }
     
-    // 2. Look up in allUsers (synced state with localStorage)
-    const found = allUsers.find(u => u.username.toLowerCase().trim() === normName);
-    if (found) {
-      return {
-        avatar: found.avatar || '🚀',
-        avatarBg: found.avatarBg || 'bg-rose-500'
-      };
-    }
-
-    // 3. Direct lookup from localStorage as final fallback in case state hasn't updated yet
+    // 2. Direct lookup from localStorage to avoid any stale state during changes
     try {
       const stored = localStorage.getItem('momentum_users');
       if (stored) {
         const usersList: UserAccount[] = JSON.parse(stored);
-        const foundLocal = usersList.find(u => u.username.toLowerCase().trim() === normName);
-        if (foundLocal) {
+        const found = usersList.find(u => u.username.toLowerCase().trim() === normName);
+        if (found) {
           return {
-            avatar: foundLocal.avatar || '🚀',
-            avatarBg: foundLocal.avatarBg || 'bg-rose-500'
+            avatar: found.avatar || '🚀',
+            avatarBg: found.avatarBg || 'bg-rose-500'
           };
         }
       }
@@ -75,9 +66,18 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
       console.error(e);
     }
     
+    // 3. If it's stored in momentum_users state (fallback)
+    const found = allUsers.find(u => u.username.toLowerCase().trim() === normName);
+    if (found) {
+      return {
+        avatar: found.avatar || '🚀',
+        avatarBg: found.avatarBg || 'bg-rose-500'
+      };
+    }
+    
     // 4. Fallback: deterministic selection based on hash of the playerName
     const emojis = ['🚀', '⚡', '🛹', '🐺', '🐉', '🤖', '🐱', '🦊', '🎯', '🔥', '👑', '🦁'];
-    const bgs = ['bg-rose-500', 'bg-green-500', 'bg-purple-500', 'bg-blue-500', 'bg-amber-500', 'bg-indigo-500'];
+    const bgs = ['bg-rose-500', 'bg-green-500', 'bg-purple-500', 'bg-blue-500', 'bg-amber-500', 'bg-indigo-505'];
     
     let hash = 0;
     for (let i = 0; i < normName.length; i++) {
@@ -855,7 +855,7 @@ function VelocityChart({
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
           <span className="text-xs font-bold font-mono tracking-wider text-neutral-300 uppercase">
-            {compareSpeeds ? (activePoint ? 'Comparative Trace' : 'Run Comparison Profile') : (activePoint ? 'Trace' : 'Speed Profile')}
+            {compareSpeeds ? (activePoint ? 'Comparative Live Trace' : 'Run Comparison Profile') : (activePoint ? 'Trace' : 'Speed Profile')}
           </span>
         </div>
         <div className="flex flex-wrap gap-2.5">
