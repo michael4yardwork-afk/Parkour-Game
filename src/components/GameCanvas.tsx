@@ -37,7 +37,7 @@ export default function GameCanvas({
   const [elapsedTime, setElapsedTime] = useState(0.00);
   const [personalBest, setPersonalBest] = useState<number | null>(null);
   const [speed, setSpeed] = useState(0);
-  const [attempts, setAttempts] = useState(1);
+  const [attempts, setAttempts] = useState(0);
   const [activeModifiers, setActiveModifiers] = useState<string[]>([]);
 
   // Refs to prevent physics and telemetry loops from triggering effect resets
@@ -274,7 +274,7 @@ export default function GameCanvas({
         setAttempts(prev => prev + 1);
       }
     } else {
-      setAttempts(1);
+      setAttempts(0);
     }
 
     // Load Personal Best ghost dynamically for the current course
