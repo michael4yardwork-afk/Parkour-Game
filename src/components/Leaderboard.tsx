@@ -20,6 +20,7 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
   const [currentLocalBest, setCurrentLocalBest] = useState<number | null>(localBest);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const [compareRunId, setCompareRunId] = useState<string | null>(null);
+  const [userIconMap, setUserIconMap] = useState<Record<string, { avatar: string; avatarBg: string }>>({});
 
   useEffect(() => {
     setCurrentLocalBest(localBest);
@@ -29,10 +30,40 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
     loadScores();
   }, [levelId]);
 
+  // Keep current user's own icon in sync if they change it mid-session
+  useEffect(() => {
+    if (currentUser) {
+      setUserIconMap(prev => ({
+        ...prev,
+        [currentUser.username.toLowerCase().trim()]: {
+          avatar: currentUser.avatar || '🚀',
+          avatarBg: currentUser.avatarBg || 'bg-rose-500',
+        },
+      }));
+    }
+  }, [currentUser?.avatar, currentUser?.avatarBg, currentUser?.username]);
+
   const loadScores = async () => {
     setLoading(true);
     try {
-      const entries = await api.leaderboard.get(levelId);
+      const [entries, allUsers] = await Promise.all([
+        api.leaderboard.get(levelId),
+        api.auth.getAllUsers(),
+      ]);
+      const iconMap: Record<string, { avatar: string; avatarBg: string }> = {};
+      for (const u of allUsers) {
+        iconMap[u.username.toLowerCase().trim()] = {
+          avatar: u.avatar || '🚀',
+          avatarBg: u.avatarBg || 'bg-rose-500',
+        };
+      }
+      if (currentUser) {
+        iconMap[currentUser.username.toLowerCase().trim()] = {
+          avatar: currentUser.avatar || '🚀',
+          avatarBg: currentUser.avatarBg || 'bg-rose-500',
+        };
+      }
+      setUserIconMap(iconMap);
       setRawEntries(entries.filter(e => e.time > 0.05));
     } catch (e) {
       console.error('Error loading leaderboard:', e);
@@ -56,9 +87,8 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
 
   const getPlayerIcon = (playerName: string): { avatar: string; avatarBg: string } => {
     const normName = playerName.toLowerCase().trim();
-    if (currentUser && currentUser.username.toLowerCase().trim() === normName) {
-      return { avatar: currentUser.avatar || '🚀', avatarBg: currentUser.avatarBg || 'bg-rose-500' };
-    }
+    if (userIconMap[normName]) return userIconMap[normName];
+    // Fallback for very old entries not present in the user table
     const emojis = ['🚀', '⚡', '🛹', '🐺', '🐉', '🤖', '🐱', '🦊', '🎯', '🔥', '👑', '🦁'];
     const bgs = ['bg-rose-500', 'bg-green-500', 'bg-purple-500', 'bg-blue-500', 'bg-amber-500', 'bg-indigo-500'];
     let hash = 0;
