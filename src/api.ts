@@ -16,6 +16,15 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
     headers: { ...authHeaders(), ...(options?.headers || {}) }
   });
+
+  if (res.status === 401 && getToken()) {
+    // Session token is invalid or expired — force a clean re-login instead of
+    // silently failing on every authenticated request (e.g. leaderboard submits).
+    localStorage.removeItem('delta_rush_token');
+    localStorage.removeItem('momentum_current_user');
+    window.dispatchEvent(new Event('delta_rush_session_expired'));
+  }
+
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'API request failed');
   return data as T;

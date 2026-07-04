@@ -310,6 +310,15 @@ export default function App() {
     synths.playTick();
   };
 
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setCurrentUser(null);
+      setTab('home');
+    };
+    window.addEventListener('delta_rush_session_expired', handleSessionExpired);
+    return () => window.removeEventListener('delta_rush_session_expired', handleSessionExpired);
+  }, []);
+
   const handleUpdateCurrentUser = async (updatedUser: UserAccount) => {
     setCurrentUser(updatedUser);
     localStorage.setItem('momentum_current_user', JSON.stringify(updatedUser));
