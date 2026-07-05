@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Sparkles, Check, Zap, Hammer, Users, Trophy } from 'lucide-react';
+import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Sparkles, Check, Zap, Hammer, Users, Trophy, TrendingUp, BarChart2 } from 'lucide-react';
 import { UserAccount } from '../types';
 import { synths } from '../audio';
 import { hasVulgarLanguage } from '../utils';
@@ -41,41 +41,41 @@ const AVATAR_BGS = [
 
 const GAME_FEATURES = [
   {
-    id: 'gameplay',
-    title: 'Velocity Rush',
-    badge: 'Momentum',
-    shortDesc: 'High-Velocity Physics Parkour',
-    color: 'from-amber-500/10 to-orange-500/10 border-amber-500/30 text-amber-400',
+    id: 'improve',
+    title: 'Track Your Progress',
+    badge: 'Improve',
+    shortDesc: 'Chase personal bests on every course. Study your run history, watch your times drop, and push yourself further with each attempt.',
+    icon: 'improve',
+    color: 'from-amber-500/10 to-orange-500/10 border-amber-500/30',
     accentColor: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-    accentBg: 'bg-amber-500'
   },
   {
-    id: 'editor',
-    title: 'Level Creator',
-    badge: 'Sandbox',
-    shortDesc: 'Create & Share Custom Courses',
-    color: 'from-emerald-500/10 to-teal-500/10 border-emerald-500/30 text-emerald-400',
-    accentColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-    accentBg: 'bg-emerald-500'
+    id: 'compare',
+    title: 'See How You Rank',
+    badge: 'Compare',
+    shortDesc: 'Real-time leaderboards show exactly where you stand on every course. Filter by level, spot the top runners, and find the gaps to close.',
+    icon: 'compare',
+    color: 'from-sky-500/10 to-cyan-500/10 border-sky-500/30',
+    accentColor: 'text-sky-400 bg-sky-500/10 border-sky-500/20',
   },
   {
-    id: 'multiplayer',
-    title: 'Speedrun Races',
-    badge: 'Multiplayer',
-    shortDesc: 'Real-Time Matchmaking Arenas',
-    color: 'from-indigo-500/10 to-violet-500/10 border-indigo-500/30 text-indigo-400',
+    id: 'race',
+    title: 'Compete Live',
+    badge: 'Race',
+    shortDesc: 'Jump into matchmaking and go head-to-head against real players. Win races to earn ELO — lose and you\'ll drop. Every second counts.',
+    icon: 'race',
+    color: 'from-indigo-500/10 to-violet-500/10 border-indigo-500/30',
     accentColor: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
-    accentBg: 'bg-indigo-500'
   },
   {
-    id: 'leaderboard',
-    title: 'Hall of Fame',
-    badge: 'Ranked',
-    shortDesc: 'Shave Milliseconds & Collect Medals',
-    color: 'from-rose-500/10 to-pink-500/10 border-rose-500/30 text-rose-400',
-    accentColor: 'text-rose-400 bg-rose-500/10 border-rose-500/20',
-    accentBg: 'bg-rose-500'
-  }
+    id: 'create',
+    title: 'Build & Share',
+    badge: 'Create',
+    shortDesc: 'Design your own parkour courses with the in-game editor. Place platforms, set traps, tune physics, and publish them for the whole community to run.',
+    icon: 'create',
+    color: 'from-emerald-500/10 to-teal-500/10 border-emerald-500/30',
+    accentColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  },
 ];
 
 export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
@@ -394,20 +394,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           </div>
         </div>
 
-        <div className="bg-neutral-900/80 border border-neutral-800 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md space-y-6">
-          <div className="flex items-center justify-between border-b border-neutral-800/60 pb-4">
-            <h3 className="text-sm md:text-base font-mono font-bold uppercase tracking-wider text-neutral-300 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
-              <span>Explore Game Features</span>
-            </h3>
-            <button
-              onClick={() => setIsAutoPlay(!isAutoPlay)}
-              className="text-[10px] font-mono text-neutral-500 hover:text-neutral-300 transition"
-            >
-              {isAutoPlay ? 'Auto-rotating' : 'Paused'}
-            </button>
-          </div>
-
+        <div className="bg-neutral-900/80 border border-neutral-800 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md space-y-5">
           <div className="flex gap-2 flex-wrap">
             {GAME_FEATURES.map((feature, idx) => (
               <button
@@ -426,10 +413,10 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
             activeTabIdx === idx && (
               <div key={feature.id} className={`bg-gradient-to-br ${feature.color} border rounded-2xl p-5 space-y-2 animate-in fade-in duration-200`}>
                 <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border ${feature.accentColor}`}>
-                  {feature.badge === 'Momentum' && <Zap className="w-3 h-3" />}
-                  {feature.badge === 'Sandbox' && <Hammer className="w-3 h-3" />}
-                  {feature.badge === 'Multiplayer' && <Users className="w-3 h-3" />}
-                  {feature.badge === 'Ranked' && <Trophy className="w-3 h-3" />}
+                  {feature.icon === 'improve' && <TrendingUp className="w-3 h-3" />}
+                  {feature.icon === 'compare' && <BarChart2 className="w-3 h-3" />}
+                  {feature.icon === 'race' && <Users className="w-3 h-3" />}
+                  {feature.icon === 'create' && <Hammer className="w-3 h-3" />}
                   {feature.badge}
                 </div>
                 <h4 className="text-base font-black text-neutral-100 tracking-tight">{feature.title}</h4>
