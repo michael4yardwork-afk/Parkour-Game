@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Trophy, RefreshCw, Award, LineChart, Activity, TrendingUp, GitCompare } from 'lucide-react';
 import { LeaderboardEntry, UserAccount } from '../types';
 import { api } from '../api';
+import VelocityChart from './VelocityChart';
 
 interface LeaderboardProps {
   levelId: string;
@@ -345,31 +346,12 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
                         <div className="flex items-center gap-2 mb-3">
                           <Activity className="w-3.5 h-3.5 text-indigo-400" />
                           <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Velocity Profile</span>
-                          <span className="ml-auto text-[10px] font-mono text-neutral-500">
-                            Peak: {Math.max(...entry.speeds).toFixed(1)} m/s
+                          <span className="ml-auto text-[10px] font-mono text-neutral-500 flex items-center gap-3">
+                            <span>Peak: {Math.max(...entry.speeds).toFixed(1)} m/s</span>
+                            <span className="flex items-center gap-1"><TrendingUp className="w-2.5 h-2.5 text-amber-500" /> Avg: {(entry.speeds.reduce((a, b) => a + b, 0) / entry.speeds.length).toFixed(1)} m/s</span>
                           </span>
                         </div>
-                        <div className="relative h-16 flex items-end gap-px">
-                          {entry.speeds.slice(0, 60).map((speed, i) => {
-                            const maxSpeed = Math.max(...entry.speeds!);
-                            const heightPct = maxSpeed > 0 ? (speed / maxSpeed) * 100 : 0;
-                            return (
-                              <div
-                                key={i}
-                                className="flex-1 rounded-sm transition-all duration-75"
-                                style={{
-                                  height: `${Math.max(4, heightPct)}%`,
-                                  backgroundColor: speed > maxSpeed * 0.8 ? '#f59e0b' : speed > maxSpeed * 0.5 ? '#6366f1' : '#374151'
-                                }}
-                              />
-                            );
-                          })}
-                        </div>
-                        <div className="flex justify-between mt-1.5 text-[9px] font-mono text-neutral-600">
-                          <span>Start</span>
-                          <span className="flex items-center gap-1"><TrendingUp className="w-2.5 h-2.5 text-amber-500" /> Avg: {(entry.speeds.reduce((a, b) => a + b, 0) / entry.speeds.length).toFixed(1)} m/s</span>
-                          <span>Finish</span>
-                        </div>
+                        <VelocityChart speeds={entry.speeds} totalTime={entry.time} />
                       </div>
                     )}
                   </div>
