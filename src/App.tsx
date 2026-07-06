@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   fov: 85,
   musicVolume: 0.5,
   sfxVolume: 0.5,
-  showGhost: false,
+  showGhost: true,
   invertY: false,
   adjustablePerspective: false,
   showJoystick: true,
