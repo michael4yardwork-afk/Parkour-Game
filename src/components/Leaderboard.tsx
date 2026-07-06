@@ -378,7 +378,8 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
 
                     {isExpanded && entry.speeds && entry.speeds.length > 0 && (() => {
                       const comparableEntries = getComparableEntries(entry.id);
-                      const compareEntry = compareRunId ? comparableEntries.find(c => c.id === compareRunId) : null;
+                      const allCandidates = [...rawEntries, ...(playerPBEntry ? [playerPBEntry] : [])];
+                      const compareEntry = compareRunId ? allCandidates.find(c => c.id === compareRunId) : null;
                       const compareLabel = compareEntry
                         ? (compareEntry.playerName.toLowerCase().trim() === (currentUser?.username || '').toLowerCase().trim() ? `${compareEntry.playerName} (You)` : compareEntry.playerName)
                         : null;
