@@ -166,6 +166,19 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
   };
 
   const visibleEntries = getVisibleEntries();
+
+  const getComparableEntries = (excludeId: string): LeaderboardEntry[] => {
+    const bestPerPlayer: { [key: string]: LeaderboardEntry } = {};
+    const candidates = [...rawEntries, ...(playerPBEntry ? [playerPBEntry] : [])];
+    candidates.forEach(run => {
+      if (run.id === excludeId || !run.speeds || run.speeds.length === 0) return;
+      const key = run.playerName.toLowerCase().trim();
+      if (!bestPerPlayer[key] || run.time < bestPerPlayer[key].time) {
+        bestPerPlayer[key] = run;
+      }
+    });
+    return Object.values(bestPerPlayer).sort((a, b) => a.time - b.time);
+  };
   const userRankIndexWorld = rankedWorldList.findIndex(e => {
     const uLower = (currentUser?.username || 'Guest').toLowerCase().trim();
     return e.id === 'user_pb' || e.playerName.toLowerCase().trim() === uLower;
@@ -341,19 +354,63 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
                       </div>
                     </div>
 
-                    {isExpanded && entry.speeds && entry.speeds.length > 0 && (
-                      <div className="bg-neutral-950/80 border border-neutral-800/60 rounded-xl p-4 ml-2">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Activity className="w-3.5 h-3.5 text-indigo-400" />
-                          <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Velocity Profile</span>
-                          <span className="ml-auto text-[10px] font-mono text-neutral-500 flex items-center gap-3">
-                            <span>Peak: {Math.max(...entry.speeds).toFixed(1)} m/s</span>
-                            <span className="flex items-center gap-1"><TrendingUp className="w-2.5 h-2.5 text-amber-500" /> Avg: {(entry.speeds.reduce((a, b) => a + b, 0) / entry.speeds.length).toFixed(1)} m/s</span>
-                          </span>
+                    {isExpanded && entry.speeds && entry.speeds.length > 0 && (() => {
+                      const comparableEntries = getComparableEntries(entry.id);
+                      const compareEntry = compareRunId ? comparableEntries.find(c => c.id === compareRunId) : null;
+                      const compareLabel = compareEntry
+                        ? (compareEntry.playerName.toLowerCase().trim() === (currentUser?.username || '').toLowerCase().trim() ? `${compareEntry.playerName} (You)` : compareEntry.playerName)
+                        : null;
+                      const primaryLabel = isCurrentUser ? (currentUser?.username || 'You') : entry.playerName;
+
+                      return (
+                        <div className="bg-neutral-950/80 border border-neutral-800/60 rounded-xl p-4 ml-2">
+                          <div className="flex items-center gap-2 mb-3 flex-wrap">
+                            <Activity className="w-3.5 h-3.5 text-indigo-400" />
+                            <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Velocity Profile</span>
+                            <span className="ml-auto text-[10px] font-mono text-neutral-500 flex items-center gap-3">
+                              <span>Peak: {Math.max(...entry.speeds).toFixed(1)} m/s</span>
+                              <span className="flex items-center gap-1"><TrendingUp className="w-2.5 h-2.5 text-amber-500" /> Avg: {(entry.speeds.reduce((a, b) => a + b, 0) / entry.speeds.length).toFixed(1)} m/s</span>
+                            </span>
+                          </div>
+
+                          {comparableEntries.length > 0 && (
+                            <div className="flex items-center gap-2 mb-3">
+                              <GitCompare className="w-3 h-3 text-neutral-500 flex-shrink-0" />
+                              <select
+                                value={compareRunId || ''}
+                                onChange={(e) => setCompareRunId(e.target.value || null)}
+                                className="text-[10px] font-mono bg-neutral-900 border border-neutral-800 rounded-lg px-2 py-1 text-neutral-300 cursor-pointer focus:outline-none focus:border-indigo-500/50 max-w-[220px]"
+                              >
+                                <option value="">Compare against...</option>
+                                {comparableEntries.map(c => {
+                                  const isYou = c.playerName.toLowerCase().trim() === (currentUser?.username || '').toLowerCase().trim();
+                                  return (
+                                    <option key={c.id} value={c.id}>
+                                      {isYou ? `${c.playerName} (You)` : c.playerName} — {formatTime(c.time)}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              {compareRunId && (
+                                <button
+                                  onClick={() => setCompareRunId(null)}
+                                  className="text-[10px] font-mono text-neutral-500 hover:text-neutral-300 cursor-pointer"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          <VelocityChart
+                            speeds={entry.speeds}
+                            totalTime={entry.time}
+                            label={primaryLabel}
+                            compare={compareEntry && compareEntry.speeds ? { speeds: compareEntry.speeds, totalTime: compareEntry.time, label: compareLabel! } : null}
+                          />
                         </div>
-                        <VelocityChart speeds={entry.speeds} totalTime={entry.time} />
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 );
               })}
