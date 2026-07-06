@@ -340,13 +340,35 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
 
                       <div className="flex items-center gap-3">
                         {entry.speeds && entry.speeds.length > 0 && (
-                          <button
-                            onClick={() => { if (isExpanded) { setExpandedRunId(null); setCompareRunId(null); } else { setExpandedRunId(entry.id); } }}
-                            className={`p-1.5 rounded-lg transition-all duration-200 cursor-pointer flex items-center justify-center border ${isExpanded ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'text-neutral-500 hover:text-indigo-400 hover:bg-neutral-800 border-transparent'}`}
-                            title="Show velocity graph"
-                          >
-                            <LineChart className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => { if (isExpanded) { setExpandedRunId(null); setCompareRunId(null); } else { setExpandedRunId(entry.id); setCompareRunId(null); } }}
+                              className={`p-1.5 rounded-lg transition-all duration-200 cursor-pointer flex items-center justify-center border ${isExpanded ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'text-neutral-500 hover:text-indigo-400 hover:bg-neutral-800 border-transparent'}`}
+                              title="Show velocity graph"
+                            >
+                              <LineChart className="w-3.5 h-3.5" />
+                            </button>
+                            {expandedRunId && (
+                              <button
+                                onClick={() => {
+                                  if (entry.id === expandedRunId) return;
+                                  if (!expandedRunId) { setExpandedRunId(entry.id); return; }
+                                  setCompareRunId(prev => prev === entry.id ? null : entry.id);
+                                }}
+                                disabled={entry.id === expandedRunId}
+                                className={`p-1.5 rounded-lg transition-all duration-200 flex items-center justify-center border ${
+                                  entry.id === expandedRunId
+                                    ? 'text-neutral-700 border-transparent cursor-not-allowed'
+                                    : compareRunId === entry.id
+                                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/30 cursor-pointer'
+                                      : 'text-neutral-500 hover:text-rose-400 hover:bg-neutral-800 border-transparent cursor-pointer'
+                                }`}
+                                title={entry.id === expandedRunId ? 'This is the run currently shown' : compareRunId === entry.id ? 'Remove comparison' : 'Compare with open graph'}
+                              >
+                                <GitCompare className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         )}
                         <span className={`text-sm font-bold font-mono ${isPrimaryUser ? 'text-emerald-300' : 'text-neutral-50'}`}>
                           {formatTime(entry.time)}
@@ -373,32 +395,10 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
                             </span>
                           </div>
 
-                          {comparableEntries.length > 0 && (
-                            <div className="flex items-center gap-2 mb-3">
-                              <GitCompare className="w-3 h-3 text-neutral-500 flex-shrink-0" />
-                              <select
-                                value={compareRunId || ''}
-                                onChange={(e) => setCompareRunId(e.target.value || null)}
-                                className="text-[10px] font-mono bg-neutral-900 border border-neutral-800 rounded-lg px-2 py-1 text-neutral-300 cursor-pointer focus:outline-none focus:border-indigo-500/50 max-w-[220px]"
-                              >
-                                <option value="">Compare against...</option>
-                                {comparableEntries.map(c => {
-                                  const isYou = c.playerName.toLowerCase().trim() === (currentUser?.username || '').toLowerCase().trim();
-                                  return (
-                                    <option key={c.id} value={c.id}>
-                                      {isYou ? `${c.playerName} (You)` : c.playerName} — {formatTime(c.time)}
-                                    </option>
-                                  );
-                                })}
-                              </select>
-                              {compareRunId && (
-                                <button
-                                  onClick={() => setCompareRunId(null)}
-                                  className="text-[10px] font-mono text-neutral-500 hover:text-neutral-300 cursor-pointer"
-                                >
-                                  Clear
-                                </button>
-                              )}
+                          {!compareEntry && comparableEntries.length > 0 && (
+                            <div className="flex items-center gap-1.5 mb-3 text-[9px] font-mono text-neutral-600">
+                              <GitCompare className="w-3 h-3 text-neutral-600 flex-shrink-0" />
+                              Click the <GitCompare className="w-2.5 h-2.5 text-rose-400 inline-block" /> icon on another run to overlay it here
                             </div>
                           )}
 
