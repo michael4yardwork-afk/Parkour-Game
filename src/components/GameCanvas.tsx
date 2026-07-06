@@ -4,6 +4,7 @@ import { RotateCcw, Award, CheckCircle, Flame, Compass } from 'lucide-react';
 import { LevelConfig, GhostFrame, RunReplay, GameSettings, UserAccount, RaceParticipant } from '../types';
 import { synths } from '../audio';
 import { motion, AnimatePresence } from 'motion/react';
+import { resampleSpeedsToUniformTime } from '../utils/resampleSpeeds';
 
 interface GameCanvasProps {
   level: LevelConfig;
@@ -2277,6 +2278,16 @@ export default function GameCanvas({
         }
 
         if (level.id !== 'test_level_active') {
+          // Raw speeds are sampled once per rendered frame, so spacing varies with
+          // frame rate. Resample onto a fixed, evenly time-spaced grid using the
+          // recorded frame timestamps so the stored speeds array has a true
+          // uniform index-to-time mapping (required for accurate cross-run comparison).
+          const resampledSpeeds = resampleSpeedsToUniformTime(
+            currentRunFramesRef.current,
+            currentRunSpeedsRef.current,
+            elapsedTimeRef.current
+          );
+
           const newEntry = {
             id: `run_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             levelId: level.id,
@@ -2284,7 +2295,7 @@ export default function GameCanvas({
             time: elapsedTimeRef.current,
             date: Date.now(),
             device: isMobileRef.current ? 'mobile' : 'desktop',
-            speeds: currentRunSpeedsRef.current,
+            speeds: resampledSpeeds,
             actions: currentRunActionsRef.current
           };
           // Submit to backend — fire and forget to not block game flow
