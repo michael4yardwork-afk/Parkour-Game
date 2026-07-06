@@ -255,7 +255,7 @@ export const api = {
       try {
         return await apiFetch<{ rating: number; color: string }>(`/users/${encodeURIComponent(username)}/rating`);
       } catch {
-        return { rating: 1000, color: '#3b82f6' };
+        return { rating: 100, color: '#3b82f6' };
       }
     }
   }

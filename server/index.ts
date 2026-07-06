@@ -1,12 +1,23 @@
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { initDb } from './db';
 import authRoutes from './routes/auth';
 import leaderboardRoutes from './routes/leaderboard';
 import communityRoutes from './routes/community';
 import usersRoutes from './routes/users';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+if (!process.env.DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL environment variable is required');
+  process.exit(1);
+}
+
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
+const IS_PROD = process.env.NODE_ENV === 'production';
 
 app.use(express.json({ limit: '5mb' }));
 
@@ -24,6 +35,16 @@ app.use('/api/community', communityRoutes);
 app.use('/api/users', usersRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
+// In production, serve the built React frontend from dist/
+if (IS_PROD) {
+  const distPath = path.resolve(__dirname, '../dist');
+  app.use(express.static(distPath));
+  // SPA fallback — any unmatched route returns index.html
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 async function start() {
   try {

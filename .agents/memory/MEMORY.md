@@ -1,1 +1,2 @@
 - [Backend architecture](backend-arch.md) — Express on port 3001, proxied via Vite /api, PostgreSQL with JWT auth (bcrypt). Both workflows must run.
+- [Production deployment](production-deploy.md) — Single Railway service serves API + static dist/. Neon for PostgreSQL. Hostinger domain via DNS CNAME to Railway.
