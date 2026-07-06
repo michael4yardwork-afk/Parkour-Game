@@ -53,13 +53,13 @@ export default function VelocityChart({ speeds, totalTime }: VelocityChartProps)
     (e.target as Element).setPointerCapture?.(e.pointerId);
   };
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!dragging) return;
     updateHoverFromClientX(e.clientX);
   };
   const handlePointerUp = () => setDragging(false);
   const handleMouseEnter = () => {};
   const handleMouseLeave = () => {
-    if (!dragging) setHoverIndex(null);
+    setDragging(false);
+    setHoverIndex(null);
   };
 
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => minSpeed + f * (maxSpeed - minSpeed));
@@ -184,7 +184,7 @@ export default function VelocityChart({ speeds, totalTime }: VelocityChartProps)
             t = {hoverTime.toFixed(2)}s &nbsp;•&nbsp; v = {hoverSpeed.toFixed(1)} m/s
           </div>
         ) : (
-          <div className="text-[9px] font-mono text-neutral-600">Drag or hover the graph to inspect speed at a point in time</div>
+          <div className="text-[9px] font-mono text-neutral-600">Hover the graph to inspect speed at a point in time</div>
         )}
       </div>
     </div>
