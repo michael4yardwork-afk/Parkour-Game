@@ -24,16 +24,21 @@ const PRIMARY_COLOR = '#818cf8';
 const PRIMARY_FILL_ID = 'velocityFillPrimary';
 const COMPARE_COLOR = '#fb7185';
 
-function buildSeriesHelpers(speeds: number[], totalTime: number, chartW: number, chartH: number, maxSpeed: number) {
+function buildSeriesHelpers(speeds: number[], totalTime: number, chartW: number, chartH: number, maxSpeed: number, maxTotalTime: number) {
   const n = speeds.length;
-  const xForIndex = (i: number) => PAD_LEFT + (n <= 1 ? 0 : (i / (n - 1)) * chartW);
+  // Position each sample by its actual elapsed time relative to the shared
+  // timeline (maxTotalTime), not by index-fraction of the chart width. This
+  // ensures a run that finished sooner visually ends earlier on the X axis
+  // instead of being stretched to fill the same width as a longer run.
+  const timeForIndex = (i: number) => (n <= 1 ? 0 : (i / (n - 1)) * totalTime);
+  const xForIndex = (i: number) => PAD_LEFT + (maxTotalTime <= 0 ? 0 : (timeForIndex(i) / maxTotalTime) * chartW);
   const yForSpeed = (s: number) => {
     const pct = s / (maxSpeed || 1);
     return PAD_TOP + chartH - pct * chartH;
   };
-  const timeForIndex = (i: number) => (n <= 1 ? 0 : (i / (n - 1)) * totalTime);
   const speedAtTime = (t: number) => {
-    if (n === 0) return 0;
+    if (n === 0) return null;
+    if (t > totalTime) return null;
     if (totalTime <= 0) return speeds[0];
     const frac = Math.min(Math.max(t / totalTime, 0), 1);
     const idx = Math.round(frac * (n - 1));
@@ -42,7 +47,7 @@ function buildSeriesHelpers(speeds: number[], totalTime: number, chartW: number,
   const pathD = speeds
     .map((s, i) => `${i === 0 ? 'M' : 'L'} ${xForIndex(i).toFixed(2)} ${yForSpeed(s).toFixed(2)}`)
     .join(' ');
-  return { n, xForIndex, yForSpeed, timeForIndex, speedAtTime, pathD };
+  return { n, xForIndex, yForSpeed, timeForIndex, speedAtTime, pathD, totalTime };
 }
 
 export default function VelocityChart({ speeds, totalTime, label = 'You', compare }: VelocityChartProps) {
@@ -55,8 +60,8 @@ export default function VelocityChart({ speeds, totalTime, label = 'You', compar
   const maxSpeed = Math.max(...speeds, ...(compare?.speeds || []), 0.01);
   const maxTotalTime = Math.max(totalTime, compare?.totalTime || 0) || 1;
 
-  const primary = buildSeriesHelpers(speeds, totalTime, chartW, chartH, maxSpeed);
-  const secondary = compare ? buildSeriesHelpers(compare.speeds, compare.totalTime, chartW, chartH, maxSpeed) : null;
+  const primary = buildSeriesHelpers(speeds, totalTime, chartW, chartH, maxSpeed, maxTotalTime);
+  const secondary = compare ? buildSeriesHelpers(compare.speeds, compare.totalTime, chartW, chartH, maxSpeed, maxTotalTime) : null;
 
   const xForTime = (t: number) => PAD_LEFT + (t / maxTotalTime) * chartW;
 
