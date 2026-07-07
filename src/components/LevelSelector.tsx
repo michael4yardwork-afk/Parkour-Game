@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Play, Plus, Trash2, Code, Upload, Download, Award, Compass, Sparkles, Map } from 'lucide-react';
 import { LevelConfig, SceneTheme } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
+import { api } from '../api';
 
 interface LevelSelectorProps {
   onSelectLevel: (level: LevelConfig) => void;
@@ -70,8 +71,17 @@ const getLevelTheme = (id: string) => {
   }
 };
 
+const formatWR = (seconds: number): string => {
+  const totalMs = Math.round(seconds * 1000);
+  const m = Math.floor(totalMs / 60000);
+  const s = Math.floor((totalMs % 60000) / 1000);
+  const ms = totalMs % 1000;
+  return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${ms.toString().padStart(3, '0')}s`;
+};
+
 export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEditCustom }: LevelSelectorProps) {
   const [customLevels, setCustomLevels] = useState<LevelConfig[]>([]);
+  const [wrMap, setWrMap] = useState<Record<string, string | null>>({});
 
   // Load custom levels from storage
   useEffect(() => {
@@ -83,6 +93,24 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
         console.error('Error loading custom levels', e);
       }
     }
+  }, []);
+
+  // Fetch world records for all default levels
+  useEffect(() => {
+    Promise.all(
+      DEFAULT_LEVELS.map(async (lvl) => {
+        try {
+          const entries = await api.leaderboard.get(lvl.id);
+          return [lvl.id, entries.length > 0 ? formatWR(entries[0].time) : null] as const;
+        } catch {
+          return [lvl.id, null] as const;
+        }
+      })
+    ).then(pairs => {
+      const map: Record<string, string | null> = {};
+      pairs.forEach(([id, wr]) => { map[id] = wr; });
+      setWrMap(map);
+    });
   }, []);
 
   const deleteCustomLevel = (id: string, e: React.MouseEvent) => {
@@ -175,9 +203,11 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
                 onClick={() => onSelectLevel(level)}
                 className={`group relative rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer overflow-hidden flex flex-col justify-between min-h-[190px] border ${theme.card}`}
               >
-                {/* Accent Tag */}
-                <span className={`absolute top-0 right-0 py-1 px-3 text-[10px] font-semibold tracking-wider font-mono uppercase rounded-bl-xl transition duration-300 ${theme.badge}`}>
-                  {themeName}
+                {/* World Record Tag */}
+                <span className={`absolute top-0 right-0 py-1 px-3 text-[10px] font-semibold tracking-wider font-mono rounded-bl-xl transition duration-300 ${theme.badge}`}>
+                  {level.id in wrMap
+                    ? (wrMap[level.id] ? `WR ${wrMap[level.id]}` : 'No WR')
+                    : '…'}
                 </span>
 
                 <div>

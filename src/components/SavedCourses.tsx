@@ -11,12 +11,21 @@ interface SavedCoursesProps {
   currentUser: UserAccount;
 }
 
+const formatWR = (seconds: number): string => {
+  const totalMs = Math.round(seconds * 1000);
+  const m = Math.floor(totalMs / 60000);
+  const s = Math.floor((totalMs % 60000) / 1000);
+  const ms = totalMs % 1000;
+  return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${ms.toString().padStart(3, '0')}s`;
+};
+
 export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditCustom, currentUser }: SavedCoursesProps) {
   const [customLevels, setCustomLevels] = useState<LevelConfig[]>([]);
   const [deletingLevel, setDeletingLevel] = useState<LevelConfig | null>(null);
   const [publishingLevel, setPublishingLevel] = useState<LevelConfig | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [wrMap, setWrMap] = useState<Record<string, string | null>>({});
 
   const loadCustomLevels = async () => {
     try {
@@ -53,6 +62,24 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
   useEffect(() => {
     loadCustomLevels();
   }, []);
+
+  useEffect(() => {
+    if (customLevels.length === 0) return;
+    Promise.all(
+      customLevels.map(async (lvl) => {
+        try {
+          const entries = await api.leaderboard.get(lvl.id);
+          return [lvl.id, entries.length > 0 ? formatWR(entries[0].time) : null] as const;
+        } catch {
+          return [lvl.id, null] as const;
+        }
+      })
+    ).then(pairs => {
+      const map: Record<string, string | null> = {};
+      pairs.forEach(([id, wr]) => { map[id] = wr; });
+      setWrMap(map);
+    });
+  }, [customLevels]);
 
   const deleteCustomLevel = (level: LevelConfig, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -258,8 +285,10 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex flex-wrap gap-1.5 items-center">
-                    <span className="py-0.5 px-2.5 bg-neutral-100 text-neutral-600 font-semibold font-mono text-[9px] rounded-full uppercase tracking-wider">
-                      {formatTheme(level.theme)}
+                    <span className="py-0.5 px-2.5 bg-neutral-100 text-neutral-600 font-semibold font-mono text-[9px] rounded-full tracking-wider">
+                      {level.id in wrMap
+                        ? (wrMap[level.id] ? `WR ${wrMap[level.id]}` : 'No WR')
+                        : '…'}
                     </span>
                     {level.isPublished && (
                       <span className="py-0.5 px-2 bg-indigo-50 border border-indigo-150 text-indigo-700 font-semibold font-sans text-[9px] rounded-full uppercase tracking-wider flex items-center gap-0.5">

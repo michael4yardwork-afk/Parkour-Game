@@ -10,6 +10,14 @@ interface CommunityCoursesProps {
   onViewProfile: (username: string) => void;
 }
 
+const formatWR = (seconds: number): string => {
+  const totalMs = Math.round(seconds * 1000);
+  const m = Math.floor(totalMs / 60000);
+  const s = Math.floor((totalMs % 60000) / 1000);
+  const ms = totalMs % 1000;
+  return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${ms.toString().padStart(3, '0')}s`;
+};
+
 export default function CommunityCourses({ onSelectLevel, currentUser, onViewProfile }: CommunityCoursesProps) {
   const [courses, setCourses] = useState<LevelConfig[]>([]);
   const [likedIds, setLikedIds] = useState<string[]>([]);
@@ -17,6 +25,7 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'likes' | 'newest' | 'most_liked'>('likes');
   const [loading, setLoading] = useState(true);
+  const [wrMap, setWrMap] = useState<Record<string, string | null>>({});
 
   const loadCourses = async () => {
     setLoading(true);
@@ -35,6 +44,24 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
   useEffect(() => {
     loadCourses();
   }, []);
+
+  useEffect(() => {
+    if (courses.length === 0) return;
+    Promise.all(
+      courses.map(async (c) => {
+        try {
+          const entries = await api.leaderboard.get(c.id);
+          return [c.id, entries.length > 0 ? formatWR(entries[0].time) : null] as const;
+        } catch {
+          return [c.id, null] as const;
+        }
+      })
+    ).then(pairs => {
+      const map: Record<string, string | null> = {};
+      pairs.forEach(([id, wr]) => { map[id] = wr; });
+      setWrMap(map);
+    });
+  }, [courses]);
 
   const handleLike = async (level: LevelConfig, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -191,8 +218,10 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
                 className="group relative bg-white border border-neutral-200/90 hover:border-neutral-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[220px]"
               >
                 <div className="flex items-center justify-between mb-4.5">
-                  <span className="py-0.5 px-2.5 bg-neutral-100 text-neutral-600 font-semibold font-mono text-[9px] rounded-full uppercase tracking-wider">
-                    {formatTheme(course.theme)}
+                  <span className="py-0.5 px-2.5 bg-neutral-100 text-neutral-600 font-semibold font-mono text-[9px] rounded-full tracking-wider">
+                    {course.id in wrMap
+                      ? (wrMap[course.id] ? `WR ${wrMap[course.id]}` : 'No WR')
+                      : '…'}
                   </span>
                   
                   <div className="flex items-center gap-1.5 select-none">
