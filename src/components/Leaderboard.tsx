@@ -220,17 +220,10 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
               {currentLocalBest ? formatTime(currentLocalBest) : 'No time recorded'}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={loadScores} className="flex items-center gap-1 text-neutral-500 hover:text-indigo-400 transition cursor-pointer">
-              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-            {currentLocalBest && (
-              <button onClick={clearLocalScores} className="text-rose-500 hover:text-rose-400 transition cursor-pointer">
-                Clear My Runs
-              </button>
-            )}
-          </div>
+          <button onClick={loadScores} className="flex items-center gap-1 text-neutral-500 hover:text-indigo-400 transition cursor-pointer">
+            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
         </div>
 
         <div className="p-4 flex flex-col gap-3 border-b border-neutral-800/40">
