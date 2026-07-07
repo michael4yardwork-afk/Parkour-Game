@@ -293,9 +293,17 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
             </h2>
             <button
               onClick={() => { setIsSignUp(!isSignUp); clearInputs(); synths.playTick(); }}
-              className="text-xs text-indigo-400 hover:text-indigo-300 font-mono underline transition cursor-pointer"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider border transition-all duration-200 cursor-pointer ${
+                isSignUp
+                  ? 'bg-neutral-800/60 border-neutral-700/50 text-neutral-300 hover:text-white hover:border-neutral-600'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50 hover:text-rose-300 shadow-sm shadow-rose-500/10'
+              }`}
             >
-              {isSignUp ? 'Have an account? Sign In' : "No profile? Sign Up"}
+              {isSignUp ? (
+                <><LogIn className="w-3 h-3" />Sign In</>
+              ) : (
+                <><UserPlus className="w-3 h-3" />Sign Up</>
+              )}
             </button>
           </div>
 
@@ -404,7 +412,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
               ) : isSignUp ? (
                 <><UserPlus className="w-4 h-4" />Create Account<ChevronRight className="w-4 h-4" /></>
               ) : (
-                <><LogIn className="w-4 h-4" />Authenticate<ChevronRight className="w-4 h-4" /></>
+                <><LogIn className="w-4 h-4" />Log In<ChevronRight className="w-4 h-4" /></>
               )}
             </button>
           </form>
