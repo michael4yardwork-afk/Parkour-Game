@@ -273,8 +273,17 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
             <h1 className="text-2xl font-black font-sans uppercase tracking-widest text-neutral-50">
               DELTA RUSH<span className="text-sm font-mono font-bold text-indigo-500 lowercase ml-1">.win</span>
             </h1>
-            <p className="text-xs text-neutral-400 font-mono uppercase tracking-widest mt-1">High Velocity Parkour Simulation</p>
+            <p className="text-xs text-neutral-400 font-mono uppercase tracking-widest mt-1">High Velocity 3D Speedrunning</p>
           </div>
+        </div>
+
+        <div className="text-center space-y-1 px-2">
+          <p className="text-2xl md:text-3xl font-black text-neutral-50 tracking-tight leading-tight">
+            Beat your best time.{' '}
+            <span className="bg-gradient-to-r from-indigo-400 via-violet-400 to-sky-400 bg-clip-text text-transparent">
+              Earn global glory.
+            </span>
+          </p>
         </div>
 
         <div className="bg-neutral-900/80 border border-neutral-800 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md">
