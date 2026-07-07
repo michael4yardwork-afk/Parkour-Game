@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Plus, Trash2, Code, Award, Sparkles, FolderHeart, Globe, User, Search, RotateCcw, X, RefreshCw } from 'lucide-react';
+import { Play, Plus, Trash2, Code, Award, Sparkles, FolderHeart, Globe, User, Search, RotateCcw, X, RefreshCw, EyeOff } from 'lucide-react';
 import { LevelConfig, SceneTheme, UserAccount } from '../types';
 import { synths } from '../audio';
 import { api } from '../api';
@@ -80,6 +80,19 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
       setWrMap(map);
     });
   }, [customLevels]);
+
+  const handleUnpublish = async (level: LevelConfig, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Unpublish "${level.name}"? It will be removed from the community workshop but kept in your saved courses.`)) return;
+    try {
+      await api.community.deleteCourse(level.id);
+      setSavedLevels(prev => prev.map(l => l.id === level.id ? { ...l, isPublished: false } : l));
+      synths.playTick();
+    } catch (err: any) {
+      console.error('Failed to unpublish course:', err);
+      alert(err.message || 'Failed to unpublish course.');
+    }
+  };
 
   const deleteCustomLevel = (level: LevelConfig, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -346,6 +359,15 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
                         className="flex items-center gap-1 px-3 py-1 text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg text-xs font-bold transition cursor-pointer"
                       >
                         <Globe className="w-3.5 h-3.5" />Publish
+                      </button>
+                    )}
+                    {isCreator && level.isPublished && (
+                      <button
+                        onClick={(e) => handleUnpublish(level, e)}
+                        className="flex items-center gap-1 px-3 py-1 text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 rounded-lg text-xs font-bold transition cursor-pointer"
+                        title="Remove from the community workshop"
+                      >
+                        <EyeOff className="w-3.5 h-3.5" />Unpublish
                       </button>
                     )}
                     <button className="flex items-center gap-1 px-3.5 py-1 text-white bg-neutral-900 group-hover:bg-indigo-600 rounded-lg text-xs font-bold transition">
