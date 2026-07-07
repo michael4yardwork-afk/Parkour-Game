@@ -51,10 +51,8 @@ function buildSpeedSeriesHelpers(speeds: number[], totalTime: number, chartW: nu
   return { n, pathD, valueAtFrac, firstX, lastX };
 }
 
-// PROGRESS mode: x = % of the run's own distance covered (integrated from
-// speed), y = elapsed time to reach that point. Every series always spans
-// the full 0-100% width, making it easy to compare pacing at the same
-// point in the course regardless of how long each run took overall.
+// PROGRESS mode: x = elapsed time, y = % of course distance covered.
+// Both series span the same time axis, making it easy to see who got further ahead faster.
 function buildProgressSeriesHelpers(speeds: number[], totalTime: number, chartW: number, chartH: number, maxTotalTime: number) {
   const n = speeds.length;
   if (n === 0) {
@@ -72,29 +70,30 @@ function buildProgressSeriesHelpers(speeds: number[], totalTime: number, chartW:
   const progress = cumDist.map(d => (d / totalDist) * 100);
   const times = Array.from({ length: n }, (_, i) => i * dt);
 
-  const xForProgress = (p: number) => PAD_LEFT + (p / 100) * chartW;
-  const yForTime = (t: number) => PAD_TOP + chartH - (maxTotalTime <= 0 ? 0 : (t / maxTotalTime) * chartH);
+  // x = time, y = progress %
+  const xForTime = (t: number) => PAD_LEFT + (maxTotalTime <= 0 ? 0 : (t / maxTotalTime) * chartW);
+  const yForProgress = (p: number) => PAD_TOP + chartH - (p / 100) * chartH;
 
-  const pathD = progress
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xForProgress(p).toFixed(2)} ${yForTime(times[i]).toFixed(2)}`)
+  const pathD = times
+    .map((t, i) => `${i === 0 ? 'M' : 'L'} ${xForTime(t).toFixed(2)} ${yForProgress(progress[i]).toFixed(2)}`)
     .join(' ');
 
-  const valueAtFrac = (frac: number) => {
-    const pct = Math.min(Math.max(frac, 0), 1) * 100;
-    if (pct <= progress[0]) return times[0];
-    if (pct >= progress[n - 1]) return times[n - 1];
+  // valueAtFrac: given x-axis fraction (time), return progress % at that time
+  const valueAtFrac = (frac: number): number | null => {
+    const t = frac * maxTotalTime;
+    if (t <= times[0]) return progress[0];
+    if (t >= times[n - 1]) return progress[n - 1];
     for (let i = 0; i < n - 1; i++) {
-      if (progress[i] <= pct && pct <= progress[i + 1]) {
-        const p0 = progress[i], p1 = progress[i + 1], t0 = times[i], t1 = times[i + 1];
-        const localFrac = p1 > p0 ? (pct - p0) / (p1 - p0) : 0;
-        return t0 + (t1 - t0) * localFrac;
+      if (times[i] <= t && t <= times[i + 1]) {
+        const localFrac = times[i + 1] > times[i] ? (t - times[i]) / (times[i + 1] - times[i]) : 0;
+        return progress[i] + (progress[i + 1] - progress[i]) * localFrac;
       }
     }
-    return times[n - 1];
+    return progress[n - 1];
   };
 
-  const firstX = xForProgress(progress[0]);
-  const lastX = xForProgress(progress[n - 1]);
+  const firstX = xForTime(times[0]);
+  const lastX = xForTime(times[n - 1]);
   return { n, pathD, valueAtFrac, firstX, lastX };
 }
 
@@ -148,16 +147,22 @@ export default function VelocityChart({ speeds, totalTime, label = 'You', compar
 
   const isSpeedMode = mode === 'speed';
 
+  // Y axis ticks: speed (m/s) in speed mode, progress % in progress mode
   const yTicks = isSpeedMode
     ? [0, 0.25, 0.5, 0.75, 1].map(f => f * maxSpeed)
-    : [0, 0.25, 0.5, 0.75, 1].map(f => f * maxTotalTime);
-  const xTickCount = isSpeedMode ? Math.min(6, Math.max(2, primary.n)) : 6;
-  const xTicks = isSpeedMode
-    ? Array.from({ length: xTickCount }, (_, i) => (i / (xTickCount - 1)) * maxTotalTime)
-    : Array.from({ length: xTickCount }, (_, i) => (i / (xTickCount - 1)) * 100);
+    : [0, 25, 50, 75, 100];
+
+  // X axis ticks: time (s) in both modes
+  const xTickCount = Math.min(6, Math.max(2, primary.n));
+  const xTicks = Array.from({ length: xTickCount }, (_, i) => (i / (xTickCount - 1)) * maxTotalTime);
 
   const hoverPrimaryValue = hoverFrac !== null ? primary.valueAtFrac(hoverFrac) : null;
   const hoverCompareValue = hoverFrac !== null && secondary ? secondary.valueAtFrac(hoverFrac) : null;
+
+  // y pixel position for hover dot
+  const hoverDotY = (value: number) => isSpeedMode
+    ? PAD_TOP + chartH - (value / (maxSpeed || 1)) * chartH
+    : PAD_TOP + chartH - (value / 100) * chartH;
 
   return (
     <div className="select-none">
@@ -220,7 +225,7 @@ export default function VelocityChart({ speeds, totalTime, label = 'You', compar
               fontSize="8"
               fontFamily="monospace"
             >
-              {isSpeedMode ? tick.toFixed(0) : tick.toFixed(1)}
+              {isSpeedMode ? tick.toFixed(0) : `${tick.toFixed(0)}%`}
             </text>
           </g>
         ))}
@@ -228,14 +233,14 @@ export default function VelocityChart({ speeds, totalTime, label = 'You', compar
         {xTicks.map((t, i) => (
           <text
             key={i}
-            x={xForFrac(isSpeedMode ? t / maxTotalTime : t / 100)}
+            x={xForFrac(t / maxTotalTime)}
             y={HEIGHT - PAD_BOTTOM + 14}
             textAnchor="middle"
             className="fill-neutral-600"
             fontSize="8"
             fontFamily="monospace"
           >
-            {isSpeedMode ? `${t.toFixed(1)}s` : `${t.toFixed(0)}%`}
+            {`${t.toFixed(1)}s`}
           </text>
         ))}
 
@@ -248,7 +253,7 @@ export default function VelocityChart({ speeds, totalTime, label = 'You', compar
           fontSize="8"
           fontFamily="monospace"
         >
-          {isSpeedMode ? 'SPEED (m/s)' : 'TIME (s)'}
+          {isSpeedMode ? 'SPEED (m/s)' : 'PROGRESS (%)'}
         </text>
         <text
           x={PAD_LEFT + chartW / 2}
@@ -258,7 +263,7 @@ export default function VelocityChart({ speeds, totalTime, label = 'You', compar
           fontSize="8"
           fontFamily="monospace"
         >
-          {isSpeedMode ? 'TIME (s)' : 'PROGRESS (%)'}
+          TIME (s)
         </text>
 
         {!compare && <path d={areaD} fill={`url(#${PRIMARY_FILL_ID})`} stroke="none" />}
@@ -281,9 +286,7 @@ export default function VelocityChart({ speeds, totalTime, label = 'You', compar
             {hoverPrimaryValue !== null && (
               <circle
                 cx={xForFrac(hoverFrac)}
-                cy={isSpeedMode
-                  ? PAD_TOP + chartH - (hoverPrimaryValue / (maxSpeed || 1)) * chartH
-                  : PAD_TOP + chartH - (hoverPrimaryValue / (maxTotalTime || 1)) * chartH}
+                cy={hoverDotY(hoverPrimaryValue)}
                 r={3.5}
                 fill={PRIMARY_COLOR}
                 stroke="#0a0a0a"
@@ -293,9 +296,7 @@ export default function VelocityChart({ speeds, totalTime, label = 'You', compar
             {hoverCompareValue !== null && (
               <circle
                 cx={xForFrac(hoverFrac)}
-                cy={isSpeedMode
-                  ? PAD_TOP + chartH - (hoverCompareValue / (maxSpeed || 1)) * chartH
-                  : PAD_TOP + chartH - (hoverCompareValue / (maxTotalTime || 1)) * chartH}
+                cy={hoverDotY(hoverCompareValue)}
                 r={3.5}
                 fill={COMPARE_COLOR}
                 stroke="#0a0a0a"
@@ -310,19 +311,21 @@ export default function VelocityChart({ speeds, totalTime, label = 'You', compar
         {hoverFrac !== null && hoverPrimaryValue !== null ? (
           <div className="flex items-center gap-2 flex-wrap">
             <div className="text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-0.5">
-              {isSpeedMode ? `t = ${(hoverFrac * maxTotalTime).toFixed(2)}s` : `progress = ${(hoverFrac * 100).toFixed(0)}%`}
+              t = {(hoverFrac * maxTotalTime).toFixed(2)}s
             </div>
             <div className="text-[10px] font-mono text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded px-2 py-0.5">
-              {label}: {isSpeedMode ? `${hoverPrimaryValue.toFixed(1)} m/s` : `${hoverPrimaryValue.toFixed(2)}s`}
+              {label}: {isSpeedMode ? `${hoverPrimaryValue.toFixed(1)} m/s` : `${hoverPrimaryValue.toFixed(1)}%`}
             </div>
             {hoverCompareValue !== null && compare && (
               <div className="text-[10px] font-mono text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded px-2 py-0.5">
-                {compare.label}: {isSpeedMode ? `${hoverCompareValue.toFixed(1)} m/s` : `${hoverCompareValue.toFixed(2)}s`}
+                {compare.label}: {isSpeedMode ? `${hoverCompareValue.toFixed(1)} m/s` : `${hoverCompareValue.toFixed(1)}%`}
               </div>
             )}
           </div>
         ) : (
-          <div className="text-[9px] font-mono text-neutral-600">Hover the graph to inspect {isSpeedMode ? 'speed at a point in time' : 'time at a point of progress'}</div>
+          <div className="text-[9px] font-mono text-neutral-600">
+            Hover the graph to inspect {isSpeedMode ? 'speed at a point in time' : 'progress at a point in time'}
+          </div>
         )}
       </div>
     </div>
