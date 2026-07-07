@@ -78,16 +78,29 @@ router.post('/courses', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid course data.' });
     }
 
-    const existing = await pool.query('SELECT id FROM community_courses WHERE id = $1', [id]);
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ error: 'Course already published.' });
-    }
-
-    await pool.query(
-      `INSERT INTO community_courses (id, name, description, blocks, theme, creator, created_at, is_published)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)`,
-      [id, name, description || '', JSON.stringify(blocks), theme || 'sky_islands', username, createdAt || Date.now()]
+    const existing = await pool.query(
+      'SELECT id, is_published FROM community_courses WHERE id = $1',
+      [id]
     );
+
+    if (existing.rows.length > 0) {
+      if (existing.rows[0].is_published) {
+        return res.status(409).json({ error: 'Course already published.' });
+      }
+      // Row exists but was unpublished — re-publish it with fresh data
+      await pool.query(
+        `UPDATE community_courses
+         SET name = $2, description = $3, blocks = $4, theme = $5, is_published = TRUE
+         WHERE id = $1`,
+        [id, name, description || '', JSON.stringify(blocks), theme || 'sky_islands']
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO community_courses (id, name, description, blocks, theme, creator, created_at, is_published)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)`,
+        [id, name, description || '', JSON.stringify(blocks), theme || 'sky_islands', username, createdAt || Date.now()]
+      );
+    }
 
     await pool.query(
       `INSERT INTO course_bookmarks (course_id, username) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
