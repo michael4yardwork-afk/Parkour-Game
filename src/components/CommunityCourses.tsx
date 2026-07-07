@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Heart, Bookmark, Search, Sparkles, Trophy, User, ArrowUpDown, BookmarkCheck, RefreshCw } from 'lucide-react';
+import { Play, Heart, Bookmark, Search, Sparkles, Trophy, User, ArrowUpDown, BookmarkCheck, RefreshCw, EyeOff } from 'lucide-react';
 import { LevelConfig, SceneTheme, UserAccount } from '../types';
 import { synths } from '../audio';
 import { api } from '../api';
@@ -77,6 +77,19 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
       }
     } catch (e: any) {
       console.error('Failed to toggle like:', e);
+    }
+  };
+
+  const handleUnpublish = async (course: LevelConfig, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Unpublish "${course.name}"? It will be removed from the community workshop.`)) return;
+    try {
+      await api.community.deleteCourse(course.id);
+      setCourses(prev => prev.filter(c => c.id !== course.id));
+      synths.playTick();
+    } catch (err: any) {
+      console.error('Failed to unpublish course:', err);
+      alert(err.message || 'Failed to unpublish course.');
     }
   };
 
@@ -276,11 +289,22 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
                 </div>
 
                 <div className="flex items-center justify-between border-t border-neutral-150/40 pt-4 mt-5">
-                  <span className="text-[10px] font-mono text-neutral-400 font-semibold italic">
-                    {course.likesCount && course.likesCount > 0
-                      ? `${course.likesCount} ${course.likesCount === 1 ? 'like' : 'likes'}`
-                      : 'No likes yet'}
-                  </span>
+                  {isOurOwn ? (
+                    <button
+                      onClick={(e) => handleUnpublish(course, e)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider border border-rose-200 bg-rose-50 text-rose-500 hover:bg-rose-100 hover:border-rose-300 hover:text-rose-600 transition duration-200 cursor-pointer"
+                      title="Remove this course from the community workshop"
+                    >
+                      <EyeOff className="w-3 h-3" />
+                      <span>Unpublish</span>
+                    </button>
+                  ) : (
+                    <span className="text-[10px] font-mono text-neutral-400 font-semibold italic">
+                      {course.likesCount && course.likesCount > 0
+                        ? `${course.likesCount} ${course.likesCount === 1 ? 'like' : 'likes'}`
+                        : 'No likes yet'}
+                    </span>
+                  )}
                   <button className="flex items-center gap-1.5 px-4 py-1.5 text-white bg-neutral-900 group-hover:bg-indigo-600 rounded-lg text-xs font-bold transition duration-200 cursor-pointer">
                     <Play className="w-3.5 h-3.5 fill-current" />
                     <span>Run Course</span>
