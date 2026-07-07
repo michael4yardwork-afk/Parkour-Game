@@ -82,9 +82,9 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
 
   const handleUnpublish = async (course: LevelConfig, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Unpublish "${course.name}"? It will be removed from the community workshop.`)) return;
+    if (!confirm(`Unpublish "${course.name}"? It will be removed from the community workshop but kept in your saved courses.`)) return;
     try {
-      await api.community.deleteCourse(course.id);
+      await api.community.unpublishCourse(course.id);
       setCourses(prev => prev.filter(c => c.id !== course.id));
       synths.playTick();
     } catch (err: any) {

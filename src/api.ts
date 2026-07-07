@@ -168,6 +168,10 @@ export const api = {
       await apiFetch(`/community/courses/${encodeURIComponent(courseId)}`, { method: 'DELETE' });
     },
 
+    async unpublishCourse(courseId: string): Promise<void> {
+      await apiFetch(`/community/courses/${encodeURIComponent(courseId)}/unpublish`, { method: 'PATCH' });
+    },
+
     async toggleLike(courseId: string): Promise<{ liked: boolean; likesCount: number }> {
       return apiFetch<{ liked: boolean; likesCount: number }>(`/community/courses/${encodeURIComponent(courseId)}/like`, {
         method: 'POST'

@@ -138,6 +138,27 @@ router.delete('/courses/:id', async (req: Request, res: Response) => {
   }
 });
 
+router.patch('/courses/:id/unpublish', async (req: Request, res: Response) => {
+  try {
+    const username = getAuth(req);
+    if (!username) return res.status(401).json({ error: 'Unauthorized.' });
+
+    const result = await pool.query(
+      `UPDATE community_courses SET is_published = FALSE
+       WHERE id = $1 AND LOWER(creator) = LOWER($2) RETURNING id`,
+      [req.params.id, username]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(403).json({ error: 'Not found or not authorized.' });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error.' });
+  }
+});
+
 router.post('/courses/:id/like', async (req: Request, res: Response) => {
   try {
     const username = getAuth(req);

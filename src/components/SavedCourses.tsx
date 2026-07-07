@@ -85,8 +85,18 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
     e.stopPropagation();
     if (!confirm(`Unpublish "${level.name}"? It will be removed from the community workshop but kept in your saved courses.`)) return;
     try {
-      await api.community.deleteCourse(level.id);
-      setSavedLevels(prev => prev.map(l => l.id === level.id ? { ...l, isPublished: false } : l));
+      await api.community.unpublishCourse(level.id);
+      // Mark as unpublished in state so the Publish button reappears
+      setCustomLevels(prev => prev.map(l => l.id === level.id ? { ...l, isPublished: false } : l));
+      // Persist the unpublished state to localStorage
+      const stored = localStorage.getItem('custom_parkour_levels');
+      if (stored) {
+        try {
+          const local: LevelConfig[] = JSON.parse(stored);
+          const updated = local.map(l => l.id === level.id ? { ...l, isPublished: false } : l);
+          localStorage.setItem('custom_parkour_levels', JSON.stringify(updated));
+        } catch { /* ignore parse errors */ }
+      }
       synths.playTick();
     } catch (err: any) {
       console.error('Failed to unpublish course:', err);
