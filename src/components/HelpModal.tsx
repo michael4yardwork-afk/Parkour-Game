@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, HelpCircle, ChevronDown, ChevronUp, Gamepad2, Zap, Trophy, Play, Edit3, Heart, Users, Keyboard } from 'lucide-react';
+import { X, HelpCircle, ChevronDown, ChevronUp, Gamepad2, Zap, Trophy, Play, Edit3, Heart, Users, Keyboard, Layers } from 'lucide-react';
 import { synths } from '../audio';
 
 interface HelpModalProps {
@@ -209,6 +209,92 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
                 Golden blocks launch you 20 meters straight into the sky, preserving all forward motion for huge shortcuts.
               </p>
             </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'blocks',
+      title: 'Block Types',
+      icon: <Layers className="w-5 h-5 text-teal-500" />,
+      content: (
+        <div className="space-y-3">
+          <p className="text-xs text-neutral-500 leading-relaxed">
+            Every course is built from these block types. Each has a distinct colour in-game so you can read the course at a glance.
+          </p>
+          <div className="grid grid-cols-1 gap-2">
+            {[
+              {
+                dot: 'bg-slate-500',
+                name: 'Normal',
+                badge: 'bg-slate-100 text-slate-600 border-slate-200',
+                desc: 'Standard concrete platform with full traction. The building block of every course.',
+              },
+              {
+                dot: 'bg-emerald-500',
+                name: 'Start',
+                badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                desc: 'Spawn pad. Your runner begins here and respawns here if no checkpoint has been hit.',
+              },
+              {
+                dot: 'bg-blue-500',
+                name: 'Finish',
+                badge: 'bg-blue-50 text-blue-700 border-blue-200',
+                desc: 'Finish line. Step on it to complete the course and lock in your time.',
+              },
+              {
+                dot: 'bg-amber-500',
+                name: 'Jump Pad',
+                badge: 'bg-amber-50 text-amber-700 border-amber-200',
+                desc: 'Gold pad that launches you ~20 m straight up on contact, preserving all forward momentum for big shortcuts.',
+              },
+              {
+                dot: 'bg-pink-500',
+                name: 'Speed Boost',
+                badge: 'bg-pink-50 text-pink-700 border-pink-200',
+                desc: 'Conveyor-style block that surges your speed forward instantly — great for linking fast sections.',
+              },
+              {
+                dot: 'bg-violet-500',
+                name: 'Wall Run',
+                badge: 'bg-violet-50 text-violet-700 border-violet-200',
+                desc: 'High-friction vertical panel. Run alongside it to wall-run; jump off for a horizontal kickback boost.',
+              },
+              {
+                dot: 'bg-cyan-500',
+                name: 'Climb',
+                badge: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+                desc: 'Scaffolding mesh you can grip and scale vertically — handy for tall gaps no jump can clear.',
+              },
+              {
+                dot: 'bg-red-500',
+                name: 'Hazard',
+                badge: 'bg-red-50 text-red-700 border-red-200',
+                desc: 'Spikes or lava. Any contact resets you to the last checkpoint (or start). Avoid at all costs.',
+              },
+              {
+                dot: 'bg-lime-600',
+                name: 'Checkpoint',
+                badge: 'bg-lime-50 text-lime-700 border-lime-200',
+                desc: 'Mid-course respawn anchor. Hit one and you\'ll return here instead of the start after a hazard.',
+              },
+              {
+                dot: 'bg-sky-300',
+                name: 'Glass',
+                badge: 'bg-sky-50 text-sky-700 border-sky-200',
+                desc: 'Slippery semi-transparent surface with reduced grip. Hard to stop on — plan your approach carefully.',
+              },
+            ].map(({ dot, name, badge, desc }) => (
+              <div key={name} className="flex items-start gap-3 p-3 bg-neutral-50 rounded-xl border border-neutral-200/50">
+                <span className={`mt-0.5 w-3 h-3 rounded-full shrink-0 ${dot}`} />
+                <div className="min-w-0">
+                  <span className={`inline-block px-1.5 py-0.5 rounded-md border font-mono text-[9px] font-bold uppercase tracking-wider mb-1 ${badge}`}>
+                    {name}
+                  </span>
+                  <p className="text-[11px] text-neutral-500 leading-relaxed">{desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )
