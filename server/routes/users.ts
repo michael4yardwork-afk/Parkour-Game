@@ -76,7 +76,7 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
         createdAt: parseInt(u.created_at),
         passwordHash: ''
       },
-      rating: ratingRes.rows[0]?.rating ?? 100,
+      rating: ratingRes.rows[0]?.rating ?? 200,
       color: ratingRes.rows[0]?.color ?? '#3b82f6',
       courses: coursesRes.rows.map(r => ({
         id: r.id,
@@ -226,13 +226,13 @@ router.post('/:username/race-result', async (req: Request, res: Response) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT (id) DO NOTHING`,
       [id, req.params.username, levelId, levelName, playerColor || '#3b82f6',
-       place, time, JSON.stringify(opponents || []), ratingChange || 0, newRating || 100, date || Date.now()]
+       place, time, JSON.stringify(opponents || []), ratingChange || 0, newRating || 200, date || Date.now()]
     );
 
     await pool.query(
       `INSERT INTO user_ratings (username, rating, color) VALUES ($1, $2, $3)
        ON CONFLICT (username) DO UPDATE SET rating = $2, color = $3`,
-      [req.params.username, newRating || 100, playerColor || '#3b82f6']
+      [req.params.username, newRating || 200, playerColor || '#3b82f6']
     );
 
     res.json({ success: true });
@@ -249,7 +249,7 @@ router.get('/:username/rating', async (req: Request, res: Response) => {
       [req.params.username]
     );
     res.json({
-      rating: result.rows[0]?.rating ?? 100,
+      rating: result.rows[0]?.rating ?? 200,
       color: result.rows[0]?.color ?? '#3b82f6'
     });
   } catch (err) {
