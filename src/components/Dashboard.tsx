@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Code, Settings, Trophy, ArrowRight, ShieldCheck, Info, LogOut, User, KeyRound, Sparkles, Check, Lock, ShieldAlert } from 'lucide-react';
+import { Code, Settings, Trophy, ArrowRight, ShieldCheck, Info, LogOut, User, KeyRound, Sparkles, Check, Lock, ShieldAlert, Users, Star } from 'lucide-react';
 import { GameSettings, UserAccount } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { synths } from '../audio';
+import { api } from '../api';
 
 interface DashboardProps {
   settings: GameSettings;
@@ -84,6 +85,19 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [passwordFeedback, setPasswordFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Social stats
+  const [followers, setFollowers] = useState<number | null>(null);
+  const [rating, setRating] = useState<number | null>(null);
+  const [ratingColor, setRatingColor] = useState('#3b82f6');
+
+  useEffect(() => {
+    api.users.getProfile(currentUser.username).then(data => {
+      setFollowers(data.followers ?? 0);
+      setRating(data.rating ?? null);
+      setRatingColor(data.color ?? '#3b82f6');
+    }).catch(() => {});
+  }, [currentUser.username]);
 
   const handleFovChange = (val: number) => {
     onChangeSettings({ ...settings, fov: val });
@@ -312,7 +326,21 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
         </div>
 
         {/* Quick profile stats */}
-        <div className="flex flex-wrap gap-4 text-xs font-mono">
+        <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+          {followers !== null && (
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-neutral-200 rounded-xl shadow-sm">
+              <Users className="w-3.5 h-3.5 text-indigo-500" />
+              <span className="text-neutral-500 uppercase tracking-wider text-[10px]">Followers</span>
+              <span className="font-bold text-neutral-800">{followers.toLocaleString()}</span>
+            </div>
+          )}
+          {rating !== null && (
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-neutral-200 rounded-xl shadow-sm">
+              <Star className="w-3.5 h-3.5" style={{ color: ratingColor }} />
+              <span className="text-neutral-500 uppercase tracking-wider text-[10px]">Rating</span>
+              <span className="font-bold" style={{ color: ratingColor }}>{Math.round(rating)}</span>
+            </div>
+          )}
           <button
             onClick={() => {
               synths.playTick();
