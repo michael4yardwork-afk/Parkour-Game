@@ -2531,14 +2531,20 @@ export default function GameCanvas({
                 <button
                   onClick={() => onChangeSettings?.({ ...settings, showGhost: !settings.showGhost })}
                   title={settings.showGhost ? 'Ghost: On — click to turn off' : 'Ghost: Off — click to turn on'}
-                  className={`pointer-events-auto border px-2.5 py-1.5 rounded-lg text-[10px] cursor-pointer transition font-mono uppercase flex items-center gap-1.5 ${
-                    settings.showGhost
-                      ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300 hover:bg-indigo-600/30'
-                      : 'bg-neutral-900/90 border-neutral-800 text-neutral-500 hover:text-neutral-300'
-                  }`}
+                  className="pointer-events-auto flex items-center gap-2 bg-neutral-900/90 border border-neutral-800 px-2.5 py-1.5 rounded-lg cursor-pointer transition hover:border-neutral-700"
                 >
                   <span className="text-[11px]">👻</span>
-                  <span>{settings.showGhost ? 'On' : 'Off'}</span>
+                  <div
+                    className={`relative inline-flex h-4 w-7 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                      settings.showGhost ? 'bg-indigo-600' : 'bg-neutral-600'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        settings.showGhost ? 'translate-x-3' : 'translate-x-0'
+                      }`}
+                    />
+                  </div>
                 </button>
                 <button
                   onClick={handleExitAttempt}
