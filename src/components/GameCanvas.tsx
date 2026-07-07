@@ -2141,15 +2141,18 @@ export default function GameCanvas({
 
   const handleLevelCompleted = () => {
     if (isCompletedRef.current) return;
+    // Freeze to nearest millisecond so completion screen and leaderboard always show the same value
+    const finalTime = Math.round(elapsedTimeRef.current * 1000) / 1000;
+    elapsedTimeRef.current = finalTime;
     setIsCompleted(true);
     isCompletedRef.current = true;
-    setCompletionTime(elapsedTimeRef.current);
+    setCompletionTime(finalTime);
     synths.playFinish();
 
     if (raceMode) {
       const selfEntry = {
         username: currentUser?.username || 'You',
-        time: elapsedTimeRef.current,
+        time: finalTime,
         finished: true,
         isNpc: false,
         color: localStorage.getItem(`racer_color_${currentUser?.username}`) || '#3b82f6'
@@ -2158,7 +2161,7 @@ export default function GameCanvas({
       opponentMeshesRef.current.forEach(opp => {
         if (!opp.finished) {
           const remainingDist = Math.max(0, totalSplineLengthRef.current - opp.progressDistance);
-          let predictedTime = elapsedTimeRef.current + (remainingDist / Math.max(1, opp.baseSpeed));
+          let predictedTime = finalTime + (remainingDist / Math.max(1, opp.baseSpeed));
           if (level.id === 'monochrome_void' && predictedTime < 24.0) {
             predictedTime = 24.0 + Math.random() * 0.5;
           }
@@ -2183,14 +2186,14 @@ export default function GameCanvas({
       setFinalStandings(finalRanks);
 
       if (onRaceFinished) {
-        onRaceFinished(elapsedTimeRef.current, finalRanks);
+        onRaceFinished(finalTime, finalRanks);
       }
 
       bcRef.current?.postMessage({
         type: 'GAME_FINISHED',
         levelId: level.id,
         username: currentUser?.username || 'Guest',
-        time: elapsedTimeRef.current
+        time: finalTime
       });
     }
 
@@ -2208,7 +2211,7 @@ export default function GameCanvas({
       isNewPb = true;
       setTimeDiff(null);
     } else {
-      pbDiff = elapsedTimeRef.current - previousBest;
+      pbDiff = finalTime - previousBest;
       setTimeDiff(pbDiff);
       if (pbDiff < 0) {
         isNewPb = true;
@@ -2218,15 +2221,15 @@ export default function GameCanvas({
     setIsPb(isNewPb);
 
     // Save and commit high scores if faster
-    if (previousBest === null || elapsedTimeRef.current < previousBest) {
-      localStorage.setItem(`best_time_${level.id}`, elapsedTimeRef.current.toString());
-      setPersonalBest(elapsedTimeRef.current);
+    if (previousBest === null || finalTime < previousBest) {
+      localStorage.setItem(`best_time_${level.id}`, finalTime.toString());
+      setPersonalBest(finalTime);
 
       // Commit the recorded ghost runframes list
       const replay: RunReplay = {
         levelId: level.id,
         playerEmail: currentUser?.username || 'user@aistudio.build',
-        time: elapsedTimeRef.current,
+        time: finalTime,
         frames: currentRunFramesRef.current,
         createdAt: Date.now()
       };
@@ -2254,13 +2257,13 @@ export default function GameCanvas({
         });
         
         // Ensure our run (new PB) is recorded as our best in this analysis
-        playerBests[activeName] = elapsedTimeRef.current;
+        playerBests[activeName] = finalTime;
         
         // Sort and find active player's world standing index
         const allPlayerBests = Object.keys(playerBests).map(name => playerBests[name]);
         allPlayerBests.sort((a, b) => a - b);
         
-        const rankIdx = allPlayerBests.indexOf(elapsedTimeRef.current);
+        const rankIdx = allPlayerBests.indexOf(finalTime);
         const totalLen = allPlayerBests.length;
         const worldRank = rankIdx + 1;
         
@@ -2287,14 +2290,14 @@ export default function GameCanvas({
           const resampledSpeeds = resampleSpeedsToUniformTime(
             currentRunFramesRef.current,
             currentRunSpeedsRef.current,
-            elapsedTimeRef.current
+            finalTime
           );
 
           const newEntry = {
             id: `run_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             levelId: level.id,
             playerName: currentUser?.username || 'Guest',
-            time: elapsedTimeRef.current,
+            time: finalTime,
             date: Date.now(),
             device: isMobileRef.current ? 'mobile' : 'desktop',
             speeds: resampledSpeeds,
