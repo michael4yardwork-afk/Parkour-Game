@@ -132,7 +132,7 @@ export default function NotificationsTab({
           </div>
           <h3 className="text-base font-bold text-neutral-700">No notifications yet</h3>
           <p className="text-xs text-neutral-400 mt-2 leading-relaxed max-w-xs mx-auto">
-            Follow other athletes to get notified when they publish new courses.
+            Follow other runners to get notified when they publish new courses.
           </p>
         </div>
       ) : (
