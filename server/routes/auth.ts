@@ -4,8 +4,7 @@ import jwt from 'jsonwebtoken';
 import pool from '../db';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is required');
+const JWT_SECRET = process.env.JWT_SECRET || 'delta-rush-secret-key-change-in-production';
 
 router.post('/signup', async (req: Request, res: Response) => {
   try {

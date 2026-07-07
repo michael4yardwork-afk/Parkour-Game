@@ -619,6 +619,7 @@ export default function App() {
           <GameCanvas
             level={activeLevel}
             settings={settings}
+            onChangeSettings={handleUpdateSettings}
             currentUser={currentUser}
             raceMode={raceMode}
             raceOpponents={raceOpponents}

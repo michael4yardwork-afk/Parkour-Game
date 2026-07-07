@@ -9,6 +9,7 @@ import { resampleSpeedsToUniformTime } from '../utils/resampleSpeeds';
 interface GameCanvasProps {
   level: LevelConfig;
   settings: GameSettings;
+  onChangeSettings?: (s: GameSettings) => void;
   onExit: () => void;
   onShowLeaderboard: () => void;
   currentUser?: UserAccount | null;
@@ -25,6 +26,7 @@ interface GameCanvasProps {
 export default function GameCanvas({ 
   level, 
   settings, 
+  onChangeSettings,
   onExit, 
   onShowLeaderboard, 
   currentUser,
@@ -2525,12 +2527,26 @@ export default function GameCanvas({
                   </div>
                 </div>
               </div>
-              <button
-                onClick={handleExitAttempt}
-                className="pointer-events-auto bg-neutral-900/90 border border-neutral-800 px-3 py-1.5 rounded-lg text-[10px] text-neutral-400 hover:text-neutral-200 cursor-pointer transition font-mono uppercase"
-              >
-                Exit
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => onChangeSettings?.({ ...settings, showGhost: !settings.showGhost })}
+                  title={settings.showGhost ? 'Ghost: On — click to turn off' : 'Ghost: Off — click to turn on'}
+                  className={`pointer-events-auto border px-2.5 py-1.5 rounded-lg text-[10px] cursor-pointer transition font-mono uppercase flex items-center gap-1.5 ${
+                    settings.showGhost
+                      ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300 hover:bg-indigo-600/30'
+                      : 'bg-neutral-900/90 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  <span className="text-[11px]">👻</span>
+                  <span>{settings.showGhost ? 'On' : 'Off'}</span>
+                </button>
+                <button
+                  onClick={handleExitAttempt}
+                  className="pointer-events-auto bg-neutral-900/90 border border-neutral-800 px-3 py-1.5 rounded-lg text-[10px] text-neutral-400 hover:text-neutral-200 cursor-pointer transition font-mono uppercase"
+                >
+                  Exit
+                </button>
+              </div>
             </div>
 
           </div>
