@@ -2236,47 +2236,17 @@ export default function GameCanvas({
       localStorage.setItem(`ghost_replay_${level.id}`, JSON.stringify(replay));
     }
 
-    // Commit run entry to local leaderboards list & Calculate standing percentile
+    // Commit run entry & calculate community standing
     if (!isLeaderboardLoggedRef.current) {
       isLeaderboardLoggedRef.current = true;
       try {
-        const stored = localStorage.getItem(`leaderboard_${level.id}`);
-        const entries = stored ? JSON.parse(stored) : [];
-        
-        // Calculate World Rank & Percentile dynamically
         const activeName = (currentUser?.username || 'Guest').toLowerCase().trim();
-        const playerBests: { [username: string]: number } = {};
-        
-        // Add all historical entries
-        entries.forEach((r: any) => {
-          if (!r.time || r.time <= 0.05) return;
-          const name = r.playerName.toLowerCase().trim();
-          if (!playerBests[name] || r.time < playerBests[name]) {
-            playerBests[name] = r.time;
-          }
-        });
-        
-        // Ensure our run (new PB) is recorded as our best in this analysis
-        playerBests[activeName] = finalTime;
-        
-        // Sort and find active player's world standing index
-        const allPlayerBests = Object.keys(playerBests).map(name => playerBests[name]);
-        allPlayerBests.sort((a, b) => a - b);
-        
-        const rankIdx = allPlayerBests.indexOf(finalTime);
-        const totalLen = allPlayerBests.length;
-        const worldRank = rankIdx + 1;
-        
-        let percentileVal = 0;
-        if (totalLen > 1) {
-          percentileVal = Math.round((rankIdx / (totalLen - 1)) * 100);
-        } else {
-          percentileVal = 0;
-        }
-        
+
         if (isNewPb && level.id !== 'test_level_active') {
-          setCompletionPercentile(percentileVal);
-          setCompletionWorldRank({ rank: worldRank, total: totalLen });
+          // Show a placeholder from localStorage immediately so the card appears
+          // at once, then replace it with accurate server data after the submit.
+          setCompletionPercentile(0);
+          setCompletionWorldRank({ rank: 1, total: 1 });
         } else {
           setCompletionPercentile(null);
           setCompletionWorldRank(null);
@@ -2293,34 +2263,77 @@ export default function GameCanvas({
             finalTime
           );
 
-          const newEntry = {
-            id: `run_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            levelId: level.id,
-            playerName: currentUser?.username || 'Guest',
+          const submitPayload = {
             time: finalTime,
             date: Date.now(),
             device: isMobileRef.current ? 'mobile' : 'desktop',
             speeds: resampledSpeeds,
             actions: currentRunActionsRef.current
           };
-          // Submit to backend — fire and forget to not block game flow
-          import('../api').then(({ api, queuePendingSubmission }) => {
-            api.leaderboard.submit(level.id, {
-              time: newEntry.time,
-              date: newEntry.date,
-              device: newEntry.device,
-              speeds: newEntry.speeds,
-              actions: newEntry.actions
-            }).catch((e: any) => {
-              console.warn(`Leaderboard submit failed for level="${level.id}" time=${newEntry.time} user="${newEntry.playerName}": ${e?.message || e}`);
-              queuePendingSubmission(level.id, {
-                time: newEntry.time,
-                date: newEntry.date,
-                device: newEntry.device,
-                speeds: newEntry.speeds,
-                actions: newEntry.actions
-              });
-            });
+
+          // Submit then fetch the real leaderboard for accurate standing
+          import('../api').then(async ({ api, queuePendingSubmission }) => {
+            try {
+              await api.leaderboard.submit(level.id, submitPayload);
+            } catch (e: any) {
+              console.warn(`Leaderboard submit failed for level="${level.id}" time=${finalTime} user="${activeName}": ${e?.message || e}`);
+              queuePendingSubmission(level.id, submitPayload);
+            }
+
+            // Fetch the real server leaderboard to compute accurate standing
+            if (isNewPb) {
+              try {
+                const serverEntries = await api.leaderboard.get(level.id);
+
+                // Deduplicate to best time per player
+                const serverBests: { [name: string]: number } = {};
+                serverEntries.forEach((e: any) => {
+                  if (!e.time || e.time <= 0.05) return;
+                  const name = (e.playerName || '').toLowerCase().trim();
+                  if (!serverBests[name] || e.time < serverBests[name]) {
+                    serverBests[name] = e.time;
+                  }
+                });
+                // Guarantee our run is counted even if submit lost a race condition
+                serverBests[activeName] = Math.min(
+                  finalTime,
+                  serverBests[activeName] ?? finalTime
+                );
+
+                const sorted = Object.values(serverBests).sort((a, b) => a - b);
+                const myBest = serverBests[activeName];
+                const serverRankIdx = sorted.findIndex(
+                  t => Math.abs(t - myBest) < 0.001
+                );
+                const serverTotal = sorted.length;
+                const serverRank = serverRankIdx + 1;
+                const serverPercentile =
+                  serverTotal > 1
+                    ? Math.round((serverRankIdx / (serverTotal - 1)) * 100)
+                    : 0;
+
+                setCompletionPercentile(serverPercentile);
+                setCompletionWorldRank({ rank: serverRank, total: serverTotal });
+              } catch {
+                // Server fetch failed — fall back to localStorage estimate
+                const stored = localStorage.getItem(`leaderboard_${level.id}`);
+                const entries = stored ? JSON.parse(stored) : [];
+                const localBests: { [name: string]: number } = {};
+                entries.forEach((r: any) => {
+                  if (!r.time || r.time <= 0.05) return;
+                  const name = (r.playerName || '').toLowerCase().trim();
+                  if (!localBests[name] || r.time < localBests[name]) localBests[name] = r.time;
+                });
+                localBests[activeName] = finalTime;
+                const sorted = Object.values(localBests).sort((a, b) => a - b);
+                const rankIdx = sorted.findIndex(t => Math.abs(t - finalTime) < 0.001);
+                const total = sorted.length;
+                setCompletionPercentile(
+                  total > 1 ? Math.round((rankIdx / (total - 1)) * 100) : 0
+                );
+                setCompletionWorldRank({ rank: rankIdx + 1, total });
+              }
+            }
           });
         }
       } catch (e) {
