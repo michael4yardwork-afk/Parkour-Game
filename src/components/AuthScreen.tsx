@@ -46,8 +46,11 @@ const GAME_FEATURES = [
     badge: 'Improve',
     shortDesc: 'Chase personal bests on every course. Study your run history, watch your times drop, and push yourself further with each attempt.',
     icon: 'improve',
-    color: 'from-amber-500/10 to-orange-500/10 border-amber-500/30',
-    accentColor: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+    color: 'from-amber-500/20 via-orange-500/10 to-rose-500/5 border-amber-500/40',
+    accentColor: 'text-amber-400 bg-amber-500/15 border-amber-500/30',
+    glowColor: 'rgba(245,158,11,0.35)',
+    decorBg: 'bg-amber-400/20',
+    progressColor: 'bg-gradient-to-r from-amber-400 to-orange-400',
   },
   {
     id: 'compare',
@@ -55,8 +58,11 @@ const GAME_FEATURES = [
     badge: 'Compare',
     shortDesc: 'Real-time leaderboards show exactly where you stand on every course. Filter by level, spot the top runners, and find the gaps to close.',
     icon: 'compare',
-    color: 'from-sky-500/10 to-cyan-500/10 border-sky-500/30',
-    accentColor: 'text-sky-400 bg-sky-500/10 border-sky-500/20',
+    color: 'from-sky-500/20 via-cyan-500/10 to-blue-500/5 border-sky-500/40',
+    accentColor: 'text-sky-400 bg-sky-500/15 border-sky-500/30',
+    glowColor: 'rgba(14,165,233,0.35)',
+    decorBg: 'bg-sky-400/20',
+    progressColor: 'bg-gradient-to-r from-sky-400 to-cyan-400',
   },
   {
     id: 'race',
@@ -64,8 +70,11 @@ const GAME_FEATURES = [
     badge: 'Race',
     shortDesc: 'Jump into matchmaking and go head-to-head against real players. Win races to earn ELO — lose and you\'ll drop. Every second counts.',
     icon: 'race',
-    color: 'from-indigo-500/10 to-violet-500/10 border-indigo-500/30',
-    accentColor: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
+    color: 'from-indigo-500/20 via-violet-600/10 to-purple-500/5 border-indigo-500/40',
+    accentColor: 'text-indigo-400 bg-indigo-500/15 border-indigo-500/30',
+    glowColor: 'rgba(99,102,241,0.35)',
+    decorBg: 'bg-violet-400/20',
+    progressColor: 'bg-gradient-to-r from-indigo-400 to-violet-400',
   },
   {
     id: 'create',
@@ -73,8 +82,11 @@ const GAME_FEATURES = [
     badge: 'Create',
     shortDesc: 'Design your own parkour courses with the in-game editor. Place platforms, set traps, tune physics, and publish them for the whole community to run.',
     icon: 'create',
-    color: 'from-emerald-500/10 to-teal-500/10 border-emerald-500/30',
-    accentColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+    color: 'from-emerald-500/20 via-teal-500/10 to-cyan-500/5 border-emerald-500/40',
+    accentColor: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30',
+    glowColor: 'rgba(16,185,129,0.35)',
+    decorBg: 'bg-emerald-400/20',
+    progressColor: 'bg-gradient-to-r from-emerald-400 to-teal-400',
   },
 ];
 
@@ -394,33 +406,60 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
           </div>
         </div>
 
-        <div className="bg-neutral-900/80 border border-neutral-800 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md space-y-5">
-          <div className="flex gap-2 flex-wrap">
+        <div
+          className="bg-neutral-900/80 border border-neutral-800/80 rounded-3xl p-6 md:p-8 backdrop-blur-md space-y-5 transition-all duration-500"
+          style={{ boxShadow: `0 25px 60px -12px rgba(0,0,0,0.8), 0 0 50px -10px ${GAME_FEATURES[activeTabIdx].glowColor}` }}
+        >
+          {/* Tabs — centered */}
+          <div className="flex gap-2 flex-wrap justify-center">
             {GAME_FEATURES.map((feature, idx) => (
               <button
                 key={feature.id}
                 onClick={() => { setActiveTabIdx(idx); setIsAutoPlay(false); synths.playTick(); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                  activeTabIdx === idx ? feature.accentColor : 'bg-neutral-800/50 border-neutral-700/50 text-neutral-400 hover:text-neutral-200'
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all duration-200 cursor-pointer ${
+                  activeTabIdx === idx
+                    ? `${feature.accentColor} scale-105 shadow-lg`
+                    : 'bg-neutral-800/50 border-neutral-700/50 text-neutral-400 hover:text-neutral-200 hover:border-neutral-600'
                 }`}
               >
+                {feature.icon === 'improve' && <TrendingUp className="w-3 h-3" />}
+                {feature.icon === 'compare' && <BarChart2 className="w-3 h-3" />}
+                {feature.icon === 'race' && <Users className="w-3 h-3" />}
+                {feature.icon === 'create' && <Hammer className="w-3 h-3" />}
                 <span className="text-[10px] font-mono uppercase tracking-wider">{feature.badge}</span>
               </button>
             ))}
           </div>
 
+          {/* Feature card */}
           {GAME_FEATURES.map((feature, idx) => (
             activeTabIdx === idx && (
-              <div key={feature.id} className={`bg-gradient-to-br ${feature.color} border rounded-2xl p-5 space-y-2 animate-in fade-in duration-200`}>
-                <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border ${feature.accentColor}`}>
+              <div key={feature.id} className={`relative overflow-hidden bg-gradient-to-br ${feature.color} border rounded-2xl p-5 space-y-3 animate-in fade-in zoom-in-95 duration-200`}>
+                {/* Decorative glow orb */}
+                <div className={`absolute -top-8 -right-8 w-36 h-36 ${feature.decorBg} rounded-full blur-3xl pointer-events-none`} />
+                <div className={`absolute -bottom-6 -left-6 w-24 h-24 ${feature.decorBg} rounded-full blur-2xl pointer-events-none opacity-60`} />
+
+                <div className={`relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border ${feature.accentColor}`}>
                   {feature.icon === 'improve' && <TrendingUp className="w-3 h-3" />}
                   {feature.icon === 'compare' && <BarChart2 className="w-3 h-3" />}
                   {feature.icon === 'race' && <Users className="w-3 h-3" />}
                   {feature.icon === 'create' && <Hammer className="w-3 h-3" />}
                   {feature.badge}
                 </div>
-                <h4 className="text-base font-black text-neutral-100 tracking-tight">{feature.title}</h4>
-                <p className="text-xs text-neutral-400 leading-relaxed">{feature.shortDesc}</p>
+                <h4 className="relative text-base font-black text-neutral-100 tracking-tight">{feature.title}</h4>
+                <p className="relative text-xs text-neutral-400 leading-relaxed">{feature.shortDesc}</p>
+
+                {/* Progress dots */}
+                <div className="relative flex gap-1.5 pt-1 items-center">
+                  {GAME_FEATURES.map((f, i) => (
+                    <div
+                      key={i}
+                      className={`h-1 rounded-full transition-all duration-300 ${
+                        i === idx ? `flex-[3] ${feature.progressColor}` : 'flex-1 bg-neutral-700/50'
+                      }`}
+                    />
+                  ))}
+                </div>
               </div>
             )
           ))}
