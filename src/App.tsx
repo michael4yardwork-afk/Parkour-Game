@@ -382,7 +382,7 @@ export default function App() {
   const isCoolBlueTab = ['home', 'levels', 'saved', 'community', 'races', 'profile', 'notifications'].includes(tab);
 
   return (
-    <div className={`min-h-screen text-neutral-800 selection:bg-indigo-600 selection:text-white flex flex-col justify-between transition-colors duration-300 ${isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-white'}`}>
+    <div className={`min-h-screen text-neutral-800 selection:bg-indigo-600 selection:text-white flex flex-col transition-colors duration-300 ${isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-white'}`}>
       
       {/* Primary Navigation Shell */}
       {tab !== 'play' && tab !== 'editor' && (
