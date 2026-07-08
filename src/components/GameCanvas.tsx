@@ -2699,6 +2699,7 @@ export default function GameCanvas({
                 <div className="bg-neutral-950 border border-neutral-800 rounded-2xl divide-y divide-neutral-900 overflow-hidden w-full">
                   {finalStandings.map((std, idx) => {
                     const isSelf = std.username.toLowerCase() === (currentUser?.username || '').toLowerCase() || std.username === 'You';
+                    const eloChange = idx === 0 ? 10 : idx === 1 ? 5 : idx === 2 ? 2 : idx === 3 ? -2 : idx === 4 ? -5 : -10;
                     return (
                       <div key={idx} className="flex items-center justify-between p-3 text-xs font-mono">
                         <div className="flex items-center gap-2">
@@ -2722,9 +2723,14 @@ export default function GameCanvas({
                             </span>
                           </div>
                         </div>
-                        <span className="text-neutral-400 font-bold">
-                          {std.time ? `${std.time.toFixed(3)}s` : 'DNF'}
-                        </span>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-neutral-400 font-bold">
+                            {std.finished && std.time != null ? `${std.time.toFixed(3)}s` : 'DNF'}
+                          </span>
+                          <span className={`text-[10px] font-bold ${eloChange > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {eloChange > 0 ? '+' : ''}{eloChange} ELO
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
