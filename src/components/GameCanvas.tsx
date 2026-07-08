@@ -1153,35 +1153,15 @@ export default function GameCanvas({
               groundY = splineGroundY;
             }
 
-            // HORIZONTAL MOVEMENT — velocity-based acceleration + drag, matching the player physics model
-            const toTargetX = targetPos.x - opp.mesh.position.x;
-            const toTargetZ = targetPos.z - opp.mesh.position.z;
-            const horizDist = Math.sqrt(toTargetX * toTargetX + toTargetZ * toTargetZ);
-            if (horizDist > 0.05) {
-              const dirX = toTargetX / horizDist;
-              const dirZ = toTargetZ / horizDist;
-              // Same acceleration rates as the player (50 grounded, 18 airborne)
-              const accelRate = opp.grounded ? 50.0 : 18.0;
-              opp.velocity.x += dirX * accelRate * dt;
-              opp.velocity.z += dirZ * accelRate * dt;
-            }
-
-            // Apply drag matching the player model (active-ground drag when moving, reduced air drag)
-            const drag = opp.grounded ? 2.5 : 1.5;
-            opp.velocity.x -= opp.velocity.x * drag * dt;
-            opp.velocity.z -= opp.velocity.z * drag * dt;
-
-            // Clamp horizontal speed to this bot's max speed
-            const horizSpeed = Math.sqrt(opp.velocity.x * opp.velocity.x + opp.velocity.z * opp.velocity.z);
-            if (horizSpeed > botSpeed) {
-              const scale = botSpeed / horizSpeed;
-              opp.velocity.x *= scale;
-              opp.velocity.z *= scale;
-            }
-
-            // Advance position via velocity
-            opp.mesh.position.x += opp.velocity.x * dt;
-            opp.mesh.position.z += opp.velocity.z * dt;
+            // HORIZONTAL MOVEMENT — framerate-independent lerp toward spline target.
+            // Using exp-decay factor so the mesh always stays tightly coupled to progressDistance,
+            // preventing the bot from "finishing" while still physically far behind.
+            const lerpFactor = 1.0 - Math.exp(-10.0 * dt);
+            opp.mesh.position.x = THREE.MathUtils.lerp(opp.mesh.position.x, targetPos.x, lerpFactor);
+            opp.mesh.position.z = THREE.MathUtils.lerp(opp.mesh.position.z, targetPos.z, lerpFactor);
+            // Horizontal velocity is not used for movement; zero it so it doesn't accumulate.
+            opp.velocity.x = 0;
+            opp.velocity.z = 0;
 
             // JUMP PAD — only fire when standing on a real block, never on thin air
             const standingBlock = getBlockAtCoords(opp.mesh.position.x, opp.mesh.position.z);
