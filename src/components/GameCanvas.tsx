@@ -1,6 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
-import { RotateCcw, Award, CheckCircle, Flame, Compass } from 'lucide-react';
+import { RotateCcw, Award, CheckCircle, Flame, Compass, Clock, LogOut } from 'lucide-react';
+
+/** Deterministic per-bot PRNG (mulberry32). Seeded from RaceParticipant.seed so
+ *  all clients simulate the same stumble/boost sequence for every bot. */
+function makeBotRng(seed: number): () => number {
+  let s = ((Math.abs(seed) * 1e8 + 1) >>> 0) | 1;
+  return () => {
+    s |= 0;
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 0x100000000;
+  };
+}
 import { LevelConfig, GhostFrame, RunReplay, GameSettings, UserAccount, RaceParticipant } from '../types';
 import { synths } from '../audio';
 import { motion, AnimatePresence } from 'motion/react';
@@ -114,13 +127,20 @@ export default function GameCanvas({
     jumpCooldown: number;
     lastCheckpointDistance: number;
     lastCheckpointPos: THREE.Vector3;
+    seededRng: () => number;
   }[]>([]);
+
+  // Waiting-for-others state (player finished but not all opponents yet)
+  const [isWaitingForOthers, setIsWaitingForOthers] = useState(false);
+  const playerFinishTimeRef = useRef<number>(0);
+  const waitForOpponentsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const splinePointsRef = useRef<THREE.Vector3[]>([]);
   const cumulativeSplineDistancesRef = useRef<number[]>([]);
   const totalSplineLengthRef = useRef<number>(0);
   const splineCheckpointsRef = useRef<{ distance: number; position: THREE.Vector3 }[]>([]);
   const bcRef = useRef<BroadcastChannel | null>(null);
+  const commitRaceResultsRef = useRef<() => void>(() => {});
 
   const [liveRankings, setLiveRankings] = useState<{
     username: string;
@@ -479,6 +499,12 @@ export default function GameCanvas({
     setElapsedTime(0.00);
     setIsCompleted(false);
     isCompletedRef.current = false;
+    setIsWaitingForOthers(false);
+    playerFinishTimeRef.current = 0;
+    if (waitForOpponentsTimeoutRef.current) {
+      clearTimeout(waitForOpponentsTimeoutRef.current);
+      waitForOpponentsTimeoutRef.current = null;
+    }
     setTimeDiff(null);
     setIsPb(false);
     setCompletionPercentile(null);
@@ -688,6 +714,50 @@ export default function GameCanvas({
     };
   }, [raceMode, level.id, raceWs]);
 
+  // Keep commitRaceResultsRef pointing to the freshest closure (captures latest state setters & refs)
+  useEffect(() => {
+    commitRaceResultsRef.current = () => {
+      const ft = playerFinishTimeRef.current;
+      const selfEntry = {
+        username: currentUser?.username || 'You',
+        time: ft,
+        finished: true,
+        isNpc: false,
+        color: localStorage.getItem(`racer_color_${currentUser?.username}`) || '#3b82f6',
+      };
+      const finalRanks = [
+        selfEntry,
+        ...opponentMeshesRef.current.map(opp => ({
+          username: opp.username,
+          time: opp.finalTime,
+          finished: opp.finished,
+          isNpc: opp.isNpc,
+          color: opp.color,
+        })),
+      ];
+      finalRanks.sort((a, b) => (a.time || 999) - (b.time || 999));
+      setFinalStandings(finalRanks);
+      setIsWaitingForOthers(false);
+      if (waitForOpponentsTimeoutRef.current) {
+        clearTimeout(waitForOpponentsTimeoutRef.current);
+        waitForOpponentsTimeoutRef.current = null;
+      }
+      if (onRaceFinished) onRaceFinished(ft, finalRanks);
+    };
+  });
+
+  // Poll every 300 ms while waiting for all opponents to finish
+  useEffect(() => {
+    if (!isWaitingForOthers || !raceMode) return;
+    const poll = setInterval(() => {
+      if (opponentMeshesRef.current.every(o => o.finished)) {
+        clearInterval(poll);
+        commitRaceResultsRef.current();
+      }
+    }, 300);
+    return () => clearInterval(poll);
+  }, [isWaitingForOthers, raceMode]);
+
   // Three.js Viewport Construction
   useEffect(() => {
     if (!canvasRef.current || !canvasContainerRef.current) return;
@@ -854,6 +924,7 @@ export default function GameCanvas({
           stumbleTimer: 0,
           boostTimer: 0,
           jumpCooldown: 0,
+          seededRng: makeBotRng(opponent.seed ?? Math.random()),
           lastCheckpointDistance: 0,
           lastCheckpointPos: new THREE.Vector3(0, 1.2, 0)
         });
@@ -1080,16 +1151,15 @@ export default function GameCanvas({
               opp.boostTimer -= dt;
               speedMultiplier = 1.35; // boost speeds them up
             } else {
-              // Random stumbles or speed boosts for randomness!
-              const roll = Math.random();
-              // Faster bots stumble less and boost more often
+              // Deterministic stumbles/boosts — seeded per-bot so all clients agree
+              const roll = opp.seededRng();
               const stumbleChance = opp.baseSpeed >= 11.0 ? 0.003 : (opp.baseSpeed >= 9.5 ? 0.008 : (opp.baseSpeed >= 7.5 ? 0.018 : 0.03));
               const boostChance = opp.baseSpeed >= 11.0 ? 0.30 : (opp.baseSpeed >= 9.5 ? 0.18 : (opp.baseSpeed >= 7.5 ? 0.08 : 0.02));
 
               if (roll < stumbleChance * dt * 60) {
-                opp.stumbleTimer = 0.8 + Math.random() * 0.8;
+                opp.stumbleTimer = 0.8 + opp.seededRng() * 0.8;
               } else if (roll < boostChance * dt * 60) {
-                opp.boostTimer = 1.5 + Math.random() * 1.5;
+                opp.boostTimer = 1.5 + opp.seededRng() * 1.5;
               }
             }
 
@@ -2204,44 +2274,8 @@ export default function GameCanvas({
     synths.playFinish();
 
     if (raceMode) {
-      const selfEntry = {
-        username: currentUser?.username || 'You',
-        time: finalTime,
-        finished: true,
-        isNpc: false,
-        color: localStorage.getItem(`racer_color_${currentUser?.username}`) || '#3b82f6'
-      };
-
-      opponentMeshesRef.current.forEach(opp => {
-        if (!opp.finished) {
-          const remainingDist = Math.max(0, totalSplineLengthRef.current - opp.progressDistance);
-          let predictedTime = finalTime + (remainingDist / Math.max(1, opp.baseSpeed));
-          if (level.id === 'monochrome_void' && predictedTime < 24.0) {
-            predictedTime = 24.0 + Math.random() * 0.5;
-          }
-          opp.finished = true;
-          opp.finalTime = parseFloat(predictedTime.toFixed(3));
-          warpFinishedBotToEndBlock(opp);
-        }
-      });
-
-      const finalRanks = [
-        selfEntry,
-        ...opponentMeshesRef.current.map(opp => ({
-          username: opp.username,
-          time: opp.finalTime,
-          finished: opp.finished,
-          isNpc: opp.isNpc,
-          color: opp.color
-        }))
-      ];
-
-      finalRanks.sort((a, b) => (a.time || 999) - (b.time || 999));
-      setFinalStandings(finalRanks);
-
-      if (onRaceFinished) {
-        onRaceFinished(finalTime, finalRanks);
-      }
+      // Record our finish time and broadcast to other real players immediately
+      playerFinishTimeRef.current = finalTime;
 
       const finishedPayload = {
         type: 'GAME_FINISHED',
@@ -2254,6 +2288,47 @@ export default function GameCanvas({
         raceWs.send(JSON.stringify(finishedPayload));
       } else if (bcRef.current) {
         bcRef.current.postMessage(finishedPayload);
+      }
+
+      // Check if all opponents are already done (e.g. we finished last)
+      const allDone = opponentMeshesRef.current.every(o => o.finished);
+      if (allDone) {
+        // Build standings right away — no waiting needed
+        const selfEntry = {
+          username: currentUser?.username || 'You',
+          time: finalTime,
+          finished: true,
+          isNpc: false,
+          color: localStorage.getItem(`racer_color_${currentUser?.username}`) || '#3b82f6'
+        };
+        const finalRanks = [
+          selfEntry,
+          ...opponentMeshesRef.current.map(opp => ({
+            username: opp.username,
+            time: opp.finalTime,
+            finished: opp.finished,
+            isNpc: opp.isNpc,
+            color: opp.color
+          }))
+        ];
+        finalRanks.sort((a, b) => (a.time || 999) - (b.time || 999));
+        setFinalStandings(finalRanks);
+        if (onRaceFinished) onRaceFinished(finalTime, finalRanks);
+      } else {
+        // Show waiting screen; polling useEffect will fire commitRaceResultsRef when everyone's done
+        setIsWaitingForOthers(true);
+        // 60-second safety timeout — forces results even if a player disconnects
+        waitForOpponentsTimeoutRef.current = setTimeout(() => {
+          // Force-finish any stragglers with a distance-based estimate
+          opponentMeshesRef.current.forEach(opp => {
+            if (!opp.finished) {
+              const remaining = Math.max(0, totalSplineLengthRef.current - opp.progressDistance);
+              opp.finished = true;
+              opp.finalTime = parseFloat((playerFinishTimeRef.current + remaining / Math.max(1, opp.baseSpeed)).toFixed(3));
+            }
+          });
+          commitRaceResultsRef.current();
+        }, 60000);
       }
     }
 
@@ -2733,8 +2808,70 @@ export default function GameCanvas({
         </div>
       )}
 
+      {/* Waiting-for-opponents overlay (shown when local player finishes before everyone else) */}
+      {isWaitingForOthers && !isCompleted && (
+        <div className="absolute inset-0 bg-neutral-950/80 backdrop-blur-md flex items-center justify-center p-4 z-40">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl flex flex-col items-center gap-5">
+            <div className="p-4 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20">
+              <Clock className="w-10 h-10 animate-pulse" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-neutral-50 tracking-tight">You Finished!</h2>
+              <p className="text-xs text-neutral-400 font-mono mt-1">Waiting for others to cross the line…</p>
+            </div>
+
+            {/* Live finisher list */}
+            <div className="w-full bg-neutral-950 border border-neutral-800 rounded-2xl divide-y divide-neutral-900 overflow-hidden">
+              {/* Local player — always first since they just finished */}
+              <div className="flex items-center justify-between p-3 text-xs font-mono">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-bold text-[9px]">✓</span>
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: localStorage.getItem(`racer_color_${currentUser?.username}`) || '#3b82f6' }} />
+                  <span className="text-indigo-400 font-bold">{currentUser?.username || 'You'}</span>
+                </div>
+                <span className="text-emerald-400 font-bold">{playerFinishTimeRef.current.toFixed(3)}s</span>
+              </div>
+              {/* Opponents */}
+              {opponentMeshesRef.current.map((opp, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 text-xs font-mono">
+                  <div className="flex items-center gap-2">
+                    {opp.finished ? (
+                      <span className="w-5 h-5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-bold text-[9px]">✓</span>
+                    ) : (
+                      <span className="w-5 h-5 rounded bg-neutral-800 text-neutral-500 border border-neutral-700 flex items-center justify-center font-bold text-[9px] animate-pulse">…</span>
+                    )}
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: opp.color }} />
+                    <span className={opp.finished ? 'text-neutral-300' : 'text-neutral-500'}>{opp.username}</span>
+                  </div>
+                  {opp.finished && opp.finalTime != null ? (
+                    <span className="text-neutral-400 font-bold">{opp.finalTime.toFixed(3)}s</span>
+                  ) : (
+                    <span className="text-neutral-600 text-[10px]">racing…</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => {
+                if (waitForOpponentsTimeoutRef.current) {
+                  clearTimeout(waitForOpponentsTimeoutRef.current);
+                  waitForOpponentsTimeoutRef.current = null;
+                }
+                setIsWaitingForOthers(false);
+                handleExitAttempt();
+              }}
+              className="flex items-center gap-2 text-xs font-semibold text-neutral-500 hover:text-red-400 transition"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Leave Race
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Completion Dialog Overlay */}
-      {isCompleted && (
+      {isCompleted && !isWaitingForOthers && (
         <div className="absolute inset-0 bg-neutral-950/85 backdrop-blur-md flex items-center justify-center p-4 z-40">
           <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl flex flex-col items-center">
             
