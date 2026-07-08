@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Code, Volume2, LogOut, User, KeyRound, ShieldAlert, Users, Trophy, Settings, HelpCircle, Bookmark, Bell } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import LevelSelector from './components/LevelSelector';
@@ -86,6 +86,8 @@ export default function App() {
   const [activeLevel, setActiveLevel] = useState<LevelConfig | null>(null);
   const [raceMode, setRaceMode] = useState<boolean>(false);
   const [raceOpponents, setRaceOpponents] = useState<RaceParticipant[]>([]);
+  const raceWsRef = useRef<WebSocket | null>(null);
+  const [raceRoomId, setRaceRoomId] = useState<string | null>(null);
   const [isEditingSaved, setIsEditingSaved] = useState<boolean>(false);
   const [editingLevel, setEditingLevel] = useState<LevelConfig | null>(() => {
     const saved = localStorage.getItem('momentum_builder_draft');
@@ -148,7 +150,15 @@ export default function App() {
     synths.playTick();
   };
 
-  const handleSelectRaceLevel = (level: LevelConfig, racesMode: boolean, opponents: RaceParticipant[]) => {
+  const handleSelectRaceLevel = (
+    level: LevelConfig,
+    racesMode: boolean,
+    opponents: RaceParticipant[],
+    ws?: WebSocket | null,
+    roomId?: string | null,
+  ) => {
+    raceWsRef.current = ws ?? null;
+    setRaceRoomId(roomId ?? null);
     setActiveLevel(level);
     setRaceMode(racesMode);
     setRaceOpponents(opponents);
@@ -563,8 +573,8 @@ export default function App() {
         {tab === 'races' && currentUser && (
           <Races
             currentUser={currentUser}
-            onSelectLevel={(rl, isRacesMode, opponents) => {
-              handleSelectRaceLevel(rl, isRacesMode, opponents);
+            onSelectLevel={(rl, isRacesMode, opponents, ws, roomId) => {
+              handleSelectRaceLevel(rl, isRacesMode, opponents, ws, roomId);
             }}
           />
         )}
@@ -623,9 +633,15 @@ export default function App() {
             currentUser={currentUser}
             raceMode={raceMode}
             raceOpponents={raceOpponents}
+            raceWs={raceWsRef.current}
+            raceRoomId={raceRoomId}
             onRaceFinished={(finalTime, rankings) => handleSaveRaceResults(finalTime, rankings)}
             onExit={() => {
               const wasRaces = raceMode;
+              // Don't close the WebSocket here — Races.tsx manages its lifetime.
+              // Just clear the refs so the next race starts fresh.
+              raceWsRef.current = null;
+              setRaceRoomId(null);
               setRaceMode(false);
               setRaceOpponents([]);
               if (activeLevel.id === 'test_level_active') {

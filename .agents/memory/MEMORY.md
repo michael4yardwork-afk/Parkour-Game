@@ -1,2 +1,3 @@
 - [Backend architecture](backend-arch.md) — Express on port 3001, proxied via Vite /api, PostgreSQL with JWT auth (bcrypt). Both workflows must run.
 - [Production deployment](production-deploy.md) — Single Railway service serves API + static dist/. Neon for PostgreSQL. Hostinger domain via DNS CNAME to Railway.
+- [Multiplayer WebSocket architecture](multiplayer-ws.md) — Real multiplayer via WS on /ws path; server/ws.ts owns queue+rooms; WS ownership transfers from Races→App→GameCanvas; raceActiveRef prevents socket close on tab switch.

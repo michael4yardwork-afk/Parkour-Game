@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer } from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initDb } from './db';
@@ -6,6 +7,7 @@ import authRoutes from './routes/auth';
 import leaderboardRoutes from './routes/leaderboard';
 import communityRoutes from './routes/community';
 import usersRoutes from './routes/users';
+import { setupWebSocketServer } from './ws';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,6 +18,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 3001;
 const IS_PROD = process.env.NODE_ENV === 'production';
 
@@ -50,7 +53,8 @@ async function start() {
   try {
     await initDb();
     console.log('Database initialized.');
-    app.listen(PORT, '0.0.0.0', () => {
+    setupWebSocketServer(httpServer);
+    httpServer.listen(Number(PORT), '0.0.0.0', () => {
       console.log(`Delta Rush API running on http://0.0.0.0:${PORT}`);
     });
   } catch (err) {

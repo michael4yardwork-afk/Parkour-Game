@@ -7,7 +7,13 @@ import { api } from '../api';
 
 interface RacesProps {
   currentUser: UserAccount;
-  onSelectLevel: (level: LevelConfig, raceMode: boolean, raceOpponents: RaceParticipant[]) => void;
+  onSelectLevel: (
+    level: LevelConfig,
+    raceMode: boolean,
+    raceOpponents: RaceParticipant[],
+    ws?: WebSocket | null,
+    roomId?: string | null
+  ) => void;
 }
 
 // Fixed list of vibrant opponent colors
@@ -74,10 +80,14 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
   // Lobby/Matchmaking state
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [timeLeft, setTimeLeft] = useState<number>(15);
+  const [timerActive, setTimerActive] = useState<boolean>(false);
   const [lobbyPlayers, setLobbyPlayers] = useState<RaceParticipant[]>([]);
-  
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const bcRef = useRef<BroadcastChannel | null>(null);
+
+  // WebSocket ref — lives for the duration of one matchmaking session
+  const wsRef = useRef<WebSocket | null>(null);
+  // Set to true right before handing off to the race canvas so the unmount
+  // cleanup does NOT kill the socket that GameCanvas needs for in-race sync.
+  const raceActiveRef = useRef<boolean>(false);
 
   // Statistics summaries
   const totalRaces = history.length;
@@ -85,82 +95,66 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
   const podiums = history.filter(h => h.place <= 3).length;
   const winRatio = totalRaces > 0 ? Math.round((firstPlaces / totalRaces) * 100) : 0;
 
-  // Initialize BroadcastChannel
-  useEffect(() => {
-    bcRef.current = new BroadcastChannel('momentum_races_channel');
-    
-    bcRef.current.onmessage = (event) => {
-      const { type, data } = event.data;
+  // ── WebSocket helpers ──────────────────────────────────────────────────────
 
-      if (type === 'LOBBY_JOIN') {
-        // Someone else is searching!
-        if (isSearching) {
-          setLobbyPlayers(prev => {
-            // Avoid duplicates
-            if (prev.some(p => p.username.toLowerCase().trim() === data.username.toLowerCase().trim())) {
-              return prev;
-            }
-            synths.playTick();
-            const newPlayers = [...prev, {
-              username: data.username,
-              color: data.color,
-              avatar: data.avatar || '👤',
-              isNpc: false,
-              baseSpeed: 10 + Math.random() * 2,
-              seed: Math.random()
-            }];
+  const connectAndJoin = (color: string) => {
+    // Close any stale connection first
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+      wsRef.current.close();
+    }
 
-            // Send handshake back so they know we are already here
-            bcRef.current?.postMessage({
-              type: 'LOBBY_HANDSHAKE',
-              data: {
-                username: currentUser.username,
-                color: playerColor,
-                avatar: currentUser.avatar,
-                timeLeft: timeLeft // Sync remaining timer
-              }
-            });
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    wsRef.current = ws;
 
-            return newPlayers;
-          });
-        }
-      } else if (type === 'LOBBY_HANDSHAKE') {
-        if (isSearching) {
-          setLobbyPlayers(prev => {
-            if (prev.some(p => p.username.toLowerCase().trim() === data.username.toLowerCase().trim())) {
-              return prev;
-            }
-            // Adopt smaller leftover timer to sync lobby starts
-            if (data.timeLeft < timeLeft) {
-              setTimeLeft(data.timeLeft);
-            }
-            return [...prev, {
-              username: data.username,
-              color: data.color,
-              avatar: data.avatar || '👤',
-              isNpc: false,
-              baseSpeed: 10 + Math.random() * 2,
-              seed: Math.random()
-            }];
-          });
-        }
-      } else if (type === 'LOBBY_START_GENERIC') {
-        // Shared start trigger across tabs
-        if (isSearching) {
-          startRaceMatch(data.levelId, data.seed);
-        }
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        type: 'QUEUE_JOIN',
+        username: currentUser.username,
+        color,
+        avatar: currentUser.avatar || '🏃',
+      }));
+    };
+
+    ws.onmessage = (event) => {
+      let msg: any;
+      try { msg = JSON.parse(event.data); } catch { return; }
+
+      if (msg.type === 'QUEUE_UPDATE') {
+        setTimeLeft(msg.timeLeft);
+        setTimerActive(msg.timerActive);
+        // Play tick sound whenever countdown advances
+        if (msg.timerActive) synths.playTick();
+        setLobbyPlayers(
+          (msg.players as { username: string; color: string; avatar: string }[]).map(p => ({
+            username: p.username,
+            color: p.color,
+            avatar: p.avatar || '🏃',
+            isNpc: false,
+            baseSpeed: 10 + Math.random() * 2,
+            seed: Math.random(),
+          }))
+        );
+      } else if (msg.type === 'RACE_START') {
+        // msg.players contains only the real human players from the server
+        startRaceMatch(msg.roomId, msg.levelId, msg.seed, msg.players as { username: string; color: string; avatar: string; isNpc: boolean }[]);
       }
     };
 
-    return () => {
-      bcRef.current?.close();
+    ws.onerror = () => {
+      console.warn('[Races] WebSocket error — falling back to NPC-only match');
     };
-  }, [isSearching, timeLeft, playerColor, currentUser]);
 
-  // Handle Matchmaking Search start
+    ws.onclose = () => {
+      // If closed while still searching, treat as no-opponent scenario (lobby stays open)
+    };
+  };
+
+  // ── Handle Matchmaking Search start ──────────────────────────────────────
+
   const handleStartSearching = () => {
     synths.playTick();
-    
+
     // Pick a new random color for this race
     const randomColor = OPPONENT_COLORS[Math.floor(Math.random() * OPPONENT_COLORS.length)];
     setPlayerColor(randomColor);
@@ -168,134 +162,109 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
 
     setIsSearching(true);
     setTimeLeft(15);
-    
-    // Add ourselves as first participant
-    const selfParticipant: RaceParticipant = {
+    setTimerActive(false);
+
+    // Optimistically show ourselves immediately
+    setLobbyPlayers([{
       username: currentUser.username,
       color: randomColor,
       avatar: currentUser.avatar || '🏃',
       isNpc: false,
-      baseSpeed: 11, // Standard default speed scalar
-      seed: Math.random()
-    };
-    setLobbyPlayers([selfParticipant]);
+      baseSpeed: 11,
+      seed: Math.random(),
+    }]);
 
-    // Broadcast our search
-    bcRef.current?.postMessage({
-      type: 'LOBBY_JOIN',
-      data: {
-        username: currentUser.username,
-        color: randomColor,
-        avatar: currentUser.avatar
-      }
-    });
+    connectAndJoin(randomColor);
   };
-
-  // Matchmaking Timer tick
-  useEffect(() => {
-    if (isSearching) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            return 0;
-          }
-          // Tick sound effect on timer decrement
-          synths.playTick();
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isSearching]);
-
-  // Conclude matchmaking when time runs out
-  useEffect(() => {
-    if (isSearching && timeLeft === 0) {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      handleConcludeMatchmaking();
-    }
-  }, [timeLeft, isSearching]);
 
   const handleCancelSearching = () => {
     synths.playTick();
+    // Tell server we're leaving
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'QUEUE_LEAVE' }));
+    }
+    wsRef.current?.close();
+    wsRef.current = null;
     setIsSearching(false);
     setLobbyPlayers([]);
+    setTimerActive(false);
   };
 
-  // Force Start immediately
+  // Force Start immediately (fills remaining spots with NPCs on client)
   const handleForceStart = () => {
-    handleConcludeMatchmaking();
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'FORCE_START' }));
+    } else {
+      // WebSocket not available — start locally with only NPCs
+      const randomLevel = DEFAULT_LEVELS[Math.floor(Math.random() * 6)];
+      startRaceMatch(null, randomLevel.id, Math.random(), []);
+    }
   };
 
-  // Fill up with bots and choose a level to launch
-  const handleConcludeMatchmaking = () => {
-    if (!isSearching) return;
-    
-    // Pick any of the 6 default courses
-    const randomLevel = DEFAULT_LEVELS[Math.floor(Math.random() * 6)];
-    const sharedSeed = Math.random();
-
-    // Broadcast trigger
-    bcRef.current?.postMessage({
-      type: 'LOBBY_START_GENERIC',
-      data: {
-        levelId: randomLevel.id,
-        seed: sharedSeed
+  // Cleanup on unmount — skip if a race just launched (GameCanvas owns the WS now)
+  useEffect(() => {
+    return () => {
+      if (raceActiveRef.current) return; // handed off to GameCanvas
+      if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+        wsRef.current.send(JSON.stringify({ type: 'QUEUE_LEAVE' }));
+        wsRef.current.close();
       }
-    });
+    };
+  }, []);
 
-    startRaceMatch(randomLevel.id, sharedSeed);
-  };
-
-  const startRaceMatch = (levelId: string, seed: number) => {
+  const startRaceMatch = (
+    roomId: string | null,
+    levelId: string,
+    seed: number,
+    serverPlayers: { username: string; color: string; avatar: string; isNpc: boolean }[]
+  ) => {
     setIsSearching(false);
     synths.playFinish();
 
     const selectedLevel = DEFAULT_LEVELS.find(lvl => lvl.id === levelId) || DEFAULT_LEVELS[0];
 
-    // Build unique opponent racers list up to 6 players from current lobby + NPCs
-    const actualPlayersInLobby = [...lobbyPlayers];
-    
-    // Fill up remaining spots to reach 6 total racers
-    let slotsRemaining = 6 - actualPlayersInLobby.length;
+    // Build participant list: server-provided real players (excluding self) + NPC fill
+    const humanOpponents: RaceParticipant[] = serverPlayers
+      .filter(p => p.username.toLowerCase().trim() !== currentUser.username.toLowerCase().trim())
+      .map(p => ({
+        username: p.username,
+        color: p.color,
+        avatar: p.avatar || '👤',
+        isNpc: false,
+        baseSpeed: 10 + Math.random() * 2,
+        seed: Math.random(),
+      }));
+
+    // Fill remaining slots up to 6 total (self + humanOpponents + npcs)
+    const totalHumans = humanOpponents.length + 1; // +1 for self
+    let slotsRemaining = 6 - totalHumans;
     let botIndex = 0;
-    
-    // Filter available colors (exclude colors already selected by human lobby players)
-    const takenColors = actualPlayersInLobby.map(p => p.color.toLowerCase());
+
+    const takenColors = [playerColor, ...humanOpponents.map(p => p.color)].map(c => c.toLowerCase());
     let availableColors = OPPONENT_COLORS.filter(col => !takenColors.includes(col.toLowerCase()));
     if (availableColors.length === 0) availableColors = [...OPPONENT_COLORS];
 
     const npcs: RaceParticipant[] = [];
     while (slotsRemaining > 0 && botIndex < BOT_NAMES.length) {
       const botName = BOT_NAMES[Math.floor(newSeedRandom(seed + botIndex) * BOT_NAMES.length)];
-      // Avoid duplicate names in this specific race
-      if (!actualPlayersInLobby.some(p => p.username === botName) && !npcs.some(p => p.username === botName)) {
+      if (
+        !humanOpponents.some(p => p.username === botName) &&
+        !npcs.some(p => p.username === botName) &&
+        botName !== currentUser.username
+      ) {
         const botColor = availableColors[npcs.length % availableColors.length];
-        
-        // Define tiered speeds to spread final times significantly within player speed limits (4.0 to 12.0 m/s)
+
         const speedRoll = newSeedRandom(seed + botIndex * 43);
         let botSpeed = 10.0;
         if (speedRoll < 0.15) {
-          // Elite Speedrunner bot (15% chance): 11.4 to 12.0 m/s
           botSpeed = 11.4 + newSeedRandom(seed + botIndex * 15) * 0.6;
         } else if (speedRoll < 0.40) {
-          // Expert bot (25% chance): 10.0 to 11.3 m/s
           botSpeed = 10.0 + newSeedRandom(seed + botIndex * 15) * 1.3;
         } else if (speedRoll < 0.70) {
-          // Challenger/Regular bot (30% chance): 8.0 to 9.8 m/s
           botSpeed = 8.0 + newSeedRandom(seed + botIndex * 15) * 1.8;
         } else if (speedRoll < 0.90) {
-          // Casual bot (20% chance): 5.5 to 7.8 m/s
           botSpeed = 5.5 + newSeedRandom(seed + botIndex * 15) * 2.3;
         } else {
-          // Slow / Snail bot (10% chance): 3.8 to 5.2 m/s
           botSpeed = 3.8 + newSeedRandom(seed + botIndex * 15) * 1.4;
         }
 
@@ -305,17 +274,19 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
           avatar: '🤖',
           isNpc: true,
           baseSpeed: botSpeed,
-          seed: newSeedRandom(seed + botIndex)
+          seed: newSeedRandom(seed + botIndex),
         });
         slotsRemaining--;
       }
       botIndex++;
     }
 
-    const finalOpponents = [...actualPlayersInLobby.filter(p => p.username !== currentUser.username), ...npcs];
-    
-    // Start game canvas!
-    onSelectLevel(selectedLevel, true, finalOpponents);
+    const finalOpponents = [...humanOpponents, ...npcs];
+
+    // Signal unmount cleanup to leave the socket open — GameCanvas owns it now
+    raceActiveRef.current = true;
+    // Hand off the WebSocket and roomId to GameCanvas via App so it can sync positions
+    onSelectLevel(selectedLevel, true, finalOpponents, wsRef.current, roomId);
   };
 
   // Pseudo-random helper
@@ -388,8 +359,14 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
                       
                       <div className="flex items-center gap-1 text-[11px] font-mono bg-neutral-900 border border-neutral-800 px-3 py-1 rounded-xl">
                         <Timer className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>Closing in:</span>
-                        <span className="text-indigo-400 font-bold">{timeLeft}s</span>
+                        {timerActive ? (
+                          <>
+                            <span>Closing in:</span>
+                            <span className="text-indigo-400 font-bold">{timeLeft}s</span>
+                          </>
+                        ) : (
+                          <span className="text-neutral-400">Waiting for opponent…</span>
+                        )}
                       </div>
                     </div>
 

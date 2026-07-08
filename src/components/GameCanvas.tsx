@@ -19,6 +19,10 @@ interface GameCanvasProps {
     finalTime: number,
     rankings: { username: string; time?: number; finished: boolean; isNpc: boolean; color: string }[]
   ) => void;
+  /** Live WebSocket connection shared from the matchmaking lobby */
+  raceWs?: WebSocket | null;
+  /** Server-assigned room ID for routing in-race messages */
+  raceRoomId?: string | null;
 }
 
 
@@ -32,7 +36,9 @@ export default function GameCanvas({
   currentUser,
   raceMode = false,
   raceOpponents = [],
-  onRaceFinished
+  onRaceFinished,
+  raceWs,
+  raceRoomId,
 }: GameCanvasProps) {
   // Game states
   const [, setIsPlaying] = useState(false);
@@ -613,11 +619,50 @@ export default function GameCanvas({
   useEffect(() => {
     if (!raceMode) return;
 
+    // ── WebSocket handler (cross-machine real players) ─────────────────────
+    const handleWsMessage = (event: MessageEvent) => {
+      let msg: any;
+      try { msg = JSON.parse(event.data); } catch { return; }
+      const { type, username, x, y, z, ry, time } = msg;
+
+      if (type === 'GAME_TICK') {
+        const opp = opponentMeshesRef.current.find(
+          o => o.username.toLowerCase().trim() === (username || '').toLowerCase().trim()
+        );
+        if (opp && !opp.isNpc) {
+          opp.targetPosition.set(x, y, z);
+          opp.targetYaw = ry;
+          opp.lastUpdateMs = Date.now();
+          opp.progressDistance = Math.max(0, -z);
+        }
+      } else if (type === 'GAME_FINISHED') {
+        const opp = opponentMeshesRef.current.find(
+          o => o.username.toLowerCase().trim() === (username || '').toLowerCase().trim()
+        );
+        if (opp && !opp.isNpc && !opp.finished) {
+          opp.finished = true;
+          opp.finalTime = time;
+        }
+      }
+    };
+
+    if (raceWs) {
+      if (raceWs.readyState === WebSocket.OPEN) {
+        raceWs.addEventListener('message', handleWsMessage);
+      } else {
+        // Still connecting — attach once open, then register message listener
+        const onOpen = () => {
+          raceWs.addEventListener('message', handleWsMessage);
+          raceWs.removeEventListener('open', onOpen);
+        };
+        raceWs.addEventListener('open', onOpen);
+      }
+    }
+
+    // ── BroadcastChannel handler (same-origin tab fallback) ───────────────
     bcRef.current = new BroadcastChannel('momentum_races_channel');
-
     bcRef.current.onmessage = (event) => {
-      const { type, levelId, username, x, y, z, rx, ry, state, time } = event.data;
-
+      const { type, levelId, username, x, y, z, ry, time } = event.data;
       if (levelId !== level.id) return;
 
       if (type === 'GAME_TICK') {
@@ -638,9 +683,10 @@ export default function GameCanvas({
     };
 
     return () => {
+      if (raceWs) raceWs.removeEventListener('message', handleWsMessage);
       bcRef.current?.close();
     };
-  }, [raceMode, level.id]);
+  }, [raceMode, level.id, raceWs]);
 
   // Three.js Viewport Construction
   useEffect(() => {
@@ -1279,18 +1325,25 @@ export default function GameCanvas({
           }
         });
 
-        // Broadcast current user tick to general channel
-        if (raceMode && bcRef.current) {
-          bcRef.current.postMessage({
+        // Broadcast current position to opponents
+        if (raceMode) {
+          const tickPayload = {
             type: 'GAME_TICK',
+            roomId: raceRoomId,
             levelId: level.id,
             username: currentUser?.username || 'Guest',
             x: playerPos.current.x,
             y: playerPos.current.y,
             z: playerPos.current.z,
             ry: playerYaw.current,
-            time: elapsedTimeRef.current
-          });
+            time: elapsedTimeRef.current,
+          };
+          // Prefer WebSocket (cross-machine); fall back to BroadcastChannel
+          if (raceWs && raceWs.readyState === WebSocket.OPEN) {
+            raceWs.send(JSON.stringify(tickPayload));
+          } else if (bcRef.current) {
+            bcRef.current.postMessage(tickPayload);
+          }
         }
 
         // Live HUD position standings update
@@ -2190,12 +2243,18 @@ export default function GameCanvas({
         onRaceFinished(finalTime, finalRanks);
       }
 
-      bcRef.current?.postMessage({
+      const finishedPayload = {
         type: 'GAME_FINISHED',
+        roomId: raceRoomId,
         levelId: level.id,
         username: currentUser?.username || 'Guest',
-        time: finalTime
-      });
+        time: finalTime,
+      };
+      if (raceWs && raceWs.readyState === WebSocket.OPEN) {
+        raceWs.send(JSON.stringify(finishedPayload));
+      } else if (bcRef.current) {
+        bcRef.current.postMessage(finishedPayload);
+      }
     }
 
     // Lock screen pointerLock state
