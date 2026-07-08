@@ -1142,44 +1142,65 @@ export default function GameCanvas({
 
             const targetPos = getPointAtLength(opp.progressDistance);
 
-            // Interpolate bot positioning horizontally (X and Z only)
-            opp.mesh.position.x = THREE.MathUtils.lerp(opp.mesh.position.x, targetPos.x, 0.15);
-            opp.mesh.position.z = THREE.MathUtils.lerp(opp.mesh.position.z, targetPos.z, 0.15);
-
-            // GRAVITY & JUMP PHYSICS
+            // GROUND DETECTION
             const splineGroundY = targetPos.y - 0.6;
             const actualGroundY = getBlockSurfaceHeight(opp.mesh.position.x, opp.mesh.position.z);
-            // NPCs must follow physical gravity and cannot walk/stand on thin air over gaps.
-            // If they are over a gap, groundY is -Infinity so they fall naturally.
-            // Use splineGroundY as a safety net to prevent bots from falling into the void or failing hard jumps on difficult levels
+            // isOnRealGround: an actual block is beneath the bot — used to gate jumps so bots never jump on thin air
+            const isOnRealGround = actualGroundY !== -Infinity;
+            // groundY: use the real surface when available; fall back to spline only to prevent void-falls on large gaps
             let groundY = actualGroundY;
-            if (groundY === -Infinity || groundY < splineGroundY - 4.0) {
+            if (!isOnRealGround || groundY < splineGroundY - 4.0) {
               groundY = splineGroundY;
             }
 
-            // Check for JUMP blocks or manual triggers
+            // HORIZONTAL MOVEMENT — velocity-based acceleration + drag, matching the player physics model
+            const toTargetX = targetPos.x - opp.mesh.position.x;
+            const toTargetZ = targetPos.z - opp.mesh.position.z;
+            const horizDist = Math.sqrt(toTargetX * toTargetX + toTargetZ * toTargetZ);
+            if (horizDist > 0.05) {
+              const dirX = toTargetX / horizDist;
+              const dirZ = toTargetZ / horizDist;
+              // Same acceleration rates as the player (50 grounded, 18 airborne)
+              const accelRate = opp.grounded ? 50.0 : 18.0;
+              opp.velocity.x += dirX * accelRate * dt;
+              opp.velocity.z += dirZ * accelRate * dt;
+            }
+
+            // Apply drag matching the player model (active-ground drag when moving, reduced air drag)
+            const drag = opp.grounded ? 2.5 : 1.5;
+            opp.velocity.x -= opp.velocity.x * drag * dt;
+            opp.velocity.z -= opp.velocity.z * drag * dt;
+
+            // Clamp horizontal speed to this bot's max speed
+            const horizSpeed = Math.sqrt(opp.velocity.x * opp.velocity.x + opp.velocity.z * opp.velocity.z);
+            if (horizSpeed > botSpeed) {
+              const scale = botSpeed / horizSpeed;
+              opp.velocity.x *= scale;
+              opp.velocity.z *= scale;
+            }
+
+            // Advance position via velocity
+            opp.mesh.position.x += opp.velocity.x * dt;
+            opp.mesh.position.z += opp.velocity.z * dt;
+
+            // JUMP PAD — only fire when standing on a real block, never on thin air
             const standingBlock = getBlockAtCoords(opp.mesh.position.x, opp.mesh.position.z);
-            if (standingBlock && standingBlock.type === 'jump' && opp.grounded && groundY !== -Infinity && opp.mesh.position.y <= groundY + 0.8 && (!opp.jumpCooldown || opp.jumpCooldown <= 0)) {
-              opp.velocity.y = 20.0; // Rocket jump on jump pad!
+            if (standingBlock && standingBlock.type === 'jump' && opp.grounded && isOnRealGround && opp.mesh.position.y <= groundY + 0.8 && (!opp.jumpCooldown || opp.jumpCooldown <= 0)) {
+              opp.velocity.y = 20.0;
               opp.grounded = false;
               opp.jumpCooldown = 0.5;
             }
 
-            // Jump lookahead over gaps or steps
-            if (opp.grounded && groundY !== -Infinity && opp.mesh.position.y <= groundY + 0.8 && (!opp.jumpCooldown || opp.jumpCooldown <= 0)) {
-              const currentGroundY = groundY;
-              
-              // Look ahead dynamically proportional to bot speed
+            // JUMP LOOKAHEAD — only when standing on a real block so bots never jump while floating over gaps
+            if (opp.grounded && isOnRealGround && opp.mesh.position.y <= groundY + 0.8 && (!opp.jumpCooldown || opp.jumpCooldown <= 0)) {
               const aheadDist = Math.max(2.0, botSpeed * 0.22);
               const aheadPos = getPointAtLength(opp.progressDistance + aheadDist);
               const aheadGroundY = getBlockSurfaceHeight(aheadPos.x, aheadPos.z);
-              
-              // Also check if the spline itself rises up (climbing a block)
               const splineDeltaY = aheadPos.y - opp.mesh.position.y;
-              
-              const isGapAhead = aheadGroundY === -Infinity || (currentGroundY - aheadGroundY > 2.0);
+
+              const isGapAhead = aheadGroundY === -Infinity || (actualGroundY - aheadGroundY > 2.0);
               const isClimbAhead = splineDeltaY > 0.8;
-              
+
               if (isGapAhead || isClimbAhead) {
                 const jumpVel = isClimbAhead ? 13.5 : (11.0 + Math.random() * 3.0);
                 opp.velocity.y = jumpVel;
@@ -1192,19 +1213,19 @@ export default function GameCanvas({
               opp.jumpCooldown -= dt;
             }
 
-            // Apply gravity physics
+            // VERTICAL PHYSICS — same gravity constant as the player (23.5)
             if (opp.mesh.position.y <= groundY + 0.62 && opp.velocity.y <= 0) {
-              // Standing on the ground
+              // Grounded
               opp.mesh.position.y = THREE.MathUtils.lerp(opp.mesh.position.y, groundY + 0.6, 0.25);
               opp.velocity.y = 0;
               opp.grounded = true;
             } else {
-              // Falling or jumping in the air
-              opp.velocity.y -= 23.5 * dt; // gravity
+              // Airborne
+              opp.velocity.y -= 23.5 * dt;
               opp.mesh.position.y += opp.velocity.y * dt;
               opp.grounded = false;
 
-              // Landing trigger
+              // Landing
               if (opp.mesh.position.y < groundY + 0.6 && opp.velocity.y < 0) {
                 opp.mesh.position.y = groundY + 0.6;
                 opp.velocity.y = 0;
