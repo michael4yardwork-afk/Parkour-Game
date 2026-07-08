@@ -784,9 +784,9 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
                     type="number"
                     min="0.5"
                     max="30"
-                    step="0.5"
+                    step="0.1"
                     value={selectedBlock.w}
-                    onChange={(e) => updateSelectedBlock({ w: Math.abs(parseFloat(e.target.value) || 1) })}
+                    onChange={(e) => updateSelectedBlock({ w: Math.round(Math.abs(parseFloat(e.target.value) || 1) * 10) / 10 })}
                     className="w-full mt-1 p-1.5 bg-neutral-900 border border-neutral-800 rounded text-center text-xs text-neutral-100"
                   />
                 </div>
@@ -796,9 +796,9 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
                     type="number"
                     min="0.2"
                     max="40"
-                    step="0.5"
+                    step="0.1"
                     value={selectedBlock.h}
-                    onChange={(e) => updateSelectedBlock({ h: Math.abs(parseFloat(e.target.value) || 1) })}
+                    onChange={(e) => updateSelectedBlock({ h: Math.round(Math.abs(parseFloat(e.target.value) || 1) * 10) / 10 })}
                     className="w-full mt-1 p-1.5 bg-neutral-900 border border-neutral-800 rounded text-center text-xs text-neutral-100"
                   />
                 </div>
@@ -808,9 +808,9 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
                     type="number"
                     min="0.5"
                     max="40"
-                    step="0.5"
+                    step="0.1"
                     value={selectedBlock.d}
-                    onChange={(e) => updateSelectedBlock({ d: Math.abs(parseFloat(e.target.value) || 1) })}
+                    onChange={(e) => updateSelectedBlock({ d: Math.round(Math.abs(parseFloat(e.target.value) || 1) * 10) / 10 })}
                     className="w-full mt-1 p-1.5 bg-neutral-900 border border-neutral-800 rounded text-center text-xs text-neutral-100"
                   />
                 </div>
