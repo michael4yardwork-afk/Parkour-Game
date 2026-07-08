@@ -345,7 +345,13 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
     cameraRef.current.lookAt(targetX, targetY, targetZ);
   }, [blocks, selectedBlockId, cameraZoom, cameraRotation, cameraHeight, panX, panZ, selectedBlock]);
 
+  const MAX_BLOCKS = 200;
+
   const handleAddBlock = (type: BlockType) => {
+    if (blocks.length >= MAX_BLOCKS) {
+      alert(`Course element limit reached (${MAX_BLOCKS} max). Delete some elements before adding more.`);
+      return;
+    }
     // Determine random offset relative to last selected coordinate to make stacking quick
     const lastBlock = selectedBlock || blocks[blocks.length - 1];
     const newId = `block_${Date.now()}`;
@@ -572,46 +578,56 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
           {/* Construction Toolbox */}
           <div className="pb-3 border-b border-neutral-800">
             <h3 className="text-[10px] font-mono text-neutral-400 uppercase mb-3">Add Core Handrails / Plates</h3>
+            {blocks.length >= MAX_BLOCKS && (
+              <p className="text-[10px] font-mono text-red-400 mb-2">Element limit reached ({MAX_BLOCKS} max). Delete elements to add more.</p>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <button
                 onClick={() => handleAddBlock('normal')}
-                className="py-2 px-2.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-semibold text-xs rounded-lg transition"
+                disabled={blocks.length >= MAX_BLOCKS}
+                className="py-2 px-2.5 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-semibold text-xs rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 + Normal Plat
               </button>
               <button
                 onClick={() => handleAddBlock('wallrun')}
-                className="py-2 px-2.5 bg-purple-950/30 hover:bg-purple-950/50 border border-purple-800/30 text-purple-300 font-semibold text-xs rounded-lg transition"
+                disabled={blocks.length >= MAX_BLOCKS}
+                className="py-2 px-2.5 bg-purple-950/30 hover:bg-purple-950/50 border border-purple-800/30 text-purple-300 font-semibold text-xs rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 + Wall Run
               </button>
               <button
                 onClick={() => handleAddBlock('jump')}
-                className="py-2 px-2.5 bg-amber-950/30 hover:bg-amber-950/50 border border-amber-800/30 text-amber-300 font-semibold text-xs rounded-lg transition"
+                disabled={blocks.length >= MAX_BLOCKS}
+                className="py-2 px-2.5 bg-amber-950/30 hover:bg-amber-950/50 border border-amber-800/30 text-amber-300 font-semibold text-xs rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 + Jump Pad
               </button>
               <button
                 onClick={() => handleAddBlock('checkpoint')}
-                className="py-2 px-2.5 bg-lime-950/30 hover:bg-lime-950/50 border border-lime-800/30 text-lime-300 font-semibold text-xs rounded-lg transition"
+                disabled={blocks.length >= MAX_BLOCKS}
+                className="py-2 px-2.5 bg-lime-950/30 hover:bg-lime-950/50 border border-lime-800/30 text-lime-300 font-semibold text-xs rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 + Checkpoint
               </button>
               <button
                 onClick={() => handleAddBlock('climb')}
-                className="py-2 px-2.5 bg-cyan-950/30 hover:bg-cyan-950/50 border border-cyan-800/30 text-cyan-300 font-semibold text-xs rounded-lg transition"
+                disabled={blocks.length >= MAX_BLOCKS}
+                className="py-2 px-2.5 bg-cyan-950/30 hover:bg-cyan-950/50 border border-cyan-800/30 text-cyan-300 font-semibold text-xs rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 + Ladder/Gate
               </button>
               <button
                 onClick={() => handleAddBlock('speed')}
-                className="py-2 px-2.5 bg-pink-950/30 hover:bg-pink-950/50 border border-pink-800/30 text-pink-300 font-semibold text-xs rounded-lg transition"
+                disabled={blocks.length >= MAX_BLOCKS}
+                className="py-2 px-2.5 bg-pink-950/30 hover:bg-pink-950/50 border border-pink-800/30 text-pink-300 font-semibold text-xs rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 + Speed Boost
               </button>
               <button
                 onClick={() => handleAddBlock('hazard')}
-                className="py-2 px-2.5 bg-red-950/30 hover:bg-red-950/50 border border-red-800/30 text-red-300 font-semibold text-xs rounded-lg transition col-span-2 sm:col-span-1"
+                disabled={blocks.length >= MAX_BLOCKS}
+                className="py-2 px-2.5 bg-red-950/30 hover:bg-red-950/50 border border-red-800/30 text-red-300 font-semibold text-xs rounded-lg transition col-span-2 sm:col-span-1 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 + Lava/Hazard
               </button>
@@ -621,7 +637,10 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
           {/* Block Coordinates Hierarchy */}
           <div className="mt-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[10px] font-mono text-neutral-400 uppercase">Course Elements List ({blocks.length})</h3>
+              <h3 className="text-[10px] font-mono text-neutral-400 uppercase">
+                Course Elements List ({blocks.length}/{MAX_BLOCKS}
+                {blocks.length >= MAX_BLOCKS && <span className="text-red-400 ml-1">— limit reached</span>})
+              </h3>
               <button
                 onClick={() => {
                   setShowResetConfirm(true);
