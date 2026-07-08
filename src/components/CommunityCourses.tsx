@@ -299,11 +299,7 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
                       <span>Unpublish</span>
                     </button>
                   ) : (
-                    <span className="text-[10px] font-mono text-neutral-400 font-semibold italic">
-                      {course.likesCount && course.likesCount > 0
-                        ? `${course.likesCount} ${course.likesCount === 1 ? 'like' : 'likes'}`
-                        : 'No likes yet'}
-                    </span>
+                    <span />
                   )}
                   <button className="flex items-center gap-1.5 px-4 py-1.5 text-white bg-neutral-900 group-hover:bg-indigo-600 rounded-lg text-xs font-bold transition duration-200 cursor-pointer">
                     <Play className="w-3.5 h-3.5 fill-current" />
