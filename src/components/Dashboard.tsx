@@ -119,18 +119,7 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
   }, [currentUser.username]);
 
   // Derived stats from local data
-  const totalCompletions = (() => {
-    const username = currentUser.username.toLowerCase().trim();
-    let count = 0;
-    for (const lvl of DEFAULT_LEVELS) {
-      try {
-        const stored = localStorage.getItem(`leaderboard_${lvl.id}`);
-        const entries: any[] = stored ? JSON.parse(stored) : [];
-        count += entries.filter(e => e.playerName?.toLowerCase().trim() === username && e.time > 0.05).length;
-      } catch { /* ignore */ }
-    }
-    return count;
-  })();
+  const totalCompletions = parseInt(localStorage.getItem('delta_rush_total_completions') ?? '0', 10);
 
   const customLevels: any[] = (() => {
     try { return JSON.parse(localStorage.getItem('custom_parkour_levels') ?? '[]'); } catch { return []; }

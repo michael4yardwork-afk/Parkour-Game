@@ -2141,6 +2141,9 @@ export default function GameCanvas({
 
   const handleLevelCompleted = () => {
     if (isCompletedRef.current) return;
+    // Increment persistent total completions counter
+    const prevCount = parseInt(localStorage.getItem('delta_rush_total_completions') ?? '0', 10);
+    localStorage.setItem('delta_rush_total_completions', (prevCount + 1).toString());
     // Freeze to nearest millisecond so completion screen and leaderboard always show the same value
     const finalTime = Math.round(elapsedTimeRef.current * 1000) / 1000;
     elapsedTimeRef.current = finalTime;
