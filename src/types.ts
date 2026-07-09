@@ -89,7 +89,6 @@ export interface GameSettings {
   sfxVolume: number;
   showGhost: boolean;
   invertY: boolean;
-  adjustablePerspective: boolean;
   showJoystick?: boolean;
   showJumpButton?: boolean;
 }

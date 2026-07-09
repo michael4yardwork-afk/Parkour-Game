@@ -27,7 +27,6 @@ const DEFAULT_SETTINGS: GameSettings = {
   sfxVolume: 0.5,
   showGhost: true,
   invertY: false,
-  adjustablePerspective: false,
   showJoystick: true,
   showJumpButton: true
 };

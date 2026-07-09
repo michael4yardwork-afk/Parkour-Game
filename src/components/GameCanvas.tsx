@@ -1359,11 +1359,9 @@ export default function GameCanvas({
       }
 
       if (renderer && scene && camera) {
-        // Force default camera forward orientation if perspective adjustment is off
-        if (!settings.adjustablePerspective) {
-          playerYaw.current = Math.PI;
-          playerPitch.current = 0;
-        }
+        // Perspective is always locked to the default forward orientation
+        playerYaw.current = Math.PI;
+        playerPitch.current = 0;
 
         // Render Camera following Player offsets
         const playerHeightOffset = 1.7;
@@ -1560,11 +1558,7 @@ export default function GameCanvas({
           touchJoystickOffsetRef.current = { x: 0, y: 0 };
         }
       } else {
-        // Look control in the right half
-        if (lookTouchIdRef.current === null && settings.adjustablePerspective) {
-          lookTouchIdRef.current = touch.identifier;
-          touchLookStartRef.current = { x: touch.clientX, y: touch.clientY };
-        }
+        // Perspective is locked; touch look control is disabled
       }
     }
   };
@@ -1592,17 +1586,7 @@ export default function GameCanvas({
           touchJoystickOffsetRef.current = { x: ox, y: oy };
         }
       } else if (touch.identifier === lookTouchIdRef.current) {
-        if (touchLookStartRef.current && settings.adjustablePerspective) {
-          const dx = touch.clientX - touchLookStartRef.current.x;
-          const dy = touch.clientY - touchLookStartRef.current.y;
-          
-          // Transform screen delta look rotation
-          const sensitivity = 0.007;
-          playerYaw.current -= dx * sensitivity;
-          playerPitch.current = Math.max(-1.45, Math.min(1.45, playerPitch.current - dy * sensitivity));
-
-          touchLookStartRef.current = { x: touch.clientX, y: touch.clientY };
-        }
+        // Perspective is locked; touch look control is disabled
       }
     }
   };
@@ -1699,22 +1683,8 @@ export default function GameCanvas({
 
   // Handle Mouse movement looking rotations
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isLocked || !settings.adjustablePerspective) return;
-
-      const sensitivity = settings.mouseSensitivity * 0.0015;
-      playerYaw.current -= e.movementX * sensitivity;
-
-      // Apply pitch clamping look
-      const pitchTarget = playerPitch.current - e.movementY * sensitivity * (settings.invertY ? -1 : 1);
-      playerPitch.current = Math.max(-1.48, Math.min(1.48, pitchTarget));
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-    };
-  }, [isLocked, settings.mouseSensitivity, settings.invertY, settings.adjustablePerspective]);
+    // Perspective is always locked; mouse-look is disabled.
+  }, []);
 
   // Main custom bounding-box collision checker and physics step solver
   const updatePhysics = (dt: number) => {
