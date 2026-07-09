@@ -93,6 +93,7 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
 
   // Activity stats
   const [raceHistory, setRaceHistory] = useState<RaceHistoryEntry[]>([]);
+  const [mostLikedCourse, setMostLikedCourse] = useState<{ name: string; likes: number } | null>(null);
 
   useEffect(() => {
     api.users.getProfile(currentUser.username).then(data => {
@@ -104,19 +105,32 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
     api.users.getRaceHistory(currentUser.username).then(history => {
       setRaceHistory(history ?? []);
     }).catch(() => {});
+
+    api.community.getCourses().then(({ courses }) => {
+      const mine = courses.filter(c =>
+        c.creator?.toLowerCase().trim() === currentUser.username.toLowerCase().trim()
+      );
+      if (mine.length === 0) return;
+      const top = mine.reduce((best, c) =>
+        (c.likesCount ?? 0) > (best.likesCount ?? 0) ? c : best
+      );
+      setMostLikedCourse({ name: top.name, likes: top.likesCount ?? 0 });
+    }).catch(() => {});
   }, [currentUser.username]);
 
   // Derived stats from local data
-  const completedLevels = DEFAULT_LEVELS.filter(lvl => {
-    const t = parseFloat(localStorage.getItem(`best_time_${lvl.id}`) ?? '0');
-    return t > 0.05;
-  });
-  const totalCompletions = completedLevels.length;
-
-  const allBestTimes = completedLevels
-    .map(lvl => parseFloat(localStorage.getItem(`best_time_${lvl.id}`) ?? '0'))
-    .filter(t => t > 0.05);
-  const overallBestTime = allBestTimes.length > 0 ? Math.min(...allBestTimes) : null;
+  const totalCompletions = (() => {
+    const username = currentUser.username.toLowerCase().trim();
+    let count = 0;
+    for (const lvl of DEFAULT_LEVELS) {
+      try {
+        const stored = localStorage.getItem(`leaderboard_${lvl.id}`);
+        const entries: any[] = stored ? JSON.parse(stored) : [];
+        count += entries.filter(e => e.playerName?.toLowerCase().trim() === username && e.time > 0.05).length;
+      } catch { /* ignore */ }
+    }
+    return count;
+  })();
 
   const customLevels: any[] = (() => {
     try { return JSON.parse(localStorage.getItem('custom_parkour_levels') ?? '[]'); } catch { return []; }
@@ -536,36 +550,35 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* Course Completions */}
+          {/* Total Completions */}
           <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-amber-300/60 hover:shadow-amber-500/5 transition duration-200 group">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Completions</span>
+              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Total Completions</span>
               <Flag className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
             </div>
             <span className="text-3xl font-black font-mono text-neutral-800 leading-none">{totalCompletions}</span>
-            <span className="text-[10px] text-neutral-400 font-mono">of {DEFAULT_LEVELS.length} courses</span>
+            <span className="text-[10px] text-neutral-400 font-mono">runs finished</span>
           </div>
 
-          {/* Fastest Run */}
-          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-green-300/60 hover:shadow-green-500/5 transition duration-200 group">
+          {/* Most Liked Course */}
+          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-pink-300/60 hover:shadow-pink-500/5 transition duration-200 group">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Fastest Run</span>
-              <Zap className="w-3.5 h-3.5 text-green-400 group-hover:scale-110 transition-transform" />
+              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Most Liked</span>
+              <Star className="w-3.5 h-3.5 text-pink-400 group-hover:scale-110 transition-transform" />
             </div>
-            {overallBestTime !== null ? (
-              <span className="text-xl font-black font-mono text-neutral-800 leading-none">
-                {(() => {
-                  const ms = Math.round(overallBestTime * 1000);
-                  const m = Math.floor(ms / 60000);
-                  const s = Math.floor((ms % 60000) / 1000);
-                  const rem = ms % 1000;
-                  return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${rem.toString().padStart(3, '0')}s`;
-                })()}
-              </span>
+            {mostLikedCourse !== null ? (
+              <>
+                <span className="text-2xl font-black font-mono text-neutral-800 leading-none">{mostLikedCourse.likes}</span>
+                <span className="text-[10px] text-neutral-400 font-mono truncate" title={mostLikedCourse.name}>
+                  ♥ {mostLikedCourse.name}
+                </span>
+              </>
             ) : (
-              <span className="text-sm font-semibold text-neutral-400 font-mono italic leading-none">—</span>
+              <>
+                <span className="text-sm font-semibold text-neutral-400 font-mono italic leading-none">—</span>
+                <span className="text-[10px] text-neutral-400 font-mono">no published courses</span>
+              </>
             )}
-            <span className="text-[10px] text-neutral-400 font-mono">personal best</span>
           </div>
 
           {/* Best World Rank */}
