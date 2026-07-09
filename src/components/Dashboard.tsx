@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Code, Settings, Trophy, ArrowRight, ShieldCheck, Info, LogOut, User, KeyRound, Sparkles, Check, Lock, ShieldAlert, Users, Star } from 'lucide-react';
-import { GameSettings, UserAccount } from '../types';
+import { Code, Settings, Trophy, ArrowRight, ShieldCheck, Info, LogOut, User, KeyRound, Sparkles, Check, Lock, ShieldAlert, Users, Star, Flag, Zap, Swords, Hammer, Medal } from 'lucide-react';
+import { GameSettings, UserAccount, RaceHistoryEntry } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { synths } from '../audio';
 import { api } from '../api';
@@ -91,13 +91,49 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
   const [rating, setRating] = useState<number | null>(null);
   const [ratingColor, setRatingColor] = useState('#3b82f6');
 
+  // Activity stats
+  const [raceHistory, setRaceHistory] = useState<RaceHistoryEntry[]>([]);
+
   useEffect(() => {
     api.users.getProfile(currentUser.username).then(data => {
       setFollowers(data.followersCount ?? 0);
       setRating(data.rating ?? null);
       setRatingColor(data.color ?? '#3b82f6');
     }).catch(() => {});
+
+    api.users.getRaceHistory(currentUser.username).then(history => {
+      setRaceHistory(history ?? []);
+    }).catch(() => {});
   }, [currentUser.username]);
+
+  // Derived stats from local data
+  const completedLevels = DEFAULT_LEVELS.filter(lvl => {
+    const t = parseFloat(localStorage.getItem(`best_time_${lvl.id}`) ?? '0');
+    return t > 0.05;
+  });
+  const totalCompletions = completedLevels.length;
+
+  const allBestTimes = completedLevels
+    .map(lvl => parseFloat(localStorage.getItem(`best_time_${lvl.id}`) ?? '0'))
+    .filter(t => t > 0.05);
+  const overallBestTime = allBestTimes.length > 0 ? Math.min(...allBestTimes) : null;
+
+  const customLevels: any[] = (() => {
+    try { return JSON.parse(localStorage.getItem('custom_parkour_levels') ?? '[]'); } catch { return []; }
+  })();
+  const coursesBuilt = customLevels.length;
+
+  const totalRaces = raceHistory.length;
+  const raceWins = raceHistory.filter(r => r.place === 1).length;
+
+  const bestRank = (() => {
+    let best: number | null = null;
+    for (const lvl of DEFAULT_LEVELS) {
+      const { rank } = getWorldRankAndPercentile(lvl.id, parseFloat(localStorage.getItem(`best_time_${lvl.id}`) ?? '0'), currentUser.username);
+      if (rank !== null && (best === null || rank < best)) best = rank;
+    }
+    return best;
+  })();
 
   const handleFovChange = (val: number) => {
     onChangeSettings({ ...settings, fov: val });
@@ -487,7 +523,96 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
         </div>
       </div>
 
+      {/* Activity Statistics */}
+      <div className="bg-neutral-50 rounded-3xl p-6 md:p-8 border border-neutral-200/80">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-indigo-500/10 text-indigo-500 rounded-xl">
+            <Zap className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-neutral-900 tracking-tight">Activity Statistics</h2>
+            <p className="text-xs text-neutral-500">A snapshot of your overall Delta Rush career</p>
+          </div>
+        </div>
 
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {/* Course Completions */}
+          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-amber-300/60 hover:shadow-amber-500/5 transition duration-200 group">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Completions</span>
+              <Flag className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+            </div>
+            <span className="text-3xl font-black font-mono text-neutral-800 leading-none">{totalCompletions}</span>
+            <span className="text-[10px] text-neutral-400 font-mono">of {DEFAULT_LEVELS.length} courses</span>
+          </div>
+
+          {/* Fastest Run */}
+          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-green-300/60 hover:shadow-green-500/5 transition duration-200 group">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Fastest Run</span>
+              <Zap className="w-3.5 h-3.5 text-green-400 group-hover:scale-110 transition-transform" />
+            </div>
+            {overallBestTime !== null ? (
+              <span className="text-xl font-black font-mono text-neutral-800 leading-none">
+                {(() => {
+                  const ms = Math.round(overallBestTime * 1000);
+                  const m = Math.floor(ms / 60000);
+                  const s = Math.floor((ms % 60000) / 1000);
+                  const rem = ms % 1000;
+                  return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${rem.toString().padStart(3, '0')}s`;
+                })()}
+              </span>
+            ) : (
+              <span className="text-sm font-semibold text-neutral-400 font-mono italic leading-none">—</span>
+            )}
+            <span className="text-[10px] text-neutral-400 font-mono">personal best</span>
+          </div>
+
+          {/* Best World Rank */}
+          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-indigo-300/60 hover:shadow-indigo-500/5 transition duration-200 group">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Best Rank</span>
+              <Medal className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
+            </div>
+            <span className="text-3xl font-black font-mono text-neutral-800 leading-none">
+              {bestRank !== null ? `#${bestRank}` : '—'}
+            </span>
+            <span className="text-[10px] text-neutral-400 font-mono">world leaderboard</span>
+          </div>
+
+          {/* Total Races */}
+          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-purple-300/60 hover:shadow-purple-500/5 transition duration-200 group">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Total Races</span>
+              <Swords className="w-3.5 h-3.5 text-purple-400 group-hover:scale-110 transition-transform" />
+            </div>
+            <span className="text-3xl font-black font-mono text-neutral-800 leading-none">{totalRaces}</span>
+            <span className="text-[10px] text-neutral-400 font-mono">multiplayer bouts</span>
+          </div>
+
+          {/* Race Wins */}
+          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-rose-300/60 hover:shadow-rose-500/5 transition duration-200 group">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Race Wins</span>
+              <Trophy className="w-3.5 h-3.5 text-rose-400 group-hover:scale-110 transition-transform" />
+            </div>
+            <span className="text-3xl font-black font-mono text-neutral-800 leading-none">{raceWins}</span>
+            <span className="text-[10px] text-neutral-400 font-mono">
+              {totalRaces > 0 ? `${Math.round((raceWins / totalRaces) * 100)}% win rate` : 'no races yet'}
+            </span>
+          </div>
+
+          {/* Courses Built */}
+          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-cyan-300/60 hover:shadow-cyan-500/5 transition duration-200 group">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Courses Built</span>
+              <Hammer className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
+            </div>
+            <span className="text-3xl font-black font-mono text-neutral-800 leading-none">{coursesBuilt}</span>
+            <span className="text-[10px] text-neutral-400 font-mono">in sandbox builder</span>
+          </div>
+        </div>
+      </div>
 
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-[100] bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4">
