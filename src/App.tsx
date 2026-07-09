@@ -59,6 +59,13 @@ export default function App() {
   const [tab, setTab] = useState<AppTab>('home');
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
 
+  // Tracks the in-flight race result save so we can await it before returning to the
+  // Races tab — otherwise the stats fetched on remount can race ahead of the save.
+  const raceSavePromiseRef = useRef<Promise<void> | null>(null);
+  // Bumped after a race result save completes so the Races tab always refetches fresh
+  // stats even if it happens to already be mounted.
+  const [racesRefreshKey, setRacesRefreshKey] = useState(0);
+
   // Profile page states
   const [viewingProfileUsername, setViewingProfileUsername] = useState<string | null>(null);
   const [previousTab, setPreviousTab] = useState<AppTab>('home');
@@ -219,6 +226,9 @@ export default function App() {
       await api.users.saveRaceResult(currentUser.username, historyEntry as any);
     } catch (e) {
       console.error('Failed to save race result:', e);
+    } finally {
+      // Let the Races tab know fresh stats are available even if it's already mounted.
+      setRacesRefreshKey(k => k + 1);
     }
   };
 
@@ -593,6 +603,7 @@ export default function App() {
         {tab === 'races' && currentUser && (
           <Races
             currentUser={currentUser}
+            refreshKey={racesRefreshKey}
             onSelectLevel={(rl, isRacesMode, opponents, ws, roomId, startTime) => {
               handleSelectRaceLevel(rl, isRacesMode, opponents, ws, roomId, startTime);
             }}
@@ -656,10 +667,12 @@ export default function App() {
             raceWs={raceWsRef.current}
             raceRoomId={raceRoomId}
             raceStartTime={raceStartTime}
-            onRaceFinished={(finalTime, rankings) => handleSaveRaceResults(finalTime, rankings)}
+            onRaceFinished={(finalTime, rankings) => {
+              raceSavePromiseRef.current = handleSaveRaceResults(finalTime, rankings);
+            }}
             ghostOverride={ghostOverrideFrames}
             ghostOverrideLabel={ghostOverrideLabel}
-            onExit={() => {
+            onExit={async () => {
               const wasRaces = raceMode;
               // Don't close the WebSocket here — Races.tsx manages its lifetime.
               // Just clear the refs so the next race starts fresh.
@@ -671,6 +684,19 @@ export default function App() {
               // Clear ghost override when leaving
               setGhostOverrideFrames(null);
               setGhostOverrideLabel(null);
+
+              // Make sure any pending race result save has landed before the Races tab
+              // remounts and fetches stats — otherwise it can read stale data.
+              if (wasRaces && raceSavePromiseRef.current) {
+                try {
+                  await raceSavePromiseRef.current;
+                } catch {
+                  // Save failure is already logged in handleSaveRaceResults
+                } finally {
+                  raceSavePromiseRef.current = null;
+                }
+              }
+
               if (activeLevel.id === 'test_level_active') {
                 setTab('editor'); // return back to editor sandbox
               } else if (activeLevel.isCustom) {

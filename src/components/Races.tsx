@@ -15,6 +15,8 @@ interface RacesProps {
     roomId?: string | null,
     raceStartTime?: number | null
   ) => void;
+  /** Bumped by the parent whenever a race result finishes saving, so stats refresh immediately. */
+  refreshKey?: number;
 }
 
 // Fixed list of vibrant opponent colors
@@ -41,13 +43,15 @@ const BOT_NAMES = [
   'MomentumMaster'
 ];
 
-export default function Races({ currentUser, onSelectLevel }: RacesProps) {
+export default function Races({ currentUser, onSelectLevel, refreshKey }: RacesProps) {
   // Stats
   const [rating, setRating] = useState<number>(100);
   const [history, setHistory] = useState<RaceHistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
 
-  // Fetch history and rating from server on every mount (i.e. every time user opens the Races tab)
+  // Fetch history and rating from server on mount, whenever the user changes, and whenever
+  // the parent bumps refreshKey (e.g. right after a race result finishes saving) so stats
+  // stay current even if this tab never unmounted.
   useEffect(() => {
     let cancelled = false;
     const fetchData = async () => {
@@ -69,7 +73,7 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
     };
     fetchData();
     return () => { cancelled = true; };
-  }, [currentUser.username]);
+  }, [currentUser.username, refreshKey]);
 
   // Player selected color (randomized dynamically)
   const [playerColor, setPlayerColor] = useState<string>(() => {
