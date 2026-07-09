@@ -1072,7 +1072,7 @@ export default function GameCanvas({
       if (!activeLoop) return;
       requestAnimationFrame(gameLoop);
 
-      if (isPlayingRef.current && !isCompletedRef.current && countdownRef.current === null) {
+      if (isPlayingRef.current && countdownRef.current === null) {
         const dt = Math.min(clock.getDelta(), 0.1); // clamp delta ticks
         
         // Force countdown start immediately when race mode is active so NPCs of the race move correctly
@@ -1087,68 +1087,81 @@ export default function GameCanvas({
           raceStartWallTimeRef.current = Date.now();
         }
 
-        // Physics sub-stepping with max step size of 0.005 seconds (5ms) to prevent player tunneling or falling through surfaces
-        const maxSubStep = 0.005;
-        const subStepsCount = Math.ceil(dt / maxSubStep);
-        const subStepDt = dt / subStepsCount;
-        for (let i = 0; i < subStepsCount; i++) {
-          updatePhysics(subStepDt);
-        }
-
-        // Record path coordinates for ghost system telemetry logs once per frame (approx. 60 FPS)
-        if (movementStartedRef.current) {
-          currentRunFramesRef.current.push({
-            time: elapsedTimeRef.current * 1000,
-            x: playerPos.current.x,
-            y: playerPos.current.y,
-            z: playerPos.current.z,
-            rx: playerPitch.current,
-            ry: playerYaw.current,
-            state: wallRunDirectionRef.current === 'left' ? 'wall_left' 
-                   : wallRunDirectionRef.current === 'right' ? 'wall_right'
-                   : climbingRef.current ? 'climb' 
-                   : groundedRef.current ? 'run' : 'jump'
-          });
-
-          currentRunSpeedsRef.current.push(playerVel.current.length());
-          
-          const currentAction = slidingRef.current ? 'Sliding'
-                               : wallRunDirectionRef.current ? 'Wall Riding'
-                               : climbingRef.current ? 'Climbing'
-                               : groundedRef.current ? 'Sprinting'
-                               : 'Airborne';
-          currentRunActionsRef.current.push(currentAction);
-
-          // Wall-clock based elapsed time: keeps racers' clocks synchronized
-          // and continues counting correctly even if rAF was throttled/paused
-          // while this tab was backgrounded, instead of stalling like a
-          // dt-accumulation approach would.
-          if (raceStartWallTimeRef.current !== null) {
-            elapsedTimeRef.current = (Date.now() - raceStartWallTimeRef.current) / 1000;
-          } else {
-            elapsedTimeRef.current += dt;
+        if (!isCompletedRef.current) {
+          // Physics sub-stepping with max step size of 0.005 seconds (5ms) to prevent player tunneling or falling through surfaces
+          const maxSubStep = 0.005;
+          const subStepsCount = Math.ceil(dt / maxSubStep);
+          const subStepDt = dt / subStepsCount;
+          for (let i = 0; i < subStepsCount; i++) {
+            updatePhysics(subStepDt);
           }
-          updateGhostReplay();
-          updateOverrideGhostReplay();
-          setElapsedTime(elapsedTimeRef.current);
-        } else {
-          currentRunFramesRef.current = [{
-            time: 0,
-            x: playerPos.current.x,
-            y: playerPos.current.y,
-            z: playerPos.current.z,
-            rx: playerPitch.current,
-            ry: playerYaw.current,
-            state: 'run'
-          }];
-          currentRunSpeedsRef.current = [0];
-          currentRunActionsRef.current = ['Sprinting'];
-          setElapsedTime(0.00);
-          updateGhostReplay();
-          updateOverrideGhostReplay();
+
+          // Record path coordinates for ghost system telemetry logs once per frame (approx. 60 FPS)
+          if (movementStartedRef.current) {
+            currentRunFramesRef.current.push({
+              time: elapsedTimeRef.current * 1000,
+              x: playerPos.current.x,
+              y: playerPos.current.y,
+              z: playerPos.current.z,
+              rx: playerPitch.current,
+              ry: playerYaw.current,
+              state: wallRunDirectionRef.current === 'left' ? 'wall_left' 
+                     : wallRunDirectionRef.current === 'right' ? 'wall_right'
+                     : climbingRef.current ? 'climb' 
+                     : groundedRef.current ? 'run' : 'jump'
+            });
+
+            currentRunSpeedsRef.current.push(playerVel.current.length());
+            
+            const currentAction = slidingRef.current ? 'Sliding'
+                                 : wallRunDirectionRef.current ? 'Wall Riding'
+                                 : climbingRef.current ? 'Climbing'
+                                 : groundedRef.current ? 'Sprinting'
+                                 : 'Airborne';
+            currentRunActionsRef.current.push(currentAction);
+
+            // Wall-clock based elapsed time: keeps racers' clocks synchronized
+            // and continues counting correctly even if rAF was throttled/paused
+            // while this tab was backgrounded, instead of stalling like a
+            // dt-accumulation approach would.
+            if (raceStartWallTimeRef.current !== null) {
+              elapsedTimeRef.current = (Date.now() - raceStartWallTimeRef.current) / 1000;
+            } else {
+              elapsedTimeRef.current += dt;
+            }
+            updateGhostReplay();
+            updateOverrideGhostReplay();
+            setElapsedTime(elapsedTimeRef.current);
+          } else {
+            currentRunFramesRef.current = [{
+              time: 0,
+              x: playerPos.current.x,
+              y: playerPos.current.y,
+              z: playerPos.current.z,
+              rx: playerPitch.current,
+              ry: playerYaw.current,
+              state: 'run'
+            }];
+            currentRunSpeedsRef.current = [0];
+            currentRunActionsRef.current = ['Sprinting'];
+            setElapsedTime(0.00);
+            updateGhostReplay();
+            updateOverrideGhostReplay();
+          }
         }
 
-        // Multiplayer / Racing updates
+        // Wall-clock race time — computed independently of the player's own
+        // elapsedTimeRef (which freezes once the player finishes) so bots and
+        // remote opponents keep progressing toward the finish line, and the
+        // "waiting for others" screen reflects their status live instead of
+        // freezing until the 60s straggler timeout.
+        const raceNowMs = raceStartWallTimeRef.current !== null
+          ? (Date.now() - raceStartWallTimeRef.current)
+          : elapsedTimeRef.current * 1000;
+
+        // Multiplayer / Racing updates — kept running even after the local
+        // player has finished, so opponents continue progressing while we
+        // wait for them to cross the line.
         opponentMeshesRef.current.forEach((opp) => {
           // Define helpers to query blocks
           const getBlockSurfaceHeight = (x: number, z: number) => {
@@ -1247,7 +1260,7 @@ export default function GameCanvas({
             // Frames are loaded asynchronously after scene init; NPC stays hidden until ready.
             if (!opp.framesLoaded || opp.frames.length === 0) return;
 
-            const targetMs = elapsedTimeRef.current * 1000;
+            const targetMs = raceNowMs;
             const frames = opp.frames;
             const lastFrame = frames[frames.length - 1];
 
@@ -1298,8 +1311,9 @@ export default function GameCanvas({
           }
         });
 
-        // Broadcast current position to opponents
-        if (raceMode) {
+        // Broadcast current position to opponents (nothing left to broadcast
+        // once the local player has already finished)
+        if (raceMode && !isCompletedRef.current) {
           const tickPayload = {
             type: 'GAME_TICK',
             roomId: raceRoomId,
