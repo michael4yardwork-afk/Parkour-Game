@@ -2463,8 +2463,8 @@ export default function GameCanvas({
         </div>
       )}
 
-      {/* Pointer Lock Help Overlay for desktops */}
-      {!isLocked && !isCompleted && !isMobileRef.current && (
+      {/* Pointer Lock Help Overlay for desktops (time trial only — races start immediately) */}
+      {!isLocked && !isCompleted && !isMobileRef.current && !raceMode && (
         <div className="absolute inset-0 bg-neutral-950/75 backdrop-blur-sm flex flex-col justify-center items-center p-6 text-center z-25">
           <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-sm shadow-2xl flex flex-col items-center">
             <Compass className="w-12 h-12 text-indigo-500 mb-4 animate-pulse" />
