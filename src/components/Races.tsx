@@ -12,7 +12,8 @@ interface RacesProps {
     raceMode: boolean,
     raceOpponents: RaceParticipant[],
     ws?: WebSocket | null,
-    roomId?: string | null
+    roomId?: string | null,
+    raceStartTime?: number | null
   ) => void;
 }
 
@@ -137,7 +138,7 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
         );
       } else if (msg.type === 'RACE_START') {
         // msg.players contains only the real human players from the server
-        startRaceMatch(msg.roomId, msg.levelId, msg.seed, msg.players as { username: string; color: string; avatar: string; isNpc: boolean }[]);
+        startRaceMatch(msg.roomId, msg.levelId, msg.seed, msg.players as { username: string; color: string; avatar: string; isNpc: boolean }[], msg.startTime as number | undefined);
       }
     };
 
@@ -216,7 +217,8 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
     roomId: string | null,
     levelId: string,
     seed: number,
-    serverPlayers: { username: string; color: string; avatar: string; isNpc: boolean }[]
+    serverPlayers: { username: string; color: string; avatar: string; isNpc: boolean }[],
+    raceStartTime?: number
   ) => {
     setIsSearching(false);
     synths.playFinish();
@@ -286,7 +288,7 @@ export default function Races({ currentUser, onSelectLevel }: RacesProps) {
     // Signal unmount cleanup to leave the socket open — GameCanvas owns it now
     raceActiveRef.current = true;
     // Hand off the WebSocket and roomId to GameCanvas via App so it can sync positions
-    onSelectLevel(selectedLevel, true, finalOpponents, wsRef.current, roomId);
+    onSelectLevel(selectedLevel, true, finalOpponents, wsRef.current, roomId, raceStartTime ?? null);
   };
 
   // Pseudo-random helper

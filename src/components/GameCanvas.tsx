@@ -36,6 +36,8 @@ interface GameCanvasProps {
   raceWs?: WebSocket | null;
   /** Server-assigned room ID for routing in-race messages */
   raceRoomId?: string | null;
+  /** Server epoch-ms timestamp anchoring the countdown/race clock across all clients */
+  raceStartTime?: number | null;
   /** Ghost frames from a specific leaderboard entry to race against */
   ghostOverride?: GhostFrame[] | null;
   /** Display name for the ghost override (e.g. "PlayerName") */
@@ -56,6 +58,7 @@ export default function GameCanvas({
   onRaceFinished,
   raceWs,
   raceRoomId,
+  raceStartTime = null,
   ghostOverride = null,
   ghostOverrideLabel = null,
 }: GameCanvasProps) {
@@ -94,6 +97,13 @@ export default function GameCanvas({
   const elapsedTimeRef = useRef<number>(0.0);
   const currentMaxSpeedRef = useRef<number>(12.0);
   const movementStartedRef = useRef<boolean>(false);
+  // Wall-clock timestamp (Date.now()) marking the instant the race clock started
+  // ticking. Using Date.now() instead of accumulated per-frame deltas means the
+  // timer keeps counting correctly even if requestAnimationFrame is throttled
+  // or paused while the tab is in the background — and, in race mode, this
+  // timestamp is anchored to a server-broadcast value so every racer's clock
+  // reads the same elapsed time regardless of individual network latency.
+  const raceStartWallTimeRef = useRef<number | null>(null);
 
   // Pointer Lock details
   const [isLocked, setIsLocked] = useState(false);
@@ -540,6 +550,7 @@ export default function GameCanvas({
     elapsedTimeRef.current = 0.00;
     currentMaxSpeedRef.current = 12.0;
     movementStartedRef.current = false;
+    raceStartWallTimeRef.current = null;
     setElapsedTime(0.00);
     setIsCompleted(false);
     isCompletedRef.current = false;
@@ -644,48 +655,57 @@ export default function GameCanvas({
     return dists[closestIdx] || 0;
   };
 
-  // Timer for countdown
+  // Timer for countdown — anchored to a shared server timestamp (raceStartTime)
+  // rather than each client running its own independent 3-second setTimeout
+  // chain. This keeps every racer's "GO!" moment (and therefore their race
+  // clock) aligned to the same instant, and self-corrects even if this tab
+  // was backgrounded for part of the countdown — because we always compare
+  // against the absolute goAt timestamp, not accumulated timer ticks.
   useEffect(() => {
     if (!raceMode) {
       setRaceCountdown(null);
       countdownRef.current = null;
       raceStartedRef.current = true;
+      raceStartWallTimeRef.current = null;
       return;
     }
 
-    // Start countdown automatically!
     hasCountdownStartedRef.current = true;
-    setRaceCountdown(3);
-    countdownRef.current = 3;
     raceStartedRef.current = false;
-    synths.playCountdownTick();
-  }, [raceMode, level.id, restartCount]);
+    raceStartWallTimeRef.current = null;
 
-  useEffect(() => {
-    if (raceCountdown === null) return;
+    const goAtMs = (raceStartTime ?? Date.now()) + 3000;
+    let lastAnnounced: number | null = null;
+    let interval: ReturnType<typeof setInterval>;
 
-    if (raceCountdown > 0) {
-      const timer = setTimeout(() => {
-        const next = raceCountdown - 1;
-        setRaceCountdown(next);
-        if (next === 0) {
-          countdownRef.current = null;
-          raceStartedRef.current = true;
+    const tick = () => {
+      const remainingMs = goAtMs - Date.now();
+      if (remainingMs <= 0) {
+        setRaceCountdown(0);
+        countdownRef.current = null;
+        raceStartedRef.current = true;
+        raceStartWallTimeRef.current = goAtMs;
+        if (lastAnnounced !== 0) {
           synths.playCountdownGo();
-        } else {
-          countdownRef.current = next;
-          synths.playCountdownTick();
+          lastAnnounced = 0;
         }
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else {
-      // Countdown is 0 (GO!)
-      const timer = setTimeout(() => {
-        setRaceCountdown(null);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [raceCountdown]);
+        clearInterval(interval);
+        setTimeout(() => setRaceCountdown(null), 1000);
+        return;
+      }
+      const secondsLeft = Math.min(3, Math.ceil(remainingMs / 1000));
+      setRaceCountdown(secondsLeft);
+      countdownRef.current = secondsLeft;
+      if (secondsLeft !== lastAnnounced) {
+        synths.playCountdownTick();
+        lastAnnounced = secondsLeft;
+      }
+    };
+
+    tick();
+    interval = setInterval(tick, 150);
+    return () => clearInterval(interval);
+  }, [raceMode, level.id, restartCount, raceStartTime]);
 
   useEffect(() => {
     if (!raceMode) return;
@@ -1042,6 +1062,13 @@ export default function GameCanvas({
           movementStartedRef.current = true;
         }
 
+        // Anchor the race clock to a wall-clock timestamp the first time movement
+        // starts (covers the solo-mode case, where raceStartWallTimeRef isn't
+        // already set by the countdown effect).
+        if (movementStartedRef.current && raceStartWallTimeRef.current === null) {
+          raceStartWallTimeRef.current = Date.now();
+        }
+
         // Physics sub-stepping with max step size of 0.005 seconds (5ms) to prevent player tunneling or falling through surfaces
         const maxSubStep = 0.005;
         const subStepsCount = Math.ceil(dt / maxSubStep);
@@ -1074,7 +1101,15 @@ export default function GameCanvas({
                                : 'Airborne';
           currentRunActionsRef.current.push(currentAction);
 
-          elapsedTimeRef.current += dt;
+          // Wall-clock based elapsed time: keeps racers' clocks synchronized
+          // and continues counting correctly even if rAF was throttled/paused
+          // while this tab was backgrounded, instead of stalling like a
+          // dt-accumulation approach would.
+          if (raceStartWallTimeRef.current !== null) {
+            elapsedTimeRef.current = (Date.now() - raceStartWallTimeRef.current) / 1000;
+          } else {
+            elapsedTimeRef.current += dt;
+          }
           updateGhostReplay();
           updateOverrideGhostReplay();
           setElapsedTime(elapsedTimeRef.current);
@@ -2704,7 +2739,7 @@ export default function GameCanvas({
       )}
 
       {/* Waiting-for-opponents overlay (shown when local player finishes before everyone else) */}
-      {isWaitingForOthers && !isCompleted && (
+      {isWaitingForOthers && (
         <div className="absolute inset-0 bg-neutral-950/80 backdrop-blur-md flex items-center justify-center p-4 z-40">
           <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl flex flex-col items-center gap-5">
             <div className="p-4 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20">

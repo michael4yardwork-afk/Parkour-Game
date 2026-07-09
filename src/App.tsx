@@ -88,6 +88,7 @@ export default function App() {
   const [raceOpponents, setRaceOpponents] = useState<RaceParticipant[]>([]);
   const raceWsRef = useRef<WebSocket | null>(null);
   const [raceRoomId, setRaceRoomId] = useState<string | null>(null);
+  const [raceStartTime, setRaceStartTime] = useState<number | null>(null);
   const [isEditingSaved, setIsEditingSaved] = useState<boolean>(false);
   const [editingLevel, setEditingLevel] = useState<LevelConfig | null>(() => {
     const saved = localStorage.getItem('momentum_builder_draft');
@@ -160,9 +161,11 @@ export default function App() {
     opponents: RaceParticipant[],
     ws?: WebSocket | null,
     roomId?: string | null,
+    startTime?: number | null,
   ) => {
     raceWsRef.current = ws ?? null;
     setRaceRoomId(roomId ?? null);
+    setRaceStartTime(startTime ?? null);
     setActiveLevel(level);
     setRaceMode(racesMode);
     setRaceOpponents(opponents);
@@ -591,8 +594,8 @@ export default function App() {
         {tab === 'races' && currentUser && (
           <Races
             currentUser={currentUser}
-            onSelectLevel={(rl, isRacesMode, opponents, ws, roomId) => {
-              handleSelectRaceLevel(rl, isRacesMode, opponents, ws, roomId);
+            onSelectLevel={(rl, isRacesMode, opponents, ws, roomId, startTime) => {
+              handleSelectRaceLevel(rl, isRacesMode, opponents, ws, roomId, startTime);
             }}
           />
         )}
@@ -653,6 +656,7 @@ export default function App() {
             raceOpponents={raceOpponents}
             raceWs={raceWsRef.current}
             raceRoomId={raceRoomId}
+            raceStartTime={raceStartTime}
             onRaceFinished={(finalTime, rankings) => handleSaveRaceResults(finalTime, rankings)}
             ghostOverride={ghostOverrideFrames}
             ghostOverrideLabel={ghostOverrideLabel}
@@ -662,6 +666,7 @@ export default function App() {
               // Just clear the refs so the next race starts fresh.
               raceWsRef.current = null;
               setRaceRoomId(null);
+              setRaceStartTime(null);
               setRaceMode(false);
               setRaceOpponents([]);
               // Clear ghost override when leaving

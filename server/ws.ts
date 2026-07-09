@@ -115,8 +115,13 @@ function startRace() {
   };
   rooms.set(roomId, room);
 
+  // Shared absolute start timestamp so every client's countdown/timer is
+  // anchored to the same instant, instead of each client starting its own
+  // local countdown whenever it happens to receive the message.
+  const startTime = Date.now();
+
   for (const entry of queue) {
-    send(entry.ws, { type: 'RACE_START', roomId, levelId, seed, players });
+    send(entry.ws, { type: 'RACE_START', roomId, levelId, seed, players, startTime });
   }
 
   // Clear queue — race has started
