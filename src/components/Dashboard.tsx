@@ -93,7 +93,7 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
 
   useEffect(() => {
     api.users.getProfile(currentUser.username).then(data => {
-      setFollowers(data.followers ?? 0);
+      setFollowers(data.followersCount ?? 0);
       setRating(data.rating ?? null);
       setRatingColor(data.color ?? '#3b82f6');
     }).catch(() => {});

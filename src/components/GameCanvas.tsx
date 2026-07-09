@@ -139,6 +139,9 @@ export default function GameCanvas({
     lastCheckpointDistance: number;
     lastCheckpointPos: THREE.Vector3;
     seededRng: () => number;
+    // Ghost-replay fields (NPCs only)
+    frames: GhostFrame[];
+    framesLoaded: boolean;
   }[]>([]);
 
   // Waiting-for-others state (player finished but not all opponents yet)
@@ -889,6 +892,9 @@ export default function GameCanvas({
       jumpCooldown: number;
       lastCheckpointDistance: number;
       lastCheckpointPos: THREE.Vector3;
+      seededRng: () => number;
+      frames: GhostFrame[];
+      framesLoaded: boolean;
     }[] = [];
 
     if (raceMode && raceOpponents) {
@@ -949,6 +955,9 @@ export default function GameCanvas({
 
         scene.add(oppMesh);
 
+        // NPC meshes start hidden until ghost frames are fetched
+        if (opponent.isNpc) oppMesh.visible = false;
+
         opponentMeshes.push({
           username: opponent.username,
           color: opponent.color,
@@ -968,11 +977,42 @@ export default function GameCanvas({
           jumpCooldown: 0,
           seededRng: makeBotRng(opponent.seed ?? Math.random()),
           lastCheckpointDistance: 0,
-          lastCheckpointPos: new THREE.Vector3(0, 1.2, 0)
+          lastCheckpointPos: new THREE.Vector3(0, 1.2, 0),
+          frames: [],
+          framesLoaded: false,
         });
       });
     }
     opponentMeshesRef.current = opponentMeshes;
+
+    // Async: load leaderboard ghost frames for each NPC opponent
+    if (raceMode && raceOpponents && opponentMeshes.some(o => o.isNpc)) {
+      (async () => {
+        try {
+          const { api: apiModule } = await import('../api');
+          const entries = await apiModule.leaderboard.get(level.id);
+          const frameableEntries = entries.filter((e: any) => e.hasFrames);
+
+          // Nothing to work with — NPCs remain hidden (no ghost data yet for this level)
+          if (frameableEntries.length === 0) return;
+
+          await Promise.all(
+            opponentMeshes.filter(o => o.isNpc).map(async (opp) => {
+              // Pick a random entry; each NPC gets an independent pick
+              const pick = frameableEntries[Math.floor(Math.random() * frameableEntries.length)];
+              const result = await apiModule.leaderboard.getEntryFrames(level.id, pick.id);
+              if (result && result.frames && result.frames.length > 0) {
+                opp.frames = result.frames;
+                opp.framesLoaded = true;
+                opp.mesh.visible = true;
+              }
+            })
+          );
+        } catch (err) {
+          console.warn('[NPC] Failed to load ghost frames for NPC opponents:', err);
+        }
+      })();
+    }
 
     // Save Three.js references
     sceneRef.current = scene;
@@ -1150,288 +1190,49 @@ export default function GameCanvas({
           }
 
           if (opp.isNpc) {
-            // Check if NPC is physically touching the 'end' block or very close to spline end, finish them immediately
-            const endBlock = level.blocks.find((b: any) => b.type === 'end');
-            let hitEndBlock = false;
-            if (endBlock) {
-              const minX = endBlock.x - endBlock.w / 2 - 0.5;
-              const maxX = endBlock.x + endBlock.w / 2 + 0.5;
-              const minY = endBlock.y - 1.0;
-              const maxY = endBlock.y + endBlock.h + 2.0;
-              const minZ = endBlock.z - endBlock.d / 2 - 0.5;
-              const maxZ = endBlock.z + endBlock.d / 2 + 0.5;
+            // Ghost-replay NPCs: position directly from recorded leaderboard frames.
+            // Frames are loaded asynchronously after scene init; NPC stays hidden until ready.
+            if (!opp.framesLoaded || opp.frames.length === 0) return;
 
-              const ox = opp.mesh.position.x;
-              const oy = opp.mesh.position.y;
-              const oz = opp.mesh.position.z;
+            const targetMs = elapsedTimeRef.current * 1000;
+            const frames = opp.frames;
+            const lastFrame = frames[frames.length - 1];
 
-              hitEndBlock = 
-                (ox >= minX && ox <= maxX) &&
-                (oy >= minY && oy <= maxY) &&
-                (oz >= minZ && oz <= maxZ);
-            }
-
-            const isNearSplineEnd = opp.progressDistance >= totalSplineLengthRef.current - 1.5;
-
-            if (hitEndBlock || isNearSplineEnd) {
-              opp.finished = true;
-              opp.progressDistance = totalSplineLengthRef.current;
-              let finalTime = elapsedTimeRef.current;
-              if (level.id === 'monochrome_void' && finalTime < 24.0) {
-                finalTime = 24.0 + Math.random() * 0.5;
+            // NPC finished — hand off to idle end-block animation
+            if (targetMs >= lastFrame.time) {
+              if (!opp.finished) {
+                opp.finished = true;
+                opp.finalTime = parseFloat((lastFrame.time / 1000).toFixed(3));
+                opp.progressDistance = totalSplineLengthRef.current;
+                warpFinishedBotToEndBlock(opp);
               }
-              opp.finalTime = parseFloat(finalTime.toFixed(3));
-              warpFinishedBotToEndBlock(opp);
               return;
             }
 
-            // Calculate dynamic speed multipliers
-            let speedMultiplier = 1.0;
-
-            if (opp.stumbleTimer > 0) {
-              opp.stumbleTimer -= dt;
-              speedMultiplier = 0.45; // stumble slows them down significantly
-            } else if (opp.boostTimer > 0) {
-              opp.boostTimer -= dt;
-              speedMultiplier = 1.35; // boost speeds them up
-            } else {
-              // Deterministic stumbles/boosts — seeded per-bot so all clients agree
-              const roll = opp.seededRng();
-              const stumbleChance = opp.baseSpeed >= 11.0 ? 0.003 : (opp.baseSpeed >= 9.5 ? 0.008 : (opp.baseSpeed >= 7.5 ? 0.018 : 0.03));
-              const boostChance = opp.baseSpeed >= 11.0 ? 0.30 : (opp.baseSpeed >= 9.5 ? 0.18 : (opp.baseSpeed >= 7.5 ? 0.08 : 0.02));
-
-              if (roll < stumbleChance * dt * 60) {
-                opp.stumbleTimer = 0.8 + opp.seededRng() * 0.8;
-              } else if (roll < boostChance * dt * 60) {
-                opp.boostTimer = 1.5 + opp.seededRng() * 1.5;
-              }
+            // Binary-search for the surrounding frame pair
+            let lo = 0;
+            let hi = frames.length - 1;
+            while (lo < hi - 1) {
+              const mid = (lo + hi) >> 1;
+              if (frames[mid].time <= targetMs) lo = mid; else hi = mid;
             }
+            const fA = frames[lo];
+            const fB = frames[hi];
+            const span = fB.time - fA.time;
+            const tFrac = span > 0 ? Math.min(1, (targetMs - fA.time) / span) : 0;
 
-            // Check if standing on a speed block
-            const currentBlock = getBlockAtCoords(opp.mesh.position.x, opp.mesh.position.z);
-            let speedBlockMultiplier = 1.0;
-            if (currentBlock && currentBlock.type === 'speed') {
-              speedBlockMultiplier = 1.6;
-            }
+            opp.mesh.position.set(
+              THREE.MathUtils.lerp(fA.x, fB.x, tFrac),
+              THREE.MathUtils.lerp(fA.y, fB.y, tFrac) + 0.8,
+              THREE.MathUtils.lerp(fA.z, fB.z, tFrac)
+            );
+            opp.mesh.rotation.x = THREE.MathUtils.lerp(fA.rx, fB.rx, tFrac);
+            opp.mesh.rotation.y = THREE.MathUtils.lerp(fA.ry, fB.ry, tFrac);
+            opp.mesh.rotation.z = 0;
+            opp.mesh.scale.set(1, 1, 1);
 
-            // Move bot along course spline representation sequentially
-            let levelMultiplier = 1.0;
-            let speedBoostCap = 1.0;
-            if (level.id === 'lava_patchwork') {
-              levelMultiplier = 1.0; // Normal realistic speed on Lava Patchwork as we now have a smooth hazard-avoiding path
-              speedBoostCap = 1.0;
-            }
-
-            let botSpeed = opp.baseSpeed * speedMultiplier * speedBlockMultiplier * levelMultiplier;
-
-            // Enforce that NPCs cannot move faster than a regular player under equivalent conditions:
-            // - Regular player maximum speed is up to 18.0
-            // - Speed block multiplies limit by 1.6
-            const playerLimit = (opp.boostTimer > 0 ? 18.0 : 12.0) * speedBlockMultiplier * speedBoostCap;
-            if (botSpeed > playerLimit) {
-              botSpeed = playerLimit;
-            }
-
-            opp.progressDistance += dt * botSpeed;
-
-            // Limit speed for Monochrome Void to prevent completing before 24.0 seconds
-            if (level.id === 'monochrome_void') {
-              const maxAllowedProgress = (elapsedTimeRef.current / 24.05) * totalSplineLengthRef.current;
-              if (opp.progressDistance > maxAllowedProgress) {
-                opp.progressDistance = maxAllowedProgress;
-              }
-            }
-
-            // Limit speed for Sunset Ridge Trial to prevent completing before 20.0 seconds
-            if (level.id === 'sunset_ridge') {
-              const maxAllowedProgress = (elapsedTimeRef.current / 20.05) * totalSplineLengthRef.current;
-              if (opp.progressDistance > maxAllowedProgress) {
-                opp.progressDistance = maxAllowedProgress;
-              }
-            }
-
-            // Update NPC's last checkpoint
-            if (splineCheckpointsRef.current && splineCheckpointsRef.current.length > 0) {
-              for (const cp of splineCheckpointsRef.current) {
-                if (opp.progressDistance >= cp.distance) {
-                  if (cp.distance > opp.lastCheckpointDistance) {
-                    opp.lastCheckpointDistance = cp.distance;
-                    opp.lastCheckpointPos.copy(cp.position);
-                  }
-                }
-              }
-            }
-
-            // Check if NPC is colliding with any hazard block (Lava block)
-            let hitHazard = false;
-            for (const block of level.blocks) {
-              if (block.type === 'hazard') {
-                const minX = block.x - block.w / 2;
-                const maxX = block.x + block.w / 2;
-                const minY = block.y;
-                const maxY = block.y + block.h;
-                const minZ = block.z - block.d / 2;
-                const maxZ = block.z + block.d / 2;
-
-                const ox = opp.mesh.position.x;
-                const oy = opp.mesh.position.y;
-                const oz = opp.mesh.position.z;
-                const botRadius = 0.5;
-                const botHeight = 1.2;
-
-                const isOverlapping = 
-                  (ox + botRadius > minX && ox - botRadius < maxX) &&
-                  (oy + botHeight > minY && oy < maxY + 0.1) &&
-                  (oz + botRadius > minZ && oz - botRadius < maxZ);
-
-                if (isOverlapping) {
-                  hitHazard = true;
-                  break;
-                }
-              }
-            }
-
-            if (hitHazard) {
-              // Reset to last checkpoint with penalty
-              opp.progressDistance = opp.lastCheckpointDistance || 0;
-              opp.mesh.position.copy(opp.lastCheckpointPos);
-              opp.velocity.set(0, 0, 0);
-              opp.grounded = true;
-              opp.stumbleTimer = 1.5;
-            }
-
-            const targetPos = getPointAtLength(opp.progressDistance);
-
-            // GROUND DETECTION
-            const splineGroundY = targetPos.y - 0.6;
-            const actualGroundY = getBlockSurfaceHeight(opp.mesh.position.x, opp.mesh.position.z);
-            // isOnRealGround: an actual block is beneath the bot — used to gate jumps so bots never jump on thin air
-            const isOnRealGround = actualGroundY !== -Infinity;
-            // groundY: use the real surface when available; fall back to spline only to prevent void-falls on large gaps
-            let groundY = actualGroundY;
-            if (!isOnRealGround || groundY < splineGroundY - 4.0) {
-              groundY = splineGroundY;
-            }
-
-            // HORIZONTAL MOVEMENT — framerate-independent lerp toward spline target.
-            // Using exp-decay factor so the mesh always stays tightly coupled to progressDistance,
-            // preventing the bot from "finishing" while still physically far behind.
-            const lerpFactor = 1.0 - Math.exp(-10.0 * dt);
-            opp.mesh.position.x = THREE.MathUtils.lerp(opp.mesh.position.x, targetPos.x, lerpFactor);
-            opp.mesh.position.z = THREE.MathUtils.lerp(opp.mesh.position.z, targetPos.z, lerpFactor);
-            // Horizontal velocity is not used for movement; zero it so it doesn't accumulate.
-            opp.velocity.x = 0;
-            opp.velocity.z = 0;
-
-            // JUMP PAD — only fire when standing on a real block, never on thin air
-            const standingBlock = getBlockAtCoords(opp.mesh.position.x, opp.mesh.position.z);
-            if (standingBlock && standingBlock.type === 'jump' && opp.grounded && isOnRealGround && opp.mesh.position.y <= groundY + 0.8 && (!opp.jumpCooldown || opp.jumpCooldown <= 0)) {
-              opp.velocity.y = 20.0;
-              opp.grounded = false;
-              opp.jumpCooldown = 0.5;
-            }
-
-            // JUMP LOOKAHEAD — only when standing on a real block so bots never jump while floating over gaps
-            if (opp.grounded && isOnRealGround && opp.mesh.position.y <= groundY + 0.8 && (!opp.jumpCooldown || opp.jumpCooldown <= 0)) {
-              const aheadDist = Math.max(2.0, botSpeed * 0.22);
-              const aheadPos = getPointAtLength(opp.progressDistance + aheadDist);
-              const aheadGroundY = getBlockSurfaceHeight(aheadPos.x, aheadPos.z);
-              const splineDeltaY = aheadPos.y - opp.mesh.position.y;
-
-              const isGapAhead = aheadGroundY === -Infinity || (actualGroundY - aheadGroundY > 2.0);
-              const isClimbAhead = splineDeltaY > 0.8;
-
-              if (isGapAhead || isClimbAhead) {
-                const jumpVel = isClimbAhead ? 13.5 : (11.0 + Math.random() * 3.0);
-                opp.velocity.y = jumpVel;
-                opp.grounded = false;
-                opp.jumpCooldown = 0.5;
-              }
-            }
-
-            if (opp.jumpCooldown > 0) {
-              opp.jumpCooldown -= dt;
-            }
-
-            // VERTICAL PHYSICS — same gravity constant as the player (23.5)
-            if (opp.mesh.position.y <= groundY + 0.62 && opp.velocity.y <= 0) {
-              // Grounded
-              opp.mesh.position.y = THREE.MathUtils.lerp(opp.mesh.position.y, groundY + 0.6, 0.25);
-              opp.velocity.y = 0;
-              opp.grounded = true;
-            } else {
-              // Airborne
-              opp.velocity.y -= 23.5 * dt;
-              opp.mesh.position.y += opp.velocity.y * dt;
-              opp.grounded = false;
-
-              // Landing
-              if (opp.mesh.position.y < groundY + 0.6 && opp.velocity.y < 0) {
-                opp.mesh.position.y = groundY + 0.6;
-                opp.velocity.y = 0;
-                opp.grounded = true;
-              }
-            }
-
-            // Respawn penalty if fallen into void (acts as backup fallback)
-            if (opp.mesh.position.y < -20.0) {
-              opp.progressDistance = opp.lastCheckpointDistance || 0;
-              opp.mesh.position.copy(opp.lastCheckpointPos);
-              opp.velocity.set(0, 0, 0);
-              opp.grounded = true;
-              opp.stumbleTimer = 1.5; // Stumble penalty for falling
-            }
-
-            // Running bobbing and airborne tilting animation with fluid squish & stretch scaling
-            if (opp.grounded) {
-              const bob = Math.sin(opp.progressDistance * 1.5) * 0.05;
-              opp.mesh.position.y += bob;
-              opp.mesh.rotation.z = Math.sin(opp.progressDistance * 1.5) * 0.04;
-              opp.mesh.rotation.x = 0.05; // slight forward lean when running
-              opp.mesh.scale.set(
-                THREE.MathUtils.lerp(opp.mesh.scale.x, 1, 0.1),
-                THREE.MathUtils.lerp(opp.mesh.scale.y, 1, 0.1),
-                THREE.MathUtils.lerp(opp.mesh.scale.z, 1, 0.1)
-              );
-            } else {
-              const tilt = THREE.MathUtils.clamp(opp.velocity.y * 0.03, -0.2, 0.2);
-              opp.mesh.rotation.x = -tilt - 0.1; // lean into the jump/fall
-              opp.mesh.rotation.z = 0;
-              if (opp.velocity.y > 0) {
-                // Stretch on upward arc
-                opp.mesh.scale.set(
-                  THREE.MathUtils.lerp(opp.mesh.scale.x, 0.85, 0.1),
-                  THREE.MathUtils.lerp(opp.mesh.scale.y, 1.25, 0.1),
-                  THREE.MathUtils.lerp(opp.mesh.scale.z, 0.85, 0.1)
-                );
-              } else {
-                // Squish on downward arc / landing anticipation
-                opp.mesh.scale.set(
-                  THREE.MathUtils.lerp(opp.mesh.scale.x, 1.15, 0.1),
-                  THREE.MathUtils.lerp(opp.mesh.scale.y, 0.8, 0.1),
-                  THREE.MathUtils.lerp(opp.mesh.scale.z, 1.15, 0.1)
-                );
-              }
-            }
-
-            // Compute direction to look
-            const nextTarget = getPointAtLength(opp.progressDistance + 1.5);
-            const walkDir = new THREE.Vector3().subVectors(nextTarget, opp.mesh.position).setY(0);
-            if (walkDir.lengthSq() > 0.01) {
-              const dirYaw = Math.atan2(walkDir.x, walkDir.z);
-              opp.mesh.rotation.y = dirYaw;
-            }
-
-            // Bots hit finish threshold
-            if (opp.progressDistance >= totalSplineLengthRef.current) {
-              opp.finished = true;
-              let finalTime = elapsedTimeRef.current;
-              if (level.id === 'monochrome_void' && finalTime < 24.0) {
-                finalTime = 24.0 + Math.random() * 0.5;
-              }
-              opp.finalTime = parseFloat(finalTime.toFixed(3));
-              warpFinishedBotToEndBlock(opp);
-            }
+            // Keep progressDistance meaningful for live-rankings sort
+            opp.progressDistance = (targetMs / lastFrame.time) * totalSplineLengthRef.current;
           } else {
             // Linearly interpolate received websocket positions
             opp.mesh.position.lerp(opp.targetPosition, 0.15);
