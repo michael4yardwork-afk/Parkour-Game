@@ -2603,24 +2603,26 @@ export default function GameCanvas({
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => onChangeSettings?.({ ...settings, showGhost: !settings.showGhost })}
-                  title={settings.showGhost ? 'Ghost: On — click to turn off' : 'Ghost: Off — click to turn on'}
-                  className="pointer-events-auto flex items-center gap-2 bg-neutral-900/90 border border-neutral-800 px-2.5 py-1.5 rounded-lg cursor-pointer transition hover:border-neutral-700"
-                >
-                  <span className="text-[11px]">👻</span>
-                  <div
-                    className={`relative inline-flex h-4 w-7 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                      settings.showGhost ? 'bg-indigo-600' : 'bg-neutral-600'
-                    }`}
+                {!raceMode && (
+                  <button
+                    onClick={() => onChangeSettings?.({ ...settings, showGhost: !settings.showGhost })}
+                    title={settings.showGhost ? 'Ghost: On — click to turn off' : 'Ghost: Off — click to turn on'}
+                    className="pointer-events-auto flex items-center gap-2 bg-neutral-900/90 border border-neutral-800 px-2.5 py-1.5 rounded-lg cursor-pointer transition hover:border-neutral-700"
                   >
-                    <span
-                      className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        settings.showGhost ? 'translate-x-3' : 'translate-x-0'
+                    <span className="text-[11px]">👻</span>
+                    <div
+                      className={`relative inline-flex h-4 w-7 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        settings.showGhost ? 'bg-indigo-600' : 'bg-neutral-600'
                       }`}
-                    />
-                  </div>
-                </button>
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          settings.showGhost ? 'translate-x-3' : 'translate-x-0'
+                        }`}
+                      />
+                    </div>
+                  </button>
+                )}
                 <button
                   onClick={handleExitAttempt}
                   className="pointer-events-auto bg-neutral-900/90 border border-neutral-800 px-3 py-1.5 rounded-lg text-[10px] text-neutral-400 hover:text-neutral-200 cursor-pointer transition font-mono uppercase"
