@@ -237,8 +237,7 @@ export default function GameCanvas({
     }
 
     // Attempt to load Ghost
-    // Ghosts are never shown in races (bots/players via the Races tab) — only in solo play.
-    const ghostData = !raceMode ? localStorage.getItem(`ghost_replay_${level.id}`) : null;
+    const ghostData = localStorage.getItem(`ghost_replay_${level.id}`);
     if (ghostData && settings.showGhost) {
       try {
         const parsed: RunReplay = JSON.parse(ghostData);
@@ -256,7 +255,7 @@ export default function GameCanvas({
     };
     checkMobile();
 
-  }, [level.id, settings.showGhost, raceMode]);
+  }, [level.id, settings.showGhost]);
 
   const handleExitAttempt = () => {
     if (raceMode && !isCompleted) {
@@ -342,9 +341,8 @@ export default function GameCanvas({
       setPersonalBest(null);
     }
 
-    // Ghosts are never shown in races (bots/players via the Races tab) — only in solo play.
-    const ghostData = !raceMode ? localStorage.getItem(`ghost_replay_${level.id}`) : null;
-
+    const ghostData = localStorage.getItem(`ghost_replay_${level.id}`);
+    
     // Remove old ghost mesh from the scene if it exists
     if (ghostMeshRef.current && sceneRef.current) {
       sceneRef.current.remove(ghostMeshRef.current);
@@ -388,8 +386,8 @@ export default function GameCanvas({
       overrideGhostMeshRef.current = null;
     }
 
-    // Set up override ghost mesh if frames were provided (never in races — bots/players via the Races tab)
-    if (!raceMode && ghostOverride && ghostOverride.length > 0) {
+    // Set up override ghost mesh if frames were provided
+    if (ghostOverride && ghostOverride.length > 0) {
       overrideGhostFramesRef.current = ghostOverride;
       overrideGhostActiveRef.current = true;
 
@@ -1411,7 +1409,7 @@ export default function GameCanvas({
       }
     };
 
-  }, [level.id, level.theme, level.blocks.length, settings.showGhost, raceMode]);
+  }, [level.id, level.theme, level.blocks.length, settings.showGhost]);
 
   // Construct standard level blocks meshes
   const buildLevelGeometry = (scene: THREE.Scene) => {
