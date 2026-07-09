@@ -2507,7 +2507,7 @@ export default function GameCanvas({
   };
 
   return (
-    <div ref={canvasContainerRef} className="relative w-full h-[90vh] bg-neutral-950 overflow-hidden select-none">
+    <div ref={canvasContainerRef} className="relative w-full h-full bg-neutral-950 overflow-hidden select-none">
       
       {/* 3D WebGL Canvas viewport */}
       <canvas 

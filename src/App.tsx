@@ -381,8 +381,10 @@ export default function App() {
 
   const isCoolBlueTab = ['home', 'levels', 'saved', 'community', 'races', 'profile', 'notifications'].includes(tab);
 
+  const isPlaying = tab === 'play';
+
   return (
-    <div className={`min-h-screen text-neutral-800 selection:bg-indigo-600 selection:text-white flex flex-col transition-colors duration-300 ${isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-white'}`}>
+    <div className={`${isPlaying ? 'game-fullscreen overflow-hidden' : 'min-h-full'} text-neutral-800 selection:bg-indigo-600 selection:text-white flex flex-col transition-colors duration-300 ${isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-white'}`}>
       
       {/* Primary Navigation Shell */}
       {tab !== 'play' && tab !== 'editor' && (
@@ -533,7 +535,7 @@ export default function App() {
       )}
 
       {/* Screen Routing Outlet */}
-      <main className={`flex-1 transition-colors duration-300 ${isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-white'}`}>
+      <main className={`${isPlaying ? 'flex-1 overflow-hidden' : 'flex-1'} transition-colors duration-300 ${isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-white'}`}>
         {tab === 'home' && (
           <Dashboard
             settings={settings}
