@@ -236,8 +236,8 @@ export default function GameCanvas({
       setPersonalBest(null);
     }
 
-    // Attempt to load Ghost
-    const ghostData = localStorage.getItem(`ghost_replay_${level.id}`);
+    // Attempt to load Ghost — PR ghost is disabled entirely during races (bots and/or players)
+    const ghostData = raceMode ? null : localStorage.getItem(`ghost_replay_${level.id}`);
     if (ghostData && settings.showGhost) {
       try {
         const parsed: RunReplay = JSON.parse(ghostData);
@@ -255,7 +255,7 @@ export default function GameCanvas({
     };
     checkMobile();
 
-  }, [level.id, settings.showGhost]);
+  }, [level.id, settings.showGhost, raceMode]);
 
   const handleExitAttempt = () => {
     if (raceMode && !isCompleted) {
@@ -341,7 +341,8 @@ export default function GameCanvas({
       setPersonalBest(null);
     }
 
-    const ghostData = localStorage.getItem(`ghost_replay_${level.id}`);
+    // PR ghost is disabled entirely during races (bots and/or players)
+    const ghostData = raceMode ? null : localStorage.getItem(`ghost_replay_${level.id}`);
     
     // Remove old ghost mesh from the scene if it exists
     if (ghostMeshRef.current && sceneRef.current) {
@@ -2927,8 +2928,8 @@ export default function GameCanvas({
               </>
             )}
 
-            <div className={`${raceMode || level.id === 'test_level_active' ? 'flex' : 'grid grid-cols-2'} gap-2.5 w-full mt-8`}>
-              {!raceMode && (
+            {!raceMode && (
+              <div className={`${level.id === 'test_level_active' ? 'flex' : 'grid grid-cols-2'} gap-2.5 w-full mt-8`}>
                 <button
                   onClick={initGame}
                   className={`py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-900 text-xs font-bold rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer ${level.id === 'test_level_active' ? 'w-full' : ''}`}
@@ -2936,17 +2937,17 @@ export default function GameCanvas({
                   <RotateCcw className="w-4 h-4" />
                   Retry Run
                 </button>
-              )}
-              {level.id !== 'test_level_active' && (
-                <button
-                  onClick={onShowLeaderboard}
-                  className={`py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer border border-neutral-700 ${raceMode ? 'w-full' : ''}`}
-                >
-                  <Award className="w-4 h-4" />
-                  Leaderboard
-                </button>
-              )}
-            </div>
+                {level.id !== 'test_level_active' && (
+                  <button
+                    onClick={onShowLeaderboard}
+                    className="py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer border border-neutral-700"
+                  >
+                    <Award className="w-4 h-4" />
+                    Leaderboard
+                  </button>
+                )}
+              </div>
+            )}
 
             <button
               onClick={handleExitAttempt}
