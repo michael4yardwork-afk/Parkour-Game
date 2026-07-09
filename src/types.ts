@@ -79,6 +79,7 @@ export interface LeaderboardEntry {
   device?: string;
   speeds?: number[];
   actions?: string[];
+  hasFrames?: boolean;
 }
 
 export interface GameSettings {

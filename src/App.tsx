@@ -14,7 +14,7 @@ import NotificationsTab from './components/NotificationsTab';
 import SettingsModal from './components/SettingsModal';
 import HelpModal from './components/HelpModal';
 import PrivacyModal from './components/PrivacyModal';
-import { LevelConfig, GameSettings, UserAccount, RaceParticipant, CourseNotification } from './types';
+import { LevelConfig, GameSettings, UserAccount, RaceParticipant, CourseNotification, GhostFrame } from './types';
 import { synths } from './audio';
 import { api, flushPendingSubmissions } from './api';
 
@@ -104,6 +104,10 @@ export default function App() {
   // Leaderboard modal states
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [leaderboardLevel, setLeaderboardLevel] = useState<{ id: string; name: string } | null>(null);
+
+  // Ghost override — set when user clicks "Race Ghost" in the leaderboard
+  const [ghostOverrideFrames, setGhostOverrideFrames] = useState<GhostFrame[] | null>(null);
+  const [ghostOverrideLabel, setGhostOverrideLabel] = useState<string | null>(null);
 
   // System settings modal state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -305,6 +309,18 @@ export default function App() {
   const handleLaunchLeaderboard = (levelId: string, levelName: string) => {
     setLeaderboardLevel({ id: levelId, name: levelName });
     setLeaderboardOpen(true);
+  };
+
+  const handleRaceGhost = async (entry: import('./types').LeaderboardEntry) => {
+    if (!leaderboardLevel) return;
+    const result = await api.leaderboard.getEntryFrames(leaderboardLevel.id, entry.id);
+    if (!result || !result.frames || result.frames.length === 0) {
+      alert('No ghost replay available for this run.');
+      return;
+    }
+    setGhostOverrideFrames(result.frames);
+    setGhostOverrideLabel(entry.playerName);
+    setLeaderboardOpen(false);
   };
 
   const handleViewProfile = (profileUsername: string) => {
@@ -638,6 +654,8 @@ export default function App() {
             raceWs={raceWsRef.current}
             raceRoomId={raceRoomId}
             onRaceFinished={(finalTime, rankings) => handleSaveRaceResults(finalTime, rankings)}
+            ghostOverride={ghostOverrideFrames}
+            ghostOverrideLabel={ghostOverrideLabel}
             onExit={() => {
               const wasRaces = raceMode;
               // Don't close the WebSocket here — Races.tsx manages its lifetime.
@@ -646,6 +664,9 @@ export default function App() {
               setRaceRoomId(null);
               setRaceMode(false);
               setRaceOpponents([]);
+              // Clear ghost override when leaving
+              setGhostOverrideFrames(null);
+              setGhostOverrideLabel(null);
               if (activeLevel.id === 'test_level_active') {
                 setTab('editor'); // return back to editor sandbox
               } else if (activeLevel.isCustom) {
@@ -670,6 +691,7 @@ export default function App() {
           currentUser={currentUser}
           onClose={() => setLeaderboardOpen(false)}
           onViewProfile={handleViewProfile}
+          onRaceGhost={handleRaceGhost}
         />
       )}
 

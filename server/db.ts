@@ -93,6 +93,11 @@ export async function initDb() {
       color TEXT DEFAULT '#3b82f6'
     );
   `);
+
+  // Add frames column if it doesn't exist yet (migration for existing tables)
+  await pool.query(`
+    ALTER TABLE leaderboard_entries ADD COLUMN IF NOT EXISTS frames JSONB;
+  `);
 }
 
 export default pool;

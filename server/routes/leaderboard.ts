@@ -20,7 +20,8 @@ router.get('/:levelId', async (req: Request, res: Response) => {
   try {
     const { levelId } = req.params;
     const result = await pool.query(
-      `SELECT id, level_id, player_name, time, date, device, speeds, actions
+      `SELECT id, level_id, player_name, time, date, device, speeds, actions,
+              (frames IS NOT NULL AND jsonb_typeof(frames) = 'array' AND jsonb_array_length(frames) > 0) AS has_frames
        FROM leaderboard_entries WHERE level_id = $1 ORDER BY time ASC LIMIT 500`,
       [levelId]
     );
@@ -32,8 +33,27 @@ router.get('/:levelId', async (req: Request, res: Response) => {
       date: parseInt(r.date),
       device: r.device,
       speeds: r.speeds,
-      actions: r.actions
+      actions: r.actions,
+      hasFrames: r.has_frames === true
     })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+// Fetch ghost replay frames for a specific leaderboard entry (lazy-loaded)
+router.get('/:levelId/:entryId/frames', async (req: Request, res: Response) => {
+  try {
+    const { levelId, entryId } = req.params;
+    const result = await pool.query(
+      `SELECT frames FROM leaderboard_entries WHERE id = $1 AND level_id = $2`,
+      [entryId, levelId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Entry not found.' });
+    const frames = result.rows[0].frames;
+    if (!frames || frames.length === 0) return res.status(404).json({ error: 'No ghost replay available for this run.' });
+    res.json({ frames });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error.' });
@@ -44,7 +64,7 @@ router.post('/:levelId', async (req: Request, res: Response) => {
   try {
     const username = getAuth(req);
     const { levelId } = req.params;
-    const { time, date, device, speeds, actions } = req.body;
+    const { time, date, device, speeds, actions, frames } = req.body;
 
     if (!username) {
       console.warn(`[leaderboard] Rejected submit for level="${levelId}": missing/invalid auth token. hasAuthHeader=${!!req.headers.authorization}`);
@@ -56,16 +76,32 @@ router.post('/:levelId', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid run time.' });
     }
 
-    console.log(`[leaderboard] Accepting submit for level="${levelId}" user="${username}" time=${time}`);
+    // Validate frames: must be an array, cap at 3000 entries, and each entry must be an object
+    let validatedFrames: any[] | null = null;
+    if (Array.isArray(frames) && frames.length > 0) {
+      validatedFrames = frames.slice(0, 3000).filter(
+        f => f && typeof f === 'object' &&
+             typeof f.time === 'number' && isFinite(f.time) &&
+             typeof f.x === 'number' && isFinite(f.x) &&
+             typeof f.y === 'number' && isFinite(f.y) &&
+             typeof f.z === 'number' && isFinite(f.z) &&
+             typeof f.rx === 'number' && isFinite(f.rx) &&
+             typeof f.ry === 'number' && isFinite(f.ry)
+      );
+      if (validatedFrames.length === 0) validatedFrames = null;
+    }
+
+    console.log(`[leaderboard] Accepting submit for level="${levelId}" user="${username}" time=${time} hasFrames=${!!validatedFrames} frameCount=${validatedFrames?.length ?? 0}`);
 
     const id = `run_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
     await pool.query(
-      `INSERT INTO leaderboard_entries (id, level_id, player_name, time, date, device, speeds, actions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `INSERT INTO leaderboard_entries (id, level_id, player_name, time, date, device, speeds, actions, frames)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [id, levelId, username, time, date || Date.now(), device || 'desktop',
        speeds ? JSON.stringify(speeds) : null,
-       actions ? JSON.stringify(actions) : null]
+       actions ? JSON.stringify(actions) : null,
+       validatedFrames ? JSON.stringify(validatedFrames) : null]
     );
 
     res.json({ id, success: true });

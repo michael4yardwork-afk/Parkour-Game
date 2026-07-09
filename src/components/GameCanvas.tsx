@@ -36,6 +36,10 @@ interface GameCanvasProps {
   raceWs?: WebSocket | null;
   /** Server-assigned room ID for routing in-race messages */
   raceRoomId?: string | null;
+  /** Ghost frames from a specific leaderboard entry to race against */
+  ghostOverride?: GhostFrame[] | null;
+  /** Display name for the ghost override (e.g. "PlayerName") */
+  ghostOverrideLabel?: string | null;
 }
 
 
@@ -52,6 +56,8 @@ export default function GameCanvas({
   onRaceFinished,
   raceWs,
   raceRoomId,
+  ghostOverride = null,
+  ghostOverrideLabel = null,
 }: GameCanvasProps) {
   // Game states
   const [, setIsPlaying] = useState(false);
@@ -105,6 +111,11 @@ export default function GameCanvas({
   const ghostFramesRef = useRef<GhostFrame[]>([]);
   const ghostMeshRef = useRef<THREE.Mesh | null>(null);
   const ghostActiveRef = useRef<boolean>(false);
+
+  // Override ghost — races a specific leaderboard entry's recording
+  const overrideGhostFramesRef = useRef<GhostFrame[]>([]);
+  const overrideGhostMeshRef = useRef<THREE.Mesh | null>(null);
+  const overrideGhostActiveRef = useRef<boolean>(false);
 
   // Multi-player races refs & states
   const opponentMeshesRef = useRef<{
@@ -351,6 +362,36 @@ export default function GameCanvas({
       ghostFramesRef.current = [];
     }
 
+    // Remove old override ghost mesh from the scene if it exists
+    if (overrideGhostMeshRef.current && sceneRef.current) {
+      sceneRef.current.remove(overrideGhostMeshRef.current);
+      overrideGhostMeshRef.current.geometry.dispose();
+      (overrideGhostMeshRef.current.material as THREE.Material).dispose();
+      overrideGhostMeshRef.current = null;
+    }
+
+    // Set up override ghost mesh if frames were provided
+    if (ghostOverride && ghostOverride.length > 0) {
+      overrideGhostFramesRef.current = ghostOverride;
+      overrideGhostActiveRef.current = true;
+
+      if (sceneRef.current) {
+        const overrideGeom = new THREE.CapsuleGeometry(0.5, 1.0, 4, 8);
+        const overrideMat = new THREE.MeshBasicMaterial({
+          color: 0xf59e0b,
+          transparent: true,
+          opacity: 0.65,
+          wireframe: false
+        });
+        const overrideMesh = new THREE.Mesh(overrideGeom, overrideMat);
+        sceneRef.current.add(overrideMesh);
+        overrideGhostMeshRef.current = overrideMesh;
+      }
+    } else {
+      overrideGhostActiveRef.current = false;
+      overrideGhostFramesRef.current = [];
+    }
+
     // Locate the spawn coordinate block
     const spawnBlock = level.blocks.find(b => b.type === 'start') || level.blocks[0];
     const spawnY = spawnBlock ? spawnBlock.y + spawnBlock.h + 1.2 : 4;
@@ -526,6 +567,7 @@ export default function GameCanvas({
 
     synths.playTick();
     updateGhostReplay();
+    updateOverrideGhostReplay();
   };
 
   const getPointAtLength = (len: number) => {
@@ -994,6 +1036,7 @@ export default function GameCanvas({
 
           elapsedTimeRef.current += dt;
           updateGhostReplay();
+          updateOverrideGhostReplay();
           setElapsedTime(elapsedTimeRef.current);
         } else {
           currentRunFramesRef.current = [{
@@ -1009,6 +1052,7 @@ export default function GameCanvas({
           currentRunActionsRef.current = ['Sprinting'];
           setElapsedTime(0.00);
           updateGhostReplay();
+          updateOverrideGhostReplay();
         }
 
         // Multiplayer / Racing updates
@@ -1783,6 +1827,18 @@ export default function GameCanvas({
     };
   }, []);
 
+  // When a new ghost override is injected (user clicked "Race Ghost" from leaderboard),
+  // restart the run from the top so they race the ghost from the start.
+  const ghostOverrideRef = useRef(ghostOverride);
+  useEffect(() => {
+    if (ghostOverrideRef.current === ghostOverride) return; // no actual change
+    ghostOverrideRef.current = ghostOverride;
+    if (ghostOverride && ghostOverride.length > 0) {
+      initGame(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ghostOverride]);
+
   // Handle Mouse movement looking rotations
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -2226,6 +2282,25 @@ export default function GameCanvas({
     }
   };
 
+  // Replay the selected leaderboard ghost (amber / orange, distinct from PR ghost)
+  const updateOverrideGhostReplay = () => {
+    if (!overrideGhostActiveRef.current || !overrideGhostMeshRef.current || overrideGhostFramesRef.current.length === 0) return;
+
+    const targetMs = elapsedTimeRef.current * 1000;
+    let activeFrame = overrideGhostFramesRef.current[overrideGhostFramesRef.current.length - 1];
+    for (let i = 0; i < overrideGhostFramesRef.current.length; i++) {
+      if (overrideGhostFramesRef.current[i].time > targetMs) {
+        activeFrame = overrideGhostFramesRef.current[i];
+        break;
+      }
+    }
+
+    if (activeFrame) {
+      overrideGhostMeshRef.current.position.set(activeFrame.x, activeFrame.y + 0.8, activeFrame.z);
+      overrideGhostMeshRef.current.rotation.set(activeFrame.rx, activeFrame.ry, 0);
+    }
+  };
+
   const handlePlayerDeath = () => {
     setAttempts(prev => prev + 1);
     synths.playDeath();
@@ -2398,12 +2473,16 @@ export default function GameCanvas({
             finalTime
           );
 
+          // Downsample frames to every 3rd to keep payload size reasonable (~66% reduction)
+          const downsampledFrames = currentRunFramesRef.current.filter((_, i) => i % 3 === 0);
+
           const submitPayload = {
             time: finalTime,
             date: Date.now(),
             device: isMobileRef.current ? 'mobile' : 'desktop',
             speeds: resampledSpeeds,
-            actions: currentRunActionsRef.current
+            actions: currentRunActionsRef.current,
+            frames: downsampledFrames
           };
 
           // Submit then fetch the real leaderboard for accurate standing
@@ -2601,6 +2680,18 @@ export default function GameCanvas({
       {!isCompleted && (
         <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-6 z-10">
           
+          {/* Ghost Override Indicator — shown when racing a specific leaderboard ghost */}
+          {ghostOverrideLabel && overrideGhostActiveRef.current && (
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+              <div className="bg-amber-500/15 border border-amber-500/40 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2 shadow-lg">
+                <span className="text-amber-400 text-sm">👻</span>
+                <span className="text-[11px] font-mono font-bold text-amber-300 tracking-wide">
+                  Racing {ghostOverrideLabel}'s ghost
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Live Racing Standings list */}
           {raceMode && liveRankings.length > 0 && (
             <div className="absolute top-24 left-6 bg-neutral-900/95 border border-neutral-800 p-4 rounded-2xl shadow-lg backdrop-blur w-56 flex flex-col gap-2 z-20 pointer-events-auto">

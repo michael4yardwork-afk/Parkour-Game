@@ -136,11 +136,19 @@ export const api = {
       }
     },
 
-    async submit(levelId: string, entry: { time: number; date: number; device?: string; speeds?: number[]; actions?: string[] }): Promise<{ id: string }> {
+    async submit(levelId: string, entry: { time: number; date: number; device?: string; speeds?: number[]; actions?: string[]; frames?: any[] }): Promise<{ id: string }> {
       return apiFetch<{ id: string }>(`/leaderboard/${encodeURIComponent(levelId)}`, {
         method: 'POST',
         body: JSON.stringify(entry)
       });
+    },
+
+    async getEntryFrames(levelId: string, entryId: string): Promise<{ frames: import('./types').GhostFrame[] } | null> {
+      try {
+        return await apiFetch<{ frames: import('./types').GhostFrame[] }>(`/leaderboard/${encodeURIComponent(levelId)}/${encodeURIComponent(entryId)}/frames`);
+      } catch {
+        return null;
+      }
     },
 
     async clearMyRuns(levelId: string): Promise<void> {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, RefreshCw, Award, LineChart, Activity, TrendingUp, GitCompare } from 'lucide-react';
+import { Trophy, RefreshCw, Award, LineChart, Activity, TrendingUp, GitCompare, Play, Loader } from 'lucide-react';
 import { LeaderboardEntry, UserAccount } from '../types';
 import { api } from '../api';
 import VelocityChart from './VelocityChart';
@@ -11,9 +11,10 @@ interface LeaderboardProps {
   onClose: () => void;
   currentUser?: UserAccount | null;
   onViewProfile?: (username: string) => void;
+  onRaceGhost?: (entry: LeaderboardEntry) => Promise<void>;
 }
 
-export default function Leaderboard({ levelId, levelName, localBest, onClose, currentUser, onViewProfile }: LeaderboardProps) {
+export default function Leaderboard({ levelId, levelName, localBest, onClose, currentUser, onViewProfile, onRaceGhost }: LeaderboardProps) {
   const [filter, setFilter] = useState<'world' | 'local'>('world');
   const [worldView, setWorldView] = useState<'top' | 'my_position'>('top');
   const [rawEntries, setRawEntries] = useState<LeaderboardEntry[]>([]);
@@ -22,6 +23,7 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const [compareRunId, setCompareRunId] = useState<string | null>(null);
   const [userIconMap, setUserIconMap] = useState<Record<string, { avatar: string; avatarBg: string }>>({});
+  const [loadingGhostId, setLoadingGhostId] = useState<string | null>(null);
 
   useEffect(() => {
     setCurrentLocalBest(localBest);
@@ -334,6 +336,31 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
                       <div className="flex items-center gap-3">
                         {entry.speeds && entry.speeds.length > 0 && (
                           <div className="flex items-center gap-1">
+                            {entry.hasFrames && onRaceGhost && (
+                              <button
+                                onClick={async () => {
+                                  if (loadingGhostId) return;
+                                  setLoadingGhostId(entry.id);
+                                  try {
+                                    await onRaceGhost(entry);
+                                  } finally {
+                                    setLoadingGhostId(null);
+                                  }
+                                }}
+                                disabled={loadingGhostId === entry.id}
+                                className={`p-1.5 rounded-lg transition-all duration-200 flex items-center justify-center border cursor-pointer
+                                  ${loadingGhostId === entry.id
+                                    ? 'text-amber-400 bg-amber-500/10 border-amber-500/20 cursor-wait'
+                                    : 'text-neutral-500 hover:text-amber-400 hover:bg-amber-500/10 border-transparent hover:border-amber-500/20'
+                                  }`}
+                                title="Race this ghost"
+                              >
+                                {loadingGhostId === entry.id
+                                  ? <Loader className="w-3.5 h-3.5 animate-spin" />
+                                  : <Play className="w-3.5 h-3.5" />
+                                }
+                              </button>
+                            )}
                             <button
                               onClick={() => { if (isExpanded) { setExpandedRunId(null); setCompareRunId(null); } else { setExpandedRunId(entry.id); setCompareRunId(null); } }}
                               className={`p-1.5 rounded-lg transition-all duration-200 cursor-pointer flex items-center justify-center border ${isExpanded ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'text-neutral-500 hover:text-indigo-400 hover:bg-neutral-800 border-transparent'}`}
