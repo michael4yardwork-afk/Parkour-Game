@@ -4,6 +4,7 @@ import { UserAccount } from '../types';
 import { synths } from '../audio';
 import { hasVulgarLanguage } from '../utils';
 import { api } from '../api';
+import { AVATAR_BGS } from '../avatarThemes';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: UserAccount) => void;
@@ -22,15 +23,6 @@ const AVATARS = [
   { emoji: '🔥', name: 'Overdrive' },
   { emoji: '👑', name: 'Championship' },
   { emoji: '🦁', name: 'Primal Spirit' },
-];
-
-const AVATAR_BGS = [
-  { class: 'bg-rose-500/20 border-rose-500/40 text-rose-300', value: 'bg-rose-500' },
-  { class: 'bg-amber-500/20 border-amber-500/40 text-amber-300', value: 'bg-amber-500' },
-  { class: 'bg-green-500/20 border-green-500/40 text-green-300', value: 'bg-green-500' },
-  { class: 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300', value: 'bg-cyan-500' },
-  { class: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300', value: 'bg-indigo-500' },
-  { class: 'bg-purple-500/20 border-purple-500/40 text-purple-300', value: 'bg-purple-500' },
 ];
 
 const GAME_FEATURES = [
@@ -383,9 +375,12 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">Icon Theme</span>
                     <div className="flex flex-wrap gap-2">
                       {AVATAR_BGS.map(bg => (
-                        <button key={bg.value} type="button" onClick={() => { setSelectedBg(bg.value); synths.playTick(); }}
+                        <button key={bg.value} type="button" title={bg.label} onClick={() => { setSelectedBg(bg.value); synths.playTick(); }}
                           className={`w-8 h-8 rounded-full border flex items-center justify-center transition focus:outline-none ${bg.class} relative`}>
-                          {selectedBg === bg.value && <Check className="w-3.5 h-3.5 stroke-[3] text-white" />}
+                          {bg.special && (
+                            <Sparkles className={`w-2.5 h-2.5 absolute -top-1 -right-1 drop-shadow ${selectedBg === bg.value ? 'text-white' : 'text-yellow-300'}`} />
+                          )}
+                          {selectedBg === bg.value && <Check className="w-3.5 h-3.5 stroke-[3] text-white drop-shadow" />}
                         </button>
                       ))}
                     </div>

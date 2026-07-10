@@ -29,15 +29,6 @@ const AVATARS = [
   { emoji: '🦁', name: 'Primal Spirit' },
 ];
 
-const AVATAR_BGS = [
-  { class: 'bg-rose-500/20 border-rose-500/40 text-rose-300', value: 'bg-rose-500', label: 'Crimson' },
-  { class: 'bg-green-500/20 border-green-500/40 text-green-300', value: 'bg-green-500', label: 'Volt' },
-  { class: 'bg-purple-500/20 border-purple-500/40 text-purple-300', value: 'bg-purple-500', label: 'Neon' },
-  { class: 'bg-blue-500/20 border-blue-500/40 text-blue-300', value: 'bg-blue-500', label: 'Cyber' },
-  { class: 'bg-amber-500/20 border-amber-500/40 text-amber-300', value: 'bg-amber-500', label: 'Solar' },
-  { class: 'bg-indigo-505/20 border-indigo-505/40 text-indigo-300', value: 'bg-indigo-505', label: 'Slate' },
-];
-
 const getWorldRankAndPercentile = (levelId: string, time: number | null, username: string) => {
   if (time === null || time <= 0.05) return { rank: null, total: 0, percentile: null };
   try {

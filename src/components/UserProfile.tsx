@@ -5,6 +5,7 @@ import { LevelConfig, SceneTheme, UserAccount, LeaderboardEntry } from '../types
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { synths } from '../audio';
 import { api } from '../api';
+import { AVATAR_BGS } from '../avatarThemes';
 
 interface UserProfileProps {
   username: string;
@@ -37,33 +38,6 @@ const AVATARS = [
   { emoji: '🔥', name: 'Overdrive' },
   { emoji: '👑', name: 'Championship' },
   { emoji: '🦁', name: 'Primal Spirit' },
-];
-
-const AVATAR_BGS = [
-  // Neutrals
-  { class: 'bg-neutral-900 border-neutral-700 text-neutral-300',     value: 'bg-neutral-900' },
-  { class: 'bg-white border-neutral-300 text-neutral-400',            value: 'bg-white' },
-  { class: 'bg-neutral-400/20 border-neutral-400/40 text-neutral-300', value: 'bg-neutral-400' },
-  // Red → pink → purple spectrum
-  { class: 'bg-red-500/20 border-red-500/40 text-red-300',           value: 'bg-red-500' },
-  { class: 'bg-rose-500/20 border-rose-500/40 text-rose-300',         value: 'bg-rose-500' },
-  { class: 'bg-pink-500/20 border-pink-500/40 text-pink-300',         value: 'bg-pink-500' },
-  { class: 'bg-fuchsia-500/20 border-fuchsia-500/40 text-fuchsia-300', value: 'bg-fuchsia-500' },
-  { class: 'bg-purple-500/20 border-purple-500/40 text-purple-300',   value: 'bg-purple-500' },
-  { class: 'bg-violet-500/20 border-violet-500/40 text-violet-300',   value: 'bg-violet-500' },
-  { class: 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300',   value: 'bg-indigo-500' },
-  // Blue → green spectrum
-  { class: 'bg-blue-500/20 border-blue-500/40 text-blue-300',         value: 'bg-blue-500' },
-  { class: 'bg-sky-500/20 border-sky-500/40 text-sky-300',             value: 'bg-sky-500' },
-  { class: 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300',         value: 'bg-cyan-500' },
-  { class: 'bg-teal-500/20 border-teal-500/40 text-teal-300',         value: 'bg-teal-500' },
-  { class: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300', value: 'bg-emerald-500' },
-  { class: 'bg-green-500/20 border-green-500/40 text-green-300',       value: 'bg-green-500' },
-  { class: 'bg-lime-500/20 border-lime-500/40 text-lime-300',         value: 'bg-lime-500' },
-  // Yellow → orange spectrum
-  { class: 'bg-yellow-400/20 border-yellow-400/40 text-yellow-300',   value: 'bg-yellow-400' },
-  { class: 'bg-amber-500/20 border-amber-500/40 text-amber-300',       value: 'bg-amber-500' },
-  { class: 'bg-orange-500/20 border-orange-500/40 text-orange-300',   value: 'bg-orange-500' },
 ];
 
 export default function UserProfile({ username, currentUser, onBack, onSelectLevel, onUpdateCurrentUser }: UserProfileProps) {
@@ -443,13 +417,17 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                   {AVATAR_BGS.map((bg) => (
                     <button
                       key={bg.value}
+                      title={bg.label}
                       onClick={() => selectBg(bg.value)}
-                      className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition cursor-pointer ${bg.value} ${
+                      className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition cursor-pointer relative ${bg.value} ${
                         bg.value === (currentUser.avatarBg || 'bg-rose-500')
                           ? 'border-white scale-110 shadow-md'
                           : 'border-transparent hover:scale-105 hover:border-white/50'
                       }`}
                     >
+                      {bg.special && (
+                        <Sparkles className="w-2.5 h-2.5 absolute -top-1 -right-1 text-yellow-300 drop-shadow" />
+                      )}
                       {bg.value === (currentUser.avatarBg || 'bg-rose-500') && (
                         <svg className={`w-3.5 h-3.5 drop-shadow ${bg.value === 'bg-white' ? 'text-neutral-700' : 'text-white'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                       )}
