@@ -375,13 +375,15 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">Icon Theme</span>
                     <div className="flex flex-wrap gap-2">
                       {AVATAR_BGS.map(bg => (
-                        <button key={bg.value} type="button" title={bg.label} onClick={() => { setSelectedBg(bg.value); synths.playTick(); }}
-                          className={`w-8 h-8 rounded-full border flex items-center justify-center transition focus:outline-none ${bg.class} relative`}>
+                        <div key={bg.value} className="relative">
+                          <button type="button" title={bg.label} onClick={() => { setSelectedBg(bg.value); synths.playTick(); }}
+                            className={`w-8 h-8 rounded-full border overflow-hidden flex items-center justify-center transition focus:outline-none ${bg.class}`}>
+                            {selectedBg === bg.value && <Check className="w-3.5 h-3.5 stroke-[3] text-white drop-shadow relative z-10" />}
+                          </button>
                           {bg.special && (
-                            <Sparkles className={`w-2.5 h-2.5 absolute -top-1 -right-1 drop-shadow ${selectedBg === bg.value ? 'text-white' : 'text-yellow-300'}`} />
+                            <Sparkles className={`w-2.5 h-2.5 absolute -top-1 -right-1 drop-shadow pointer-events-none ${selectedBg === bg.value ? 'text-white' : 'text-yellow-300'}`} />
                           )}
-                          {selectedBg === bg.value && <Check className="w-3.5 h-3.5 stroke-[3] text-white drop-shadow" />}
-                        </button>
+                        </div>
                       ))}
                     </div>
                     {isSignUp && !selectedBg && (

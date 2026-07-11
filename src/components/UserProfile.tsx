@@ -415,23 +415,24 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {AVATAR_BGS.map((bg) => (
-                    <button
-                      key={bg.value}
-                      title={bg.label}
-                      onClick={() => selectBg(bg.value)}
-                      className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition cursor-pointer relative ${bg.value} ${
-                        bg.value === (currentUser.avatarBg || 'bg-rose-500')
-                          ? 'border-white scale-110 shadow-md'
-                          : 'border-transparent hover:scale-105 hover:border-white/50'
-                      }`}
-                    >
+                    <div key={bg.value} className="relative">
+                      <button
+                        title={bg.label}
+                        onClick={() => selectBg(bg.value)}
+                        className={`w-8 h-8 rounded-full border-2 overflow-hidden flex items-center justify-center transition cursor-pointer ${bg.value} ${
+                          bg.value === (currentUser.avatarBg || 'bg-rose-500')
+                            ? 'border-white scale-110 shadow-md'
+                            : 'border-transparent hover:scale-105 hover:border-white/50'
+                        }`}
+                      >
+                        {bg.value === (currentUser.avatarBg || 'bg-rose-500') && (
+                          <svg className={`w-3.5 h-3.5 drop-shadow ${bg.value === 'bg-white' ? 'text-neutral-700' : 'text-white'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        )}
+                      </button>
                       {bg.special && (
-                        <Sparkles className="w-2.5 h-2.5 absolute -top-1 -right-1 text-yellow-300 drop-shadow" />
+                        <Sparkles className="w-2.5 h-2.5 absolute -top-1 -right-1 text-yellow-300 drop-shadow pointer-events-none" />
                       )}
-                      {bg.value === (currentUser.avatarBg || 'bg-rose-500') && (
-                        <svg className={`w-3.5 h-3.5 drop-shadow ${bg.value === 'bg-white' ? 'text-neutral-700' : 'text-white'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                      )}
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
