@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite --port=5000 --host=0.0.0.0",
     "server": "node server.cjs",
-    "build": "vite build && node_modules/.bin/esbuild server/index.ts --platform=node --packages=external --bundle --format=cjs --outfile=server.cjs",
+    "build": "vite build && node_modules/.bin/esbuild server/index.ts --platform=node --bundle --format=cjs --outfile=server.cjs --external:pg-native --external:bufferutil --external:utf-8-validate",
     "start": "node server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.cjs",
