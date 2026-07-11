@@ -40,8 +40,10 @@ app.get('*', (_req, res) => {
 async function start() {
   // Bind to port FIRST so Hostinger's startup health check never times out
   setupWebSocketServer(httpServer);
-  await new Promise<void>(resolve => {
+  await new Promise<void>((resolve, reject) => {
+    httpServer.once('error', reject);
     httpServer.listen(PORT, '0.0.0.0', () => {
+      httpServer.removeListener('error', reject);
       console.log(`Delta Rush server running on http://0.0.0.0:${PORT}`);
       resolve();
     });

@@ -951,6 +951,9 @@ function removeFromQueue(ws) {
 }
 function setupWebSocketServer(httpServer2) {
   const wss = new import_ws.WebSocketServer({ server: httpServer2, path: "/ws" });
+  wss.on("error", (err) => {
+    console.error("[WS] WebSocketServer error:", err);
+  });
   wss.on("connection", (ws) => {
     ws.on("message", (raw) => {
       let msg;
@@ -1099,8 +1102,10 @@ app.get("*", (_req, res) => {
 });
 async function start() {
   setupWebSocketServer(httpServer);
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    httpServer.once("error", reject);
     httpServer.listen(PORT, "0.0.0.0", () => {
+      httpServer.removeListener("error", reject);
       console.log(`Delta Rush server running on http://0.0.0.0:${PORT}`);
       resolve();
     });

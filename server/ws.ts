@@ -144,6 +144,10 @@ function removeFromQueue(ws: WebSocket): boolean {
 export function setupWebSocketServer(httpServer: Server) {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
+  wss.on('error', err => {
+    console.error('[WS] WebSocketServer error:', err);
+  });
+
   wss.on('connection', ws => {
     ws.on('message', raw => {
       let msg: any;
