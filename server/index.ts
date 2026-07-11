@@ -1,6 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import path from 'path';
+import fs from 'fs';
 import { initDb } from './db';
 import authRoutes from './routes/auth';
 import leaderboardRoutes from './routes/leaderboard';
@@ -8,9 +9,29 @@ import communityRoutes from './routes/community';
 import usersRoutes from './routes/users';
 import { setupWebSocketServer } from './ws';
 
+// ── Diagnostics: write crash info to startup.log so it is readable
+// ── from Hostinger's file manager even when console is inaccessible
+const logPath = path.join(process.cwd(), 'startup.log');
+function log(msg: string) {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  process.stdout.write(line);
+  try { fs.appendFileSync(logPath, line); } catch {}
+}
+
+process.on('uncaughtException', (err) => {
+  log(`UNCAUGHT EXCEPTION: ${err.stack ?? err.message}`);
+});
+process.on('unhandledRejection', (reason: any) => {
+  log(`UNHANDLED REJECTION: ${reason?.stack ?? reason}`);
+});
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
+
 const app = express();
 const httpServer = createServer(app);
 const PORT = Number(process.env.PORT) || 3001;
+
+log(`Starting Delta Rush — PORT=${PORT} NODE_ENV=${process.env.NODE_ENV ?? '(not set)'} DATABASE_URL=${process.env.DATABASE_URL ? 'set' : 'NOT SET'}`);
 
 app.use(express.json({ limit: '5mb' }));
 
@@ -27,39 +48,44 @@ app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/users', usersRoutes);
 
-app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', port: PORT }));
 
-// Serve built frontend — process.cwd() is always the project root on both
-// Hostinger (node server.cjs) and Replit (node server.cjs via npm run server)
 const distPath = path.join(process.cwd(), 'dist');
 app.use(express.static(distPath));
 app.get('*', (_req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
+// ── Start ─────────────────────────────────────────────────────────────────────
+
 async function start() {
-  // Bind to port FIRST so Hostinger's startup health check never times out
   setupWebSocketServer(httpServer);
+
   await new Promise<void>((resolve, reject) => {
-    httpServer.once('error', reject);
+    httpServer.once('error', (err) => {
+      log(`HTTP server error: ${(err as any).stack ?? err}`);
+      reject(err);
+    });
     httpServer.listen(PORT, '0.0.0.0', () => {
-      httpServer.removeListener('error', reject);
-      console.log(`Delta Rush server running on http://0.0.0.0:${PORT}`);
+      httpServer.removeListener('error', reject as any);
+      log(`Server listening on http://0.0.0.0:${PORT}`);
       resolve();
     });
   });
 
-  // Init DB after port is open — a slow or failed DB connection won't cause 503
   if (!process.env.DATABASE_URL) {
-    console.error('WARNING: DATABASE_URL is not set. Database features will not work.');
+    log('WARNING: DATABASE_URL not set — database features disabled');
     return;
   }
   try {
     await initDb();
-    console.log('Database initialized.');
-  } catch (err) {
-    console.error('Database initialization failed (server still running):', err);
+    log('Database initialized.');
+  } catch (err: any) {
+    log(`Database init failed (server still running): ${err.stack ?? err}`);
   }
 }
 
-start();
+start().catch((err) => {
+  log(`Fatal startup error: ${err?.stack ?? err}`);
+  // Do NOT exit — keep the process alive so Hostinger sees it running
+});

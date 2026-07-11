@@ -25,6 +25,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var import_express5 = __toESM(require("express"), 1);
 var import_http = require("http");
 var import_path = __toESM(require("path"), 1);
+var import_fs = __toESM(require("fs"), 1);
 
 // server/db.ts
 var import_pg = require("pg");
@@ -1079,9 +1080,26 @@ function setupWebSocketServer(httpServer2) {
 }
 
 // server/index.ts
+var logPath = import_path.default.join(process.cwd(), "startup.log");
+function log(msg) {
+  const line = `[${(/* @__PURE__ */ new Date()).toISOString()}] ${msg}
+`;
+  process.stdout.write(line);
+  try {
+    import_fs.default.appendFileSync(logPath, line);
+  } catch {
+  }
+}
+process.on("uncaughtException", (err) => {
+  log(`UNCAUGHT EXCEPTION: ${err.stack ?? err.message}`);
+});
+process.on("unhandledRejection", (reason) => {
+  log(`UNHANDLED REJECTION: ${reason?.stack ?? reason}`);
+});
 var app = (0, import_express5.default)();
 var httpServer = (0, import_http.createServer)(app);
 var PORT = Number(process.env.PORT) || 3001;
+log(`Starting Delta Rush \u2014 PORT=${PORT} NODE_ENV=${process.env.NODE_ENV ?? "(not set)"} DATABASE_URL=${process.env.DATABASE_URL ? "set" : "NOT SET"}`);
 app.use(import_express5.default.json({ limit: "5mb" }));
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -1094,7 +1112,7 @@ app.use("/api/auth", auth_default);
 app.use("/api/leaderboard", leaderboard_default);
 app.use("/api/community", community_default);
 app.use("/api/users", users_default);
-app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
+app.get("/api/health", (_req, res) => res.json({ status: "ok", port: PORT }));
 var distPath = import_path.default.join(process.cwd(), "dist");
 app.use(import_express5.default.static(distPath));
 app.get("*", (_req, res) => {
@@ -1103,22 +1121,27 @@ app.get("*", (_req, res) => {
 async function start() {
   setupWebSocketServer(httpServer);
   await new Promise((resolve, reject) => {
-    httpServer.once("error", reject);
+    httpServer.once("error", (err) => {
+      log(`HTTP server error: ${err.stack ?? err}`);
+      reject(err);
+    });
     httpServer.listen(PORT, "0.0.0.0", () => {
       httpServer.removeListener("error", reject);
-      console.log(`Delta Rush server running on http://0.0.0.0:${PORT}`);
+      log(`Server listening on http://0.0.0.0:${PORT}`);
       resolve();
     });
   });
   if (!process.env.DATABASE_URL) {
-    console.error("WARNING: DATABASE_URL is not set. Database features will not work.");
+    log("WARNING: DATABASE_URL not set \u2014 database features disabled");
     return;
   }
   try {
     await initDb();
-    console.log("Database initialized.");
+    log("Database initialized.");
   } catch (err) {
-    console.error("Database initialization failed (server still running):", err);
+    log(`Database init failed (server still running): ${err.stack ?? err}`);
   }
 }
-start();
+start().catch((err) => {
+  log(`Fatal startup error: ${err?.stack ?? err}`);
+});
