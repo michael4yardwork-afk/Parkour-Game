@@ -1,16 +1,12 @@
 import express from 'express';
 import { createServer } from 'http';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { initDb } from './db';
 import authRoutes from './routes/auth';
 import leaderboardRoutes from './routes/leaderboard';
 import communityRoutes from './routes/community';
 import usersRoutes from './routes/users';
 import { setupWebSocketServer } from './ws';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 if (!process.env.DATABASE_URL) {
   console.error('ERROR: DATABASE_URL environment variable is required');
@@ -41,7 +37,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
 // In production, serve the built React frontend from dist/
 if (IS_PROD) {
-  const distPath = path.resolve(__dirname, '../dist');
+  const distPath = path.resolve(process.cwd(), 'dist');
   app.use(express.static(distPath));
   // SPA fallback — any unmatched route returns index.html
   app.get('*', (_req, res) => {

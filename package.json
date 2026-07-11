@@ -9,10 +9,10 @@
   "scripts": {
     "dev": "vite --port=5000 --host=0.0.0.0",
     "server": "tsx server/index.ts",
-    "start": "tsx server/index.ts",
-    "build": "vite build",
+    "build": "vite build && node_modules/.bin/esbuild server/index.ts --platform=node --packages=external --bundle --format=cjs --outfile=server.cjs",
+    "start": "node server.cjs",
     "preview": "vite preview",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist server.cjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
@@ -28,7 +28,6 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "three": "^0.184.0",
-    "tsx": "^4.21.0",
     "vite": "^6.2.3",
     "ws": "^8.21.0"
   },
@@ -41,6 +40,7 @@
     "@types/three": "^0.184.1",
     "@types/ws": "^8.18.1",
     "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
     "typescript": "~5.8.2"
   }
 }
