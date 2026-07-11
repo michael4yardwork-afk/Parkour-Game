@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite --port=5000 --host=0.0.0.0",
-    "server": "tsx server/index.ts",
+    "server": "node server.cjs",
     "build": "vite build && node_modules/.bin/esbuild server/index.ts --platform=node --packages=external --bundle --format=cjs --outfile=server.cjs",
     "start": "node server.cjs",
     "preview": "vite preview",
@@ -39,7 +39,6 @@
     "react-dom": "^19.0.1",
     "tailwindcss": "^4.1.14",
     "three": "^0.184.0",
-    "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3"
   }
