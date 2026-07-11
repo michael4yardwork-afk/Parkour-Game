@@ -30,7 +30,7 @@ var import_path = __toESM(require("path"), 1);
 var import_pg = require("pg");
 var pool = new import_pg.Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 async function initDb() {
   await pool.query(`
@@ -1076,14 +1076,9 @@ function setupWebSocketServer(httpServer2) {
 }
 
 // server/index.ts
-if (!process.env.DATABASE_URL) {
-  console.error("ERROR: DATABASE_URL environment variable is required");
-  process.exit(1);
-}
 var app = (0, import_express5.default)();
 var httpServer = (0, import_http.createServer)(app);
-var PORT = process.env.PORT || 3001;
-var IS_PROD = process.env.NODE_ENV === "production";
+var PORT = Number(process.env.PORT) || 3001;
 app.use(import_express5.default.json({ limit: "5mb" }));
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -1097,24 +1092,28 @@ app.use("/api/leaderboard", leaderboard_default);
 app.use("/api/community", community_default);
 app.use("/api/users", users_default);
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
-if (IS_PROD) {
-  const distPath = import_path.default.resolve(process.cwd(), "dist");
-  app.use(import_express5.default.static(distPath));
-  app.get("*", (_req, res) => {
-    res.sendFile(import_path.default.join(distPath, "index.html"));
-  });
-}
+var distPath = import_path.default.join(process.cwd(), "dist");
+app.use(import_express5.default.static(distPath));
+app.get("*", (_req, res) => {
+  res.sendFile(import_path.default.join(distPath, "index.html"));
+});
 async function start() {
+  setupWebSocketServer(httpServer);
+  await new Promise((resolve) => {
+    httpServer.listen(PORT, "0.0.0.0", () => {
+      console.log(`Delta Rush server running on http://0.0.0.0:${PORT}`);
+      resolve();
+    });
+  });
+  if (!process.env.DATABASE_URL) {
+    console.error("WARNING: DATABASE_URL is not set. Database features will not work.");
+    return;
+  }
   try {
     await initDb();
     console.log("Database initialized.");
-    setupWebSocketServer(httpServer);
-    httpServer.listen(Number(PORT), "0.0.0.0", () => {
-      console.log(`Delta Rush API running on http://0.0.0.0:${PORT}`);
-    });
   } catch (err) {
-    console.error("Failed to start server:", err);
-    process.exit(1);
+    console.error("Database initialization failed (server still running):", err);
   }
 }
 start();
