@@ -221,18 +221,20 @@ router.post('/:username/race-result', async (req: Request, res: Response) => {
 
     const { id, levelId, levelName, playerColor, place, time, opponents, ratingChange, newRating, date } = req.body;
 
+    const clampedRating = Math.max(100, newRating || 200);
+
     await pool.query(
       `INSERT INTO race_history (id, username, level_id, level_name, player_color, place, time, opponents, rating_change, new_rating, date)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT (id) DO NOTHING`,
       [id, req.params.username, levelId, levelName, playerColor || '#3b82f6',
-       place, time, JSON.stringify(opponents || []), ratingChange || 0, newRating || 200, date || Date.now()]
+       place, time, JSON.stringify(opponents || []), ratingChange || 0, clampedRating, date || Date.now()]
     );
 
     await pool.query(
       `INSERT INTO user_ratings (username, rating, color) VALUES ($1, $2, $3)
        ON CONFLICT (username) DO UPDATE SET rating = $2, color = $3`,
-      [req.params.username, newRating || 200, playerColor || '#3b82f6']
+      [req.params.username, Math.max(100, newRating || 200), playerColor || '#3b82f6']
     );
 
     res.json({ success: true });

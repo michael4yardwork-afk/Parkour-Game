@@ -206,7 +206,7 @@ export default function App() {
     } catch (e) {
       console.warn('Could not fetch current rating, defaulting to 100');
     }
-    const newRating = Math.max(0, currentRating + ratingChange);
+    const newRating = Math.max(100, currentRating + ratingChange);
 
     const historyEntry = {
       id: `race_run_${Date.now()}`,
