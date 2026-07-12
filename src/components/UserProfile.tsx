@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Trophy, Activity, Sparkles, Clock, User, Award, Play, ChevronRight, BookmarkCheck, Heart, Check, Plus, Users, Bookmark, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Trophy, Activity, Sparkles, Clock, User, Award, Play, ChevronRight, BookmarkCheck, Heart, Check, Plus, Users, Bookmark, RefreshCw, EyeOff, Flag } from 'lucide-react';
 import { LevelConfig, SceneTheme, UserAccount, LeaderboardEntry } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { synths } from '../audio';
@@ -13,6 +13,7 @@ interface UserProfileProps {
   onBack: () => void;
   onSelectLevel: (level: LevelConfig) => void;
   onUpdateCurrentUser?: (updatedUser: UserAccount) => void;
+  onViewProfile?: (username: string) => void;
 }
 
 // Map level IDs to their beautiful theme backgrounds
@@ -40,13 +41,23 @@ const AVATARS = [
   { emoji: '🦁', name: 'Primal Spirit' },
 ];
 
-export default function UserProfile({ username, currentUser, onBack, onSelectLevel, onUpdateCurrentUser }: UserProfileProps) {
+const formatWR = (seconds: number): string => {
+  const totalMs = Math.round(seconds * 1000);
+  const m = Math.floor(totalMs / 60000);
+  const s = Math.floor((totalMs % 60000) / 1000);
+  const ms = totalMs % 1000;
+  return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${ms.toString().padStart(3, '0')}s`;
+};
+
+export default function UserProfile({ username, currentUser, onBack, onSelectLevel, onUpdateCurrentUser, onViewProfile }: UserProfileProps) {
   const [resolvedName, setResolvedName] = useState(username);
   const [avatarInfo, setAvatarInfo] = useState({ avatar: '🚀', avatarBg: 'bg-rose-500' });
   const [racingElo, setRacingElo] = useState(100);
   const [publishedCourses, setPublishedCourses] = useState<LevelConfig[]>([]);
   const [savedLevelIds, setSavedLevelIds] = useState<string[]>([]);
   const [likedIds, setLikedIds] = useState<string[]>([]);
+  const [wrMap, setWrMap] = useState<Record<string, string | null>>({});
+  const [completionsMap, setCompletionsMap] = useState<Record<string, number>>({});
   const [courseStats, setCourseStats] = useState<Record<string, { pbTime: number | null; rank: number | null; totalPlayers: number | null; percentile: number | null }>>({});
   const [showCustomizer, setShowCustomizer] = useState(false);
 
@@ -186,6 +197,44 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  // Load WR times and completion counts for published courses
+  useEffect(() => {
+    if (publishedCourses.length === 0) return;
+    Promise.all(
+      publishedCourses.map(async (c) => {
+        try {
+          const entries = await api.leaderboard.get(c.id);
+          const wr = entries.length > 0 ? formatWR(entries[0].time) : null;
+          return [c.id, wr, entries.length] as const;
+        } catch {
+          return [c.id, null, 0] as const;
+        }
+      })
+    ).then(results => {
+      const newWrMap: Record<string, string | null> = {};
+      const newCompletions: Record<string, number> = {};
+      results.forEach(([id, wr, count]) => {
+        newWrMap[id] = wr;
+        newCompletions[id] = count;
+      });
+      setWrMap(newWrMap);
+      setCompletionsMap(newCompletions);
+    });
+  }, [publishedCourses]);
+
+  const handleUnpublish = async (course: LevelConfig, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Unpublish "${course.name}"? It will be removed from the community workshop but kept in your saved courses.`)) return;
+    try {
+      await api.community.unpublishCourse(course.id);
+      setPublishedCourses(prev => prev.filter(c => c.id !== course.id));
+      synths.playTick();
+    } catch (err: any) {
+      console.error('Failed to unpublish course:', err);
+      alert(err.message || 'Failed to unpublish course.');
+    }
+  };
 
   const handleToggleFollow = async () => {
     try {
@@ -534,56 +583,37 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
               const isLiked = likedIds.includes(course.id);
               const isBookmarked = savedLevelIds.includes(course.id);
               const isOurOwn = course.creator?.toLowerCase().trim() === currentUser.username.toLowerCase().trim();
-
-              // Count completions
-              let completionsCount = 0;
-              try {
-                const stored = localStorage.getItem(`leaderboard_${course.id}`);
-                const entries = stored ? JSON.parse(stored) : [];
-                completionsCount = (course.likesCount || 0) + entries.length;
-              } catch (e) {
-                completionsCount = course.likesCount || 0;
-              }
+              const completionsCount = completionsMap[course.id] ?? 0;
 
               return (
                 <div
                   key={course.id}
-                  id={`community-course-card-${course.id}`}
                   onClick={() => handleRunPublishedCourse(course)}
                   className="group relative bg-white border border-neutral-200/90 hover:border-neutral-300 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[220px]"
                 >
-                  {/* Meta Header */}
+                  {/* Header: WR badge + action buttons — identical to CommunityCourses */}
                   <div className="flex items-center justify-between mb-4.5">
-                    <span className="py-0.5 px-2.5 bg-neutral-100 text-neutral-600 font-semibold font-mono text-[9px] rounded-full uppercase tracking-wider">
-                      {formatTheme(course.theme)}
+                    <span className="py-0.5 px-2.5 bg-neutral-100 text-neutral-600 font-semibold font-mono text-[9px] rounded-full tracking-wider">
+                      {course.id in wrMap
+                        ? (wrMap[course.id] ? `WR ${wrMap[course.id]}` : 'No WR')
+                        : '…'}
                     </span>
-                    
-                    {/* Action utilities (Like & Bookmark) */}
+
                     <div className="flex items-center gap-1.5 select-none">
-                      {/* Save to bookmarks */}
                       <button
                         onClick={(e) => handleSaveCourse(course, e)}
                         className={`p-2 rounded-xl border transition cursor-pointer flex items-center justify-center ${
-                          isBookmarked 
-                            ? 'bg-amber-50 text-amber-600 border-amber-200/50' 
-                            : 'bg-neutral-50 border-neutral-150 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100'
+                          isBookmarked ? 'bg-amber-50 text-amber-600 border-amber-200/50' : 'bg-neutral-50 border-neutral-150 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100'
                         }`}
                         title={isBookmarked ? 'Remove course from saved list' : 'Bookmark to My Saved Courses'}
                       >
-                        {isBookmarked ? (
-                          <BookmarkCheck className="w-4 h-4 fill-current" />
-                        ) : (
-                          <Bookmark className="w-4 h-4" />
-                        )}
+                        {isBookmarked ? <BookmarkCheck className="w-4 h-4 fill-current" /> : <Bookmark className="w-4 h-4" />}
                       </button>
 
-                      {/* Like counter buttons */}
                       <button
                         onClick={(e) => handleLike(course, e)}
                         className={`p-2 rounded-xl border transition cursor-pointer flex items-center justify-center gap-1 ${
-                          isLiked 
-                            ? 'bg-rose-50 text-rose-600 border-rose-200/50' 
-                            : 'bg-neutral-50 border-neutral-150 text-neutral-400 hover:text-rose-600 hover:bg-rose-50'
+                          isLiked ? 'bg-rose-50 text-rose-600 border-rose-200/50' : 'bg-neutral-50 border-neutral-150 text-neutral-400 hover:text-rose-600 hover:bg-rose-50'
                         }`}
                         title={isLiked ? 'Unlike course' : 'Like course'}
                       >
@@ -595,7 +625,7 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                     </div>
                   </div>
 
-                  {/* Course Name / Desc */}
+                  {/* Body — identical to CommunityCourses */}
                   <div>
                     <h3 className="text-base font-black text-neutral-850 group-hover:text-indigo-650 transition-colors duration-150 leading-tight">
                       {course.name}
@@ -603,29 +633,43 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                     <p className="text-xs text-neutral-550 mt-1.5 line-clamp-2 leading-relaxed">
                       {course.description || 'Custom crafted speed run.'}
                     </p>
-                    
-                    {/* Creator and details info */}
+
                     <div className="flex items-center gap-3 mt-4 text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">
-                      <div className="flex items-center gap-1 text-teal-600 font-bold">
+                      <div
+                        onClick={(e) => { e.stopPropagation(); synths.playTick(); onViewProfile?.(isOurOwn ? currentUser.username : (course.creator || 'Runner')); }}
+                        className="flex items-center gap-1 text-teal-600 hover:text-indigo-600 hover:scale-[1.02] transition cursor-pointer underline decoration-dotted underline-offset-2"
+                        title="View Athlete Profile"
+                      >
                         <User className="w-3.5 h-3.5 shrink-0" />
                         <span>{isOurOwn ? 'You' : course.creator || 'Runner'}</span>
                       </div>
                       <span>•</span>
                       <div className="flex items-center gap-1.5">
                         <Sparkles className="w-3 h-3 text-indigo-500" />
-                        <span>{course.blocks.length} elements</span>
+                        <span>{course.blocks?.length || 0} elements</span>
+                      </div>
+                      <span>•</span>
+                      <div className="flex items-center gap-1.5">
+                        <Flag className="w-3 h-3 text-emerald-500" />
+                        <span>{completionsCount} {completionsCount === 1 ? 'run' : 'runs'}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Launch section */}
+                  {/* Footer — identical to CommunityCourses */}
                   <div className="flex items-center justify-between border-t border-neutral-150/40 pt-4 mt-5">
-                    <span className="text-[10px] font-mono text-neutral-400 font-semibold italic">
-                      {completionsCount > 0 
-                        ? `${completionsCount} ${completionsCount === 1 ? 'completion' : 'completions'}`
-                        : '0 completions'}
-                    </span>
-                    
+                    {isOurOwn ? (
+                      <button
+                        onClick={(e) => handleUnpublish(course, e)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider border border-rose-200 bg-rose-50 text-rose-500 hover:bg-rose-100 hover:border-rose-300 hover:text-rose-600 transition duration-200 cursor-pointer"
+                        title="Remove this course from the community workshop"
+                      >
+                        <EyeOff className="w-3 h-3" />
+                        <span>Unpublish</span>
+                      </button>
+                    ) : (
+                      <span />
+                    )}
                     <button className="flex items-center gap-1.5 px-4 py-1.5 text-white bg-neutral-900 group-hover:bg-indigo-600 rounded-lg text-xs font-bold transition duration-200 cursor-pointer">
                       <Play className="w-3.5 h-3.5 fill-current" />
                       <span>Run Course</span>
