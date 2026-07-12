@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Sparkles, Check, Zap, Hammer, Users, Trophy, TrendingUp, BarChart2 } from 'lucide-react';
+import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Sparkles, Check, Zap, Hammer, Users, Trophy, TrendingUp, BarChart2, Smartphone, Tablet, Monitor } from 'lucide-react';
 import { UserAccount } from '../types';
 import { synths } from '../audio';
 import { hasVulgarLanguage } from '../utils';
@@ -84,6 +84,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   
   const [selectedAvatar, setSelectedAvatar] = useState('🚀');
   const [selectedBg, setSelectedBg] = useState(SIGNUP_AVATAR_BGS[0].value);
+  const [selectedDevice, setSelectedDevice] = useState<'phone' | 'tablet' | 'computer' | null>(null);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -227,6 +228,21 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         }
         if (password !== confirmPassword) { notifyFeedback('error', 'Passwords do not match.'); return; }
         if (!selectedBg) { notifyFeedback('error', 'Please select an icon theme.'); return; }
+        if (!selectedDevice) { notifyFeedback('error', 'Please select your device type.'); return; }
+
+        // Write device-appropriate defaults so the game loads with the right controls.
+        const touchControls = selectedDevice === 'phone' || selectedDevice === 'tablet';
+        const initialSettings = {
+          mouseSensitivity: 1.5,
+          fov: 85,
+          musicVolume: 0.5,
+          sfxVolume: 0.5,
+          showGhost: true,
+          invertY: false,
+          showJoystick: touchControls,
+          showJumpButton: touchControls,
+        };
+        localStorage.setItem('momentum_player_settings', JSON.stringify(initialSettings));
 
         const result = await api.auth.signup(trimmedUsername, password, selectedAvatar, selectedBg);
         notifyFeedback('success', 'Account created successfully! Logging you in...');
@@ -389,6 +405,34 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     </div>
                     {isSignUp && !selectedBg && (
                       <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Please select an icon theme.</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">Your Device</span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        { value: 'phone',    label: 'Phone',    Icon: Smartphone },
+                        { value: 'tablet',   label: 'Tablet',   Icon: Tablet     },
+                        { value: 'computer', label: 'Computer', Icon: Monitor    },
+                      ] as const).map(({ value, label, Icon }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => { setSelectedDevice(value); synths.playTick(); }}
+                          className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                            selectedDevice === value
+                              ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
+                              : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
+                          }`}
+                        >
+                          <Icon className="w-5 h-5" />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {isSignUp && !selectedDevice && (
+                      <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Please select your device type.</p>
                     )}
                   </div>
                 </div>

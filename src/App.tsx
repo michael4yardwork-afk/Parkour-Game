@@ -361,6 +361,15 @@ export default function App() {
   const handleLoginSuccess = (user: UserAccount) => {
     setCurrentUser(user);
     localStorage.setItem('momentum_current_user', JSON.stringify(user));
+    // Re-read settings — signup may have written device-specific defaults just before this call.
+    const saved = localStorage.getItem('momentum_player_settings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setSettings(parsed);
+        synths.setVolume(parsed.sfxVolume);
+      } catch (e) { /* ignore */ }
+    }
     // Retry any runs that failed to save earlier (e.g. due to an expired session)
     flushPendingSubmissions().catch(e => console.warn('Failed to flush pending submissions:', e));
   };
