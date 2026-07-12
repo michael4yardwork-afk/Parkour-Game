@@ -20,7 +20,7 @@ router.get('/:levelId', async (req: Request, res: Response) => {
   try {
     const { levelId } = req.params;
     const result = await pool.query(
-      `SELECT id, level_id, player_name, time, date, device, speeds, actions,
+      `SELECT id, level_id, player_name, time, date, device, speeds,
               (frames IS NOT NULL AND jsonb_typeof(frames) = 'array' AND jsonb_array_length(frames) > 0) AS has_frames
        FROM leaderboard_entries WHERE level_id = $1 ORDER BY time ASC LIMIT 500`,
       [levelId]
@@ -33,7 +33,6 @@ router.get('/:levelId', async (req: Request, res: Response) => {
       date: parseInt(r.date),
       device: r.device,
       speeds: r.speeds,
-      actions: r.actions,
       hasFrames: r.has_frames === true
     })));
   } catch (err) {
@@ -64,7 +63,7 @@ router.post('/:levelId', async (req: Request, res: Response) => {
   try {
     const username = getAuth(req);
     const { levelId } = req.params;
-    const { time, date, device, speeds, actions, frames } = req.body;
+    const { time, date, device, speeds, frames, isNewPb } = req.body;
 
     if (!username) {
       console.warn(`[leaderboard] Rejected submit for level="${levelId}": missing/invalid auth token. hasAuthHeader=${!!req.headers.authorization}`);
@@ -76,10 +75,10 @@ router.post('/:levelId', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid run time.' });
     }
 
-    // Validate frames: must be an array, cap at 3000 entries, and each entry must be an object
+    // Only accept ghost frames for personal-best runs; cap at 1000 frames (~10 fps × 100 s).
     let validatedFrames: any[] | null = null;
-    if (Array.isArray(frames) && frames.length > 0) {
-      validatedFrames = frames.slice(0, 3000).filter(
+    if (isNewPb && Array.isArray(frames) && frames.length > 0) {
+      validatedFrames = frames.slice(0, 1000).filter(
         f => f && typeof f === 'object' &&
              typeof f.time === 'number' && isFinite(f.time) &&
              typeof f.x === 'number' && isFinite(f.x) &&
@@ -91,16 +90,24 @@ router.post('/:levelId', async (req: Request, res: Response) => {
       if (validatedFrames.length === 0) validatedFrames = null;
     }
 
-    console.log(`[leaderboard] Accepting submit for level="${levelId}" user="${username}" time=${time} hasFrames=${!!validatedFrames} frameCount=${validatedFrames?.length ?? 0}`);
+    console.log(`[leaderboard] Accepting submit for level="${levelId}" user="${username}" time=${time} isNewPb=${!!isNewPb} hasFrames=${!!validatedFrames} frameCount=${validatedFrames?.length ?? 0}`);
 
     const id = `run_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
+    // When this run is a new personal best, clear ghost frames from all previous
+    // entries for this player+level so only the new PB carries frame data.
+    if (isNewPb) {
+      await pool.query(
+        `UPDATE leaderboard_entries SET frames = NULL WHERE level_id = $1 AND LOWER(player_name) = LOWER($2)`,
+        [levelId, username]
+      );
+    }
+
     await pool.query(
-      `INSERT INTO leaderboard_entries (id, level_id, player_name, time, date, device, speeds, actions, frames)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `INSERT INTO leaderboard_entries (id, level_id, player_name, time, date, device, speeds, frames)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [id, levelId, username, time, date || Date.now(), device || 'desktop',
        speeds ? JSON.stringify(speeds) : null,
-       actions ? JSON.stringify(actions) : null,
        validatedFrames ? JSON.stringify(validatedFrames) : null]
     );
 

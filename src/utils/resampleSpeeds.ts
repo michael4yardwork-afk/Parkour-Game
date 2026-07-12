@@ -17,7 +17,7 @@ export function resampleSpeedsToUniformTime(
   frames: TimedFrame[],
   speeds: number[],
   totalTimeSeconds: number,
-  sampleCount = 120
+  sampleCount = 60
 ): number[] {
   const n = speeds.length;
   if (n === 0) return [];

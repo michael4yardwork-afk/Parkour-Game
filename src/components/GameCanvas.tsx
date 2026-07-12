@@ -1105,20 +1105,9 @@ export default function GameCanvas({
               z: playerPos.current.z,
               rx: playerPitch.current,
               ry: playerYaw.current,
-              state: wallRunDirectionRef.current === 'left' ? 'wall_left' 
-                     : wallRunDirectionRef.current === 'right' ? 'wall_right'
-                     : climbingRef.current ? 'climb' 
-                     : groundedRef.current ? 'run' : 'jump'
             });
 
             currentRunSpeedsRef.current.push(playerVel.current.length());
-            
-            const currentAction = slidingRef.current ? 'Sliding'
-                                 : wallRunDirectionRef.current ? 'Wall Riding'
-                                 : climbingRef.current ? 'Climbing'
-                                 : groundedRef.current ? 'Sprinting'
-                                 : 'Airborne';
-            currentRunActionsRef.current.push(currentAction);
 
             // Wall-clock based elapsed time: keeps racers' clocks synchronized
             // and continues counting correctly even if rAF was throttled/paused
@@ -2282,12 +2271,20 @@ export default function GameCanvas({
       localStorage.setItem(`best_time_${level.id}`, finalTime.toString());
       setPersonalBest(finalTime);
 
-      // Commit the recorded ghost runframes list
+      // Commit the recorded ghost runframes list — downsample to ~10 fps for storage
+      const pbFrames: GhostFrame[] = [];
+      let lastKeptMs = -Infinity;
+      for (const f of currentRunFramesRef.current) {
+        if (f.time - lastKeptMs >= 100) {
+          pbFrames.push(f);
+          lastKeptMs = f.time;
+        }
+      }
       const replay: RunReplay = {
         levelId: level.id,
         playerEmail: currentUser?.username || 'user@aistudio.build',
         time: finalTime,
-        frames: currentRunFramesRef.current,
+        frames: pbFrames,
         createdAt: Date.now()
       };
       localStorage.setItem(`ghost_replay_${level.id}`, JSON.stringify(replay));
@@ -2320,16 +2317,28 @@ export default function GameCanvas({
             finalTime
           );
 
-          // Downsample frames to every 3rd to keep payload size reasonable (~66% reduction)
-          const downsampledFrames = currentRunFramesRef.current.filter((_, i) => i % 3 === 0);
+          // Only include ghost frames for personal-best runs to save storage.
+          // Downsample to ~10 fps (100 ms intervals) — same as the localStorage PB ghost.
+          let downsampledFrames: GhostFrame[] | undefined;
+          if (isNewPb) {
+            const pbFramesForSubmit: GhostFrame[] = [];
+            let lastKeptMs2 = -Infinity;
+            for (const f of currentRunFramesRef.current) {
+              if (f.time - lastKeptMs2 >= 100) {
+                pbFramesForSubmit.push(f);
+                lastKeptMs2 = f.time;
+              }
+            }
+            downsampledFrames = pbFramesForSubmit;
+          }
 
           const submitPayload = {
             time: finalTime,
             date: Date.now(),
             device: isMobileRef.current ? 'mobile' : 'desktop',
             speeds: resampledSpeeds,
-            actions: currentRunActionsRef.current,
-            frames: downsampledFrames
+            frames: downsampledFrames,
+            isNewPb,
           };
 
           // Submit then fetch the real leaderboard for accurate standing

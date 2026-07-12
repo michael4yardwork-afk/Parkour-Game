@@ -39,7 +39,7 @@ const PENDING_SUBMISSIONS_KEY = 'delta_rush_pending_submissions';
 
 interface PendingSubmission {
   levelId: string;
-  entry: { time: number; date: number; device?: string; speeds?: number[]; actions?: string[] };
+  entry: { time: number; date: number; device?: string; speeds?: number[] };
 }
 
 export function queuePendingSubmission(levelId: string, entry: PendingSubmission['entry']) {
@@ -136,7 +136,7 @@ export const api = {
       }
     },
 
-    async submit(levelId: string, entry: { time: number; date: number; device?: string; speeds?: number[]; actions?: string[]; frames?: any[] }): Promise<{ id: string }> {
+    async submit(levelId: string, entry: { time: number; date: number; device?: string; speeds?: number[]; frames?: any[]; isNewPb?: boolean }): Promise<{ id: string }> {
       return apiFetch<{ id: string }>(`/leaderboard/${encodeURIComponent(levelId)}`, {
         method: 'POST',
         body: JSON.stringify(entry)

@@ -97,6 +97,12 @@ export async function initDb() {
   await pool.query(`
     ALTER TABLE leaderboard_entries ADD COLUMN IF NOT EXISTS frames JSONB;
   `);
+
+  // Remove the actions column — per-frame action strings are no longer stored.
+  // Null out existing data first so the column can be dropped safely.
+  await pool.query(`
+    ALTER TABLE leaderboard_entries DROP COLUMN IF EXISTS actions;
+  `);
 }
 
 export default pool;

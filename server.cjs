@@ -36640,6 +36640,9 @@ async function initDb() {
   await pool.query(`
     ALTER TABLE leaderboard_entries ADD COLUMN IF NOT EXISTS frames JSONB;
   `);
+  await pool.query(`
+    ALTER TABLE leaderboard_entries DROP COLUMN IF EXISTS actions;
+  `);
 }
 var db_default = pool;
 
@@ -38530,7 +38533,7 @@ router2.get("/:levelId", async (req, res) => {
   try {
     const { levelId } = req.params;
     const result = await db_default.query(
-      `SELECT id, level_id, player_name, time, date, device, speeds, actions,
+      `SELECT id, level_id, player_name, time, date, device, speeds,
               (frames IS NOT NULL AND jsonb_typeof(frames) = 'array' AND jsonb_array_length(frames) > 0) AS has_frames
        FROM leaderboard_entries WHERE level_id = $1 ORDER BY time ASC LIMIT 500`,
       [levelId]
@@ -38543,7 +38546,6 @@ router2.get("/:levelId", async (req, res) => {
       date: parseInt(r.date),
       device: r.device,
       speeds: r.speeds,
-      actions: r.actions,
       hasFrames: r.has_frames === true
     })));
   } catch (err) {
@@ -38571,7 +38573,7 @@ router2.post("/:levelId", async (req, res) => {
   try {
     const username = getAuth(req);
     const { levelId } = req.params;
-    const { time, date, device, speeds, actions, frames } = req.body;
+    const { time, date, device, speeds, frames, isNewPb } = req.body;
     if (!username) {
       console.warn(`[leaderboard] Rejected submit for level="${levelId}": missing/invalid auth token. hasAuthHeader=${!!req.headers.authorization}`);
       return res.status(401).json({ error: "Unauthorized." });
@@ -38581,17 +38583,23 @@ router2.post("/:levelId", async (req, res) => {
       return res.status(400).json({ error: "Invalid run time." });
     }
     let validatedFrames = null;
-    if (Array.isArray(frames) && frames.length > 0) {
-      validatedFrames = frames.slice(0, 3e3).filter(
+    if (isNewPb && Array.isArray(frames) && frames.length > 0) {
+      validatedFrames = frames.slice(0, 1e3).filter(
         (f) => f && typeof f === "object" && typeof f.time === "number" && isFinite(f.time) && typeof f.x === "number" && isFinite(f.x) && typeof f.y === "number" && isFinite(f.y) && typeof f.z === "number" && isFinite(f.z) && typeof f.rx === "number" && isFinite(f.rx) && typeof f.ry === "number" && isFinite(f.ry)
       );
       if (validatedFrames.length === 0) validatedFrames = null;
     }
-    console.log(`[leaderboard] Accepting submit for level="${levelId}" user="${username}" time=${time} hasFrames=${!!validatedFrames} frameCount=${validatedFrames?.length ?? 0}`);
+    console.log(`[leaderboard] Accepting submit for level="${levelId}" user="${username}" time=${time} isNewPb=${!!isNewPb} hasFrames=${!!validatedFrames} frameCount=${validatedFrames?.length ?? 0}`);
     const id = `run_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    if (isNewPb) {
+      await db_default.query(
+        `UPDATE leaderboard_entries SET frames = NULL WHERE level_id = $1 AND LOWER(player_name) = LOWER($2)`,
+        [levelId, username]
+      );
+    }
     await db_default.query(
-      `INSERT INTO leaderboard_entries (id, level_id, player_name, time, date, device, speeds, actions, frames)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `INSERT INTO leaderboard_entries (id, level_id, player_name, time, date, device, speeds, frames)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
       [
         id,
         levelId,
@@ -38600,7 +38608,6 @@ router2.post("/:levelId", async (req, res) => {
         date || Date.now(),
         device || "desktop",
         speeds ? JSON.stringify(speeds) : null,
-        actions ? JSON.stringify(actions) : null,
         validatedFrames ? JSON.stringify(validatedFrames) : null
       ]
     );

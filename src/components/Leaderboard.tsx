@@ -130,10 +130,6 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
       const found = rawEntries.find(r => Math.abs(r.time - currentLocalBest) < 0.001);
       return found?.speeds;
     })(),
-    actions: (() => {
-      const found = rawEntries.find(r => Math.abs(r.time - currentLocalBest) < 0.001);
-      return found?.actions;
-    })()
   } : null;
 
   const worldRealPlayers = getGroupedWorldPlayers();
@@ -336,7 +332,7 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
                       <div className="flex items-center gap-3">
                         {entry.speeds && entry.speeds.length > 0 && (
                           <div className="flex items-center gap-1">
-                            {entry.hasFrames && onRaceGhost && (
+                            {entry.hasFrames && onRaceGhost && (filter !== 'local' || entry.rank === 1) && (
                               <button
                                 onClick={async () => {
                                   if (loadingGhostId) return;

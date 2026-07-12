@@ -59,7 +59,7 @@ export interface GhostFrame {
   z: number;
   rx: number; // pitch
   ry: number; // yaw
-  state: 'run' | 'jump' | 'slide' | 'wall_left' | 'wall_right' | 'climb';
+  state?: 'run' | 'jump' | 'slide' | 'wall_left' | 'wall_right' | 'climb'; // optional, unused by renderer
 }
 
 export interface RunReplay {
@@ -78,7 +78,6 @@ export interface LeaderboardEntry {
   date: number;
   device?: string;
   speeds?: number[];
-  actions?: string[];
   hasFrames?: boolean;
 }
 
