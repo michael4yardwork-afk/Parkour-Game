@@ -207,6 +207,7 @@ export default function App() {
       console.warn('Could not fetch current rating, defaulting to 100');
     }
     const newRating = Math.max(100, currentRating + ratingChange);
+    const actualRatingChange = newRating - currentRating;
 
     const historyEntry = {
       id: `race_run_${Date.now()}`,
@@ -217,7 +218,7 @@ export default function App() {
       place: ourPlace,
       time: finalTime,
       opponents: rankings.filter(r => r.username.toLowerCase().trim() !== currentUser.username.toLowerCase().trim()),
-      ratingChange,
+      ratingChange: actualRatingChange,
       newRating,
       date: Date.now()
     };
