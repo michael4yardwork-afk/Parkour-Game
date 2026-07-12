@@ -2090,46 +2090,60 @@ export default function GameCanvas({
     setActiveModifiers(mods);
   };
 
+  // Binary-search + linear interpolation between two surrounding keyframes.
+  // Returns a smooth in-between position/rotation at any timestamp, so the
+  // ghost moves at full render frame rate even with ~10 fps stored keyframes.
+  const interpolateGhostFrame = (
+    frames: GhostFrame[],
+    targetMs: number
+  ): { x: number; y: number; z: number; rx: number; ry: number } | null => {
+    if (frames.length === 0) return null;
+    if (targetMs <= frames[0].time) return frames[0];
+    const last = frames[frames.length - 1];
+    if (targetMs >= last.time) return last;
+
+    let lo = 0, hi = frames.length - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >>> 1;
+      if (frames[mid].time <= targetMs) lo = mid; else hi = mid;
+    }
+    const fA = frames[lo];
+    const fB = frames[hi];
+    const span = fB.time - fA.time;
+    if (span <= 0) return fA;
+    const t = (targetMs - fA.time) / span;
+
+    const x  = fA.x  + (fB.x  - fA.x)  * t;
+    const y  = fA.y  + (fB.y  - fA.y)  * t;
+    const z  = fA.z  + (fB.z  - fA.z)  * t;
+    const rx = fA.rx + (fB.rx - fA.rx) * t;
+
+    // Shortest-path lerp for yaw so the ghost doesn't spin the long way round
+    let dyaw = fB.ry - fA.ry;
+    if (dyaw >  Math.PI) dyaw -= 2 * Math.PI;
+    if (dyaw < -Math.PI) dyaw += 2 * Math.PI;
+    const ry = fA.ry + dyaw * t;
+
+    return { x, y, z, rx, ry };
+  };
+
   // Replay ghost coordinates side-by-side
   const updateGhostReplay = () => {
     if (!ghostActiveRef.current || !ghostMeshRef.current || ghostFramesRef.current.length === 0) return;
-
-    // Find ghost frame corresponding to current timestamp
-    const targetMs = elapsedTimeRef.current * 1000;
-    
-    // Simple interpolation search
-    // Default to the last recorded frame so that the ghost remains parked at the end block after finishing,
-    // rather than reverting back to the starting pad.
-    let activeFrame = ghostFramesRef.current[ghostFramesRef.current.length - 1];
-    for (let i = 0; i < ghostFramesRef.current.length; i++) {
-      if (ghostFramesRef.current[i].time > targetMs) {
-        activeFrame = ghostFramesRef.current[i];
-        break;
-      }
-    }
-
-    if (activeFrame) {
-      ghostMeshRef.current.position.set(activeFrame.x, activeFrame.y + 0.8, activeFrame.z);
-      ghostMeshRef.current.rotation.set(activeFrame.rx, activeFrame.ry, 0);
+    const frame = interpolateGhostFrame(ghostFramesRef.current, elapsedTimeRef.current * 1000);
+    if (frame) {
+      ghostMeshRef.current.position.set(frame.x, frame.y + 0.8, frame.z);
+      ghostMeshRef.current.rotation.set(frame.rx, frame.ry, 0);
     }
   };
 
   // Replay the selected leaderboard ghost (amber / orange, distinct from PR ghost)
   const updateOverrideGhostReplay = () => {
     if (!overrideGhostActiveRef.current || !overrideGhostMeshRef.current || overrideGhostFramesRef.current.length === 0) return;
-
-    const targetMs = elapsedTimeRef.current * 1000;
-    let activeFrame = overrideGhostFramesRef.current[overrideGhostFramesRef.current.length - 1];
-    for (let i = 0; i < overrideGhostFramesRef.current.length; i++) {
-      if (overrideGhostFramesRef.current[i].time > targetMs) {
-        activeFrame = overrideGhostFramesRef.current[i];
-        break;
-      }
-    }
-
-    if (activeFrame) {
-      overrideGhostMeshRef.current.position.set(activeFrame.x, activeFrame.y + 0.8, activeFrame.z);
-      overrideGhostMeshRef.current.rotation.set(activeFrame.rx, activeFrame.ry, 0);
+    const frame = interpolateGhostFrame(overrideGhostFramesRef.current, elapsedTimeRef.current * 1000);
+    if (frame) {
+      overrideGhostMeshRef.current.position.set(frame.x, frame.y + 0.8, frame.z);
+      overrideGhostMeshRef.current.rotation.set(frame.rx, frame.ry, 0);
     }
   };
 
