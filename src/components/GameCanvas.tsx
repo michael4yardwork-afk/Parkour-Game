@@ -2286,12 +2286,6 @@ export default function GameCanvas({
     // Lock screen pointerLock state
     document.exitPointerLock();
 
-    // Hide the leaderboard ghost when the player finishes — it reappears on restart
-    if (overrideGhostMeshRef.current) {
-      overrideGhostMeshRef.current.visible = false;
-    }
-    overrideGhostActiveRef.current = false;
-
     // Determine performance results differential
     const scoreStr = localStorage.getItem(`best_time_${level.id}`);
     const previousBest = scoreStr ? parseFloat(scoreStr) : null;
