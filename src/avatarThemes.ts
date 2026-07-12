@@ -14,7 +14,19 @@ export interface AvatarBg {
   value: string;
   label: string;
   special?: boolean;
+  /** True when the swatch background is light — checkmark should be dark */
+  lightBg?: boolean;
 }
+
+/** Six solid-color options shown only during sign-up. */
+export const SIGNUP_AVATAR_BGS: AvatarBg[] = [
+  { class: 'bg-blue-500 border-blue-600',       value: 'bg-blue-500',     label: 'Blue'   },
+  { class: 'bg-green-500 border-green-600',      value: 'bg-green-500',    label: 'Green'  },
+  { class: 'bg-red-500 border-red-600',          value: 'bg-red-500',      label: 'Red'    },
+  { class: 'bg-yellow-400 border-yellow-500',    value: 'bg-yellow-400',   label: 'Yellow' },
+  { class: 'bg-white border-neutral-300',        value: 'bg-white',        label: 'White',  lightBg: true },
+  { class: 'bg-neutral-900 border-neutral-600',  value: 'bg-neutral-900',  label: 'Black'  },
+];
 
 export const AVATAR_BGS: AvatarBg[] = [
   // ── Base solid colors ────────────────────────────────────────────────

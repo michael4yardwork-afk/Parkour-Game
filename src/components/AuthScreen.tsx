@@ -4,7 +4,7 @@ import { UserAccount } from '../types';
 import { synths } from '../audio';
 import { hasVulgarLanguage } from '../utils';
 import { api } from '../api';
-import { AVATAR_BGS } from '../avatarThemes';
+import { AVATAR_BGS, SIGNUP_AVATAR_BGS } from '../avatarThemes';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: UserAccount) => void;
@@ -83,7 +83,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   
   const [selectedAvatar, setSelectedAvatar] = useState('🚀');
-  const [selectedBg, setSelectedBg] = useState(AVATAR_BGS[0].value);
+  const [selectedBg, setSelectedBg] = useState(SIGNUP_AVATAR_BGS[0].value);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -374,12 +374,12 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                   <div>
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">Icon Theme</span>
                     <div className="flex flex-wrap gap-2">
-                      {AVATAR_BGS.map(bg => (
+                      {(isSignUp ? SIGNUP_AVATAR_BGS : AVATAR_BGS).map(bg => (
                         <div key={bg.value} className="relative">
                           <button type="button" title={bg.label} onClick={() => { setSelectedBg(bg.value); synths.playTick(); }}
                             className={`w-8 h-8 rounded-full border overflow-hidden relative flex items-center justify-center transition focus:outline-none ${bg.class}`}>
                             {bg.special && <span className={`absolute inset-0 ${bg.class}`} aria-hidden="true" />}
-                            {selectedBg === bg.value && <Check className="w-3.5 h-3.5 stroke-[3] text-white drop-shadow relative z-10" />}
+                            {selectedBg === bg.value && <Check className={`w-3.5 h-3.5 stroke-[3] drop-shadow relative z-10 ${bg.lightBg ? 'text-neutral-800' : 'text-white'}`} />}
                           </button>
                           {bg.special && (
                             <Sparkles className={`w-2.5 h-2.5 absolute -top-1 -right-1 drop-shadow pointer-events-none ${selectedBg === bg.value ? 'text-white' : 'text-yellow-300'}`} />
