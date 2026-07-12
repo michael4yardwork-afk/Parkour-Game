@@ -402,9 +402,18 @@ export default function GameCanvas({
       overrideGhostMeshRef.current = null;
     }
 
-    // Set up override ghost mesh if frames were provided
-    if (ghostOverride && ghostOverride.length > 0) {
-      overrideGhostFramesRef.current = ghostOverride;
+    // Set up override ghost mesh.
+    // Prefer fresh frames from the prop (first load / new ghost selected). If the
+    // prop is null because initGame was called from a stale animation-loop closure
+    // (death / manual restart), fall back to whatever frames are already stored so
+    // the ghost survives across deaths and restarts. Frames are only truly cleared
+    // when the player exits (App.tsx nulls the prop and the component unmounts).
+    const framesToUse = (ghostOverride && ghostOverride.length > 0)
+      ? ghostOverride
+      : overrideGhostFramesRef.current;
+
+    if (framesToUse.length > 0) {
+      overrideGhostFramesRef.current = framesToUse;
       overrideGhostActiveRef.current = true;
 
       if (sceneRef.current) {
