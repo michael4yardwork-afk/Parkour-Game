@@ -377,7 +377,8 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       {AVATAR_BGS.map(bg => (
                         <div key={bg.value} className="relative">
                           <button type="button" title={bg.label} onClick={() => { setSelectedBg(bg.value); synths.playTick(); }}
-                            className={`w-8 h-8 rounded-full border overflow-hidden flex items-center justify-center transition focus:outline-none ${bg.class}`}>
+                            className={`w-8 h-8 rounded-full border overflow-hidden relative flex items-center justify-center transition focus:outline-none ${bg.class}`}>
+                            {bg.special && <span className={`absolute inset-0 ${bg.class}`} aria-hidden="true" />}
                             {selectedBg === bg.value && <Check className="w-3.5 h-3.5 stroke-[3] text-white drop-shadow relative z-10" />}
                           </button>
                           {bg.special && (

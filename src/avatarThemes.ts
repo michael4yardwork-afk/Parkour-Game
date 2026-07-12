@@ -62,11 +62,11 @@ export const AVATAR_BGS: AvatarBg[] = [
   { class: 'bg-[repeating-linear-gradient(45deg,#000000_0px,#000000_6px,#facc15_6px,#facc15_12px)] border-yellow-300/60 text-white', value: 'bg-[repeating-linear-gradient(45deg,#000000_0px,#000000_6px,#facc15_6px,#facc15_12px)]', label: 'Hazard Stripes', special: true },
 
   // ── Special: polka dots ──────────────────────────────────────────────
-  // At swatch size (32px), tiny hard-edged dots anti-alias into squares.
-  // Use a bigger 2x2 tile with a soft-feathered radial edge so each dot
-  // reads clearly as round even at small sizes and on low-DPI screens.
-  { class: 'bg-indigo-950 bg-[radial-gradient(circle,#f9fafb_28%,transparent_46%)] bg-[length:50%_50%] border-indigo-300/60 text-white', value: 'bg-indigo-950 bg-[radial-gradient(circle,#f9fafb_28%,transparent_46%)] bg-[length:50%_50%]', label: 'Indigo Dots', special: true },
-  { class: 'bg-rose-950 bg-[radial-gradient(circle,#fda4af_28%,transparent_46%)] bg-[length:50%_50%] border-rose-300/60 text-white', value: 'bg-rose-950 bg-[radial-gradient(circle,#fda4af_28%,transparent_46%)] bg-[length:50%_50%]', label: 'Rose Dots', special: true },
-  { class: 'bg-teal-950 bg-[radial-gradient(circle,#5eead4_28%,transparent_46%)] bg-[length:50%_50%] border-teal-300/60 text-white', value: 'bg-teal-950 bg-[radial-gradient(circle,#5eead4_28%,transparent_46%)] bg-[length:50%_50%]', label: 'Teal Dots', special: true },
-  { class: 'bg-amber-950 bg-[radial-gradient(circle,#fde047_28%,transparent_46%)] bg-[length:50%_50%] border-amber-300/60 text-white', value: 'bg-amber-950 bg-[radial-gradient(circle,#fde047_28%,transparent_46%)] bg-[length:50%_50%]', label: 'Amber Dots', special: true },
+  // `class` uses a fixed 10px tile so the swatch (32px) shows ~10 small
+  // dots. `value` (applied to the actual avatar) uses 14% so it scales
+  // with avatar size and always shows a dense field of small dots.
+  { class: 'bg-indigo-950 bg-[radial-gradient(circle,#f9fafb_35%,transparent_52%)] bg-[length:10px_10px] bg-repeat border-indigo-300/60 text-white', value: 'bg-indigo-950 bg-[radial-gradient(circle,#f9fafb_35%,transparent_52%)] bg-[length:14%_14%] bg-repeat', label: 'Indigo Dots', special: true },
+  { class: 'bg-rose-950 bg-[radial-gradient(circle,#fda4af_35%,transparent_52%)] bg-[length:10px_10px] bg-repeat border-rose-300/60 text-white', value: 'bg-rose-950 bg-[radial-gradient(circle,#fda4af_35%,transparent_52%)] bg-[length:14%_14%] bg-repeat', label: 'Rose Dots', special: true },
+  { class: 'bg-teal-950 bg-[radial-gradient(circle,#5eead4_35%,transparent_52%)] bg-[length:10px_10px] bg-repeat border-teal-300/60 text-white', value: 'bg-teal-950 bg-[radial-gradient(circle,#5eead4_35%,transparent_52%)] bg-[length:14%_14%] bg-repeat', label: 'Teal Dots', special: true },
+  { class: 'bg-amber-950 bg-[radial-gradient(circle,#fde047_35%,transparent_52%)] bg-[length:10px_10px] bg-repeat border-amber-300/60 text-white', value: 'bg-amber-950 bg-[radial-gradient(circle,#fde047_35%,transparent_52%)] bg-[length:14%_14%] bg-repeat', label: 'Amber Dots', special: true },
 ];

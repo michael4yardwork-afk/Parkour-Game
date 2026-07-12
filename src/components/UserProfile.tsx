@@ -419,14 +419,15 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                       <button
                         title={bg.label}
                         onClick={() => selectBg(bg.value)}
-                        className={`w-8 h-8 rounded-full border-2 overflow-hidden flex items-center justify-center transition cursor-pointer ${bg.value} ${
+                        className={`w-8 h-8 rounded-full border-2 overflow-hidden relative flex items-center justify-center transition cursor-pointer ${bg.value} ${
                           bg.value === (currentUser.avatarBg || 'bg-rose-500')
                             ? 'border-white scale-110 shadow-md'
                             : 'border-transparent hover:scale-105 hover:border-white/50'
                         }`}
                       >
+                        {bg.special && <span className={`absolute inset-0 ${bg.class}`} aria-hidden="true" />}
                         {bg.value === (currentUser.avatarBg || 'bg-rose-500') && (
-                          <svg className={`w-3.5 h-3.5 drop-shadow ${bg.value === 'bg-white' ? 'text-neutral-700' : 'text-white'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          <svg className={`w-3.5 h-3.5 drop-shadow relative z-10 ${bg.value === 'bg-white' ? 'text-neutral-700' : 'text-white'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                         )}
                       </button>
                       {bg.special && (
