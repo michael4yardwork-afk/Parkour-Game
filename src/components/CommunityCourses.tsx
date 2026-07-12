@@ -267,9 +267,6 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
                   <h3 className="text-base font-black text-neutral-850 group-hover:text-indigo-650 transition-colors duration-150 leading-tight">
                     {course.name}
                   </h3>
-                  <p className="text-xs text-neutral-550 mt-1.5 lines-clamp-2 leading-relaxed">
-                    {course.description || 'Custom crafted speed run.'}
-                  </p>
                   
                   <div className="flex items-center gap-3 mt-4 text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">
                     <div 
