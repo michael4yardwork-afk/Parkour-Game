@@ -121,6 +121,9 @@ export default function GameCanvas({
   const ghostFramesRef = useRef<GhostFrame[]>([]);
   const ghostMeshRef = useRef<THREE.Mesh | null>(null);
   const ghostActiveRef = useRef<boolean>(false);
+  // Mirrors settings.showGhost so the animation loop can read it without a stale closure.
+  // Updated by a dedicated useEffect — keeps the Three.js setup effect out of the dep array.
+  const showGhostRef = useRef<boolean>(true);
 
   // Override ghost — races a specific leaderboard entry's recording
   const overrideGhostFramesRef = useRef<GhostFrame[]>([]);
@@ -236,6 +239,9 @@ export default function GameCanvas({
       setPersonalBest(null);
     }
 
+    // Keep the showGhostRef in sync whenever showGhost or level changes
+    showGhostRef.current = settings.showGhost;
+
     // Attempt to load Ghost — PR ghost is disabled entirely during races (bots and/or players)
     const ghostData = raceMode ? null : localStorage.getItem(`ghost_replay_${level.id}`);
     if (ghostData && settings.showGhost) {
@@ -245,7 +251,16 @@ export default function GameCanvas({
         ghostActiveRef.current = true;
       } catch (e) {
         console.error('Failed to parse ghost records', e);
+        ghostActiveRef.current = false;
+        ghostFramesRef.current = [];
       }
+    } else {
+      // showGhost is off or no data — deactivate and hide existing mesh if scene is live
+      ghostActiveRef.current = false;
+      ghostFramesRef.current = [];
+    }
+    if (ghostMeshRef.current) {
+      ghostMeshRef.current.visible = ghostActiveRef.current;
     }
 
     // Detect mobile device
@@ -350,7 +365,7 @@ export default function GameCanvas({
       ghostMeshRef.current = null;
     }
 
-    if (ghostData && settings.showGhost) {
+    if (ghostData && showGhostRef.current) {
       try {
         const parsed: RunReplay = JSON.parse(ghostData);
         ghostFramesRef.current = parsed.frames;
@@ -1413,7 +1428,7 @@ export default function GameCanvas({
       }
     };
 
-  }, [level.id, level.theme, level.blocks.length, settings.showGhost]);
+  }, [level.id, level.theme, level.blocks.length]);
 
   // Construct standard level blocks meshes
   const buildLevelGeometry = (scene: THREE.Scene) => {
@@ -2129,7 +2144,13 @@ export default function GameCanvas({
 
   // Replay ghost coordinates side-by-side
   const updateGhostReplay = () => {
-    if (!ghostActiveRef.current || !ghostMeshRef.current || ghostFramesRef.current.length === 0) return;
+    if (!ghostMeshRef.current) return;
+    // Hide immediately when toggled off or no frames available
+    if (!ghostActiveRef.current || !showGhostRef.current || ghostFramesRef.current.length === 0) {
+      ghostMeshRef.current.visible = false;
+      return;
+    }
+    ghostMeshRef.current.visible = true;
     const frame = interpolateGhostFrame(ghostFramesRef.current, elapsedTimeRef.current * 1000);
     if (frame) {
       ghostMeshRef.current.position.set(frame.x, frame.y + 0.8, frame.z);
@@ -2139,7 +2160,12 @@ export default function GameCanvas({
 
   // Replay the selected leaderboard ghost (amber / orange, distinct from PR ghost)
   const updateOverrideGhostReplay = () => {
-    if (!overrideGhostActiveRef.current || !overrideGhostMeshRef.current || overrideGhostFramesRef.current.length === 0) return;
+    if (!overrideGhostMeshRef.current) return;
+    if (!overrideGhostActiveRef.current || overrideGhostFramesRef.current.length === 0) {
+      overrideGhostMeshRef.current.visible = false;
+      return;
+    }
+    overrideGhostMeshRef.current.visible = true;
     const frame = interpolateGhostFrame(overrideGhostFramesRef.current, elapsedTimeRef.current * 1000);
     if (frame) {
       overrideGhostMeshRef.current.position.set(frame.x, frame.y + 0.8, frame.z);
@@ -2259,6 +2285,12 @@ export default function GameCanvas({
 
     // Lock screen pointerLock state
     document.exitPointerLock();
+
+    // Hide the leaderboard ghost when the player finishes — it reappears on restart
+    if (overrideGhostMeshRef.current) {
+      overrideGhostMeshRef.current.visible = false;
+    }
+    overrideGhostActiveRef.current = false;
 
     // Determine performance results differential
     const scoreStr = localStorage.getItem(`best_time_${level.id}`);
