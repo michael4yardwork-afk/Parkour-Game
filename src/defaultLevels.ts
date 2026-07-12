@@ -47,7 +47,7 @@ export const DEFAULT_LEVELS: LevelConfig[] = [
   },
   {
     id: 'neon_velocity',
-    name: 'Neon Velocity Grid',
+    name: 'Neon Velocity',
     description: 'A dark world of retro glowing vectors. Execute precision speed boosts, leap wide gaps, and discover high-skill shortcut jumps.',
     theme: 'neon_grid',
     blocks: [
