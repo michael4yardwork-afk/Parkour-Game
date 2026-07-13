@@ -206,6 +206,11 @@ export default function GameCanvas({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const clockRef = useRef<THREE.Clock | null>(null);
+  // Flips true once the Three.js scene effect has actually set sceneRef.current.
+  // The ghost-loading effect depends on this so it reliably (re-)attempts mesh
+  // creation once a live scene exists, instead of relying solely on initGame's
+  // fallback — refs changing (.current =) don't retrigger effects on their own.
+  const [sceneReady, setSceneReady] = useState(false);
 
   // Physics & Kinematic details
   const playerPos = useRef<THREE.Vector3>(new THREE.Vector3(0, 2, 0));
@@ -284,7 +289,7 @@ export default function GameCanvas({
     };
     checkMobile();
 
-  }, [level.id, settings.showGhost, raceMode]);
+  }, [level.id, settings.showGhost, raceMode, sceneReady]);
 
   const handleExitAttempt = () => {
     if (raceMode && !isCompleted) {
@@ -1100,6 +1105,7 @@ export default function GameCanvas({
 
     // Direct game startup mechanics
     initGame();
+    setSceneReady(true);
     setIsPlaying(true);
     isPlayingRef.current = true;
     isCompletedRef.current = false;
@@ -1449,6 +1455,15 @@ export default function GameCanvas({
       if (rendererRef.current) {
         rendererRef.current.dispose();
       }
+      // Scene is being torn down (level change/unmount) — any mesh referencing it
+      // (including the PB ghost) is no longer attached to a live scene. Clear refs
+      // so the ghost-loading effect doesn't skip recreation thinking a mesh already
+      // exists, and don't leave stale Three.js instances behind.
+      sceneRef.current = null;
+      rendererRef.current = null;
+      cameraRef.current = null;
+      ghostMeshRef.current = null;
+      setSceneReady(false);
     };
 
   }, [level.id, level.theme, level.blocks.length]);
