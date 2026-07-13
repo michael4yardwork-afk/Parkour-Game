@@ -2026,9 +2026,17 @@ export default function GameCanvas({
         const distToBlockTop = maxY - py;
         const floorBias = (distToBlockTop >= 0 && distToBlockTop < playerRadius) ? playerRadius : 0;
 
-        // Push player outside of block on the shallowest intersection axis
+        // Push player outside of block on the shallowest intersection axis.
+        //
+        // Branch selection uses overlapY + floorBias so that a floor/landing collision
+        // beats a thin horizontal sliver (the classic "ridge snag" fix).  However, the
+        // floorBias inflates overlapY, which can make NEITHER Y nor X/Z win the first
+        // two checks — that ambiguous case is the "walking off the edge" bug: the old
+        // unconditional else defaulted to Z resolution, snapping position and zeroing
+        // Z velocity mid-run.  The fourth `else` branch below catches that case and
+        // resolves it as a floor contact, preserving horizontal momentum.
         if (overlapY + floorBias <= overlapX && overlapY + floorBias <= overlapZ) {
-          // Collision on horizontal roof or floor
+          // ── Floor / ceiling collision ────────────────────────────────────────
           const isFallingOrDescending = playerVel.current.y <= 0.05;
           if (isFallingOrDescending || py + playerRadius > (minY + maxY) / 2) {
             // Standing coordinates floor collision (grounded)
@@ -2048,7 +2056,7 @@ export default function GameCanvas({
             playerVel.current.y = Math.min(0, playerVel.current.y);
           }
         } else if (overlapX < overlapY && overlapX < overlapZ) {
-          // Lateral X axis displacement push-out
+          // ── Lateral X wall collision ─────────────────────────────────────────
           if (px < (minX + maxX) / 2) {
             playerPos.current.x = minX - playerRadius;
           } else {
@@ -2066,8 +2074,8 @@ export default function GameCanvas({
               blockId: block.id
             };
           }
-        } else {
-          // Longitudinal Z axis displacement push-out
+        } else if (overlapZ < overlapY) {
+          // ── Longitudinal Z wall collision (only when Z is the genuine minimum) ─
           if (pz < (minZ + maxZ) / 2) {
             playerPos.current.z = minZ - playerRadius;
           } else {
@@ -2083,6 +2091,28 @@ export default function GameCanvas({
               time: Date.now(),
               blockId: block.id
             };
+          }
+        } else {
+          // ── Edge-walk fallback ───────────────────────────────────────────────
+          // Reaches here when floorBias inflated overlapY past the horizontal
+          // slivers (overlapY + floorBias > overlapX/Z) AND neither X nor Z is
+          // the raw minimum (overlapX >= overlapY, overlapZ >= overlapY).
+          // Concretely: player feet are at maxY (overlapY ≈ 0) with a thin
+          // capsule-edge sliver hanging over the block corner.  Treat this as a
+          // floor contact — don't touch horizontal velocity.
+          const isFallingOrDescending = playerVel.current.y <= 0.05;
+          if (isFallingOrDescending || py + playerRadius > (minY + maxY) / 2) {
+            playerPos.current.y = maxY;
+            if (block.type !== 'jump') {
+              playerVel.current.y = 0;
+              nextGrounded = true;
+              if (!groundedRef.current) {
+                synths.playLand();
+              }
+            }
+          } else {
+            playerPos.current.y = minY - playerHeight;
+            playerVel.current.y = Math.min(0, playerVel.current.y);
           }
         }
       }
