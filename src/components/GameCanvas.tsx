@@ -249,6 +249,20 @@ export default function GameCanvas({
         const parsed: RunReplay = JSON.parse(ghostData);
         ghostFramesRef.current = parsed.frames;
         ghostActiveRef.current = true;
+
+        // If the mesh doesn't exist yet (ghost was off when the level loaded), create it now
+        if (!ghostMeshRef.current && sceneRef.current && ghostFramesRef.current.length > 0) {
+          const ghostGeom = new THREE.CapsuleGeometry(0.5, 1.0, 4, 8);
+          const ghostMat = new THREE.MeshBasicMaterial({
+            color: 0x60a5fa,
+            transparent: true,
+            opacity: 0.45,
+            wireframe: true
+          });
+          const gMesh = new THREE.Mesh(ghostGeom, ghostMat);
+          sceneRef.current.add(gMesh);
+          ghostMeshRef.current = gMesh;
+        }
       } catch (e) {
         console.error('Failed to parse ghost records', e);
         ghostActiveRef.current = false;
