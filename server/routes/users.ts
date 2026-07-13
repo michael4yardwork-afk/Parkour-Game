@@ -35,7 +35,7 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
     );
 
     const coursesRes = await pool.query(
-      `SELECT c.id, c.name, c.description, c.theme, c.created_at, COUNT(cl.username) AS likes_count
+      `SELECT c.id, c.name, c.description, c.blocks, c.theme, c.created_at, COUNT(cl.username) AS likes_count
        FROM community_courses c
        LEFT JOIN course_likes cl ON cl.course_id = c.id
        WHERE LOWER(c.creator) = LOWER($1) AND c.is_published = TRUE
@@ -85,7 +85,7 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
         theme: r.theme,
         createdAt: parseInt(r.created_at),
         likesCount: parseInt(r.likes_count) || 0,
-        blocks: [],
+        blocks: r.blocks ?? [],
         isPublished: true,
         isCustom: true,
         creator: username
