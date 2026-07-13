@@ -2019,8 +2019,15 @@ export default function GameCanvas({
         const overlapY = Math.min(py + playerHeight - minY, maxY - py);
         const overlapZ = Math.min(pz + playerRadius - minZ, maxZ - (pz - playerRadius));
 
+        // "Ridge" fix: when the player's feet are within playerRadius of the block's
+        // top surface this is a floor or landing contact. Bias the Y overlap so it
+        // wins over any thin X/Z edge sliver, preventing a false wall collision that
+        // would kill horizontal velocity mid-run near a block edge.
+        const distToBlockTop = maxY - py;
+        const floorBias = (distToBlockTop >= 0 && distToBlockTop < playerRadius) ? playerRadius : 0;
+
         // Push player outside of block on the shallowest intersection axis
-        if (overlapY < overlapX && overlapY < overlapZ) {
+        if (overlapY + floorBias <= overlapX && overlapY + floorBias <= overlapZ) {
           // Collision on horizontal roof or floor
           const isFallingOrDescending = playerVel.current.y <= 0.05;
           if (isFallingOrDescending || py + playerRadius > (minY + maxY) / 2) {
