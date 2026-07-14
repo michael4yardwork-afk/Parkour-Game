@@ -399,6 +399,25 @@ export default function App() {
     return () => window.removeEventListener('delta_rush_session_expired', handleSessionExpired);
   }, []);
 
+  const [checkoutNotice, setCheckoutNotice] = useState<'success' | 'cancelled' | null>(null);
+
+  useEffect(() => {
+    // Stripe Checkout redirects back with ?checkout=success|cancelled — surface
+    // a brief notice, then clean the URL so refreshing doesn't repeat it.
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get('checkout');
+    if (checkout === 'success' || checkout === 'cancelled') {
+      setCheckoutNotice(checkout);
+      setTab('upgrade');
+      params.delete('checkout');
+      const newSearch = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (newSearch ? `?${newSearch}` : ''));
+      const timer = setTimeout(() => setCheckoutNotice(null), 8000);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     // On app load, if we already have a logged-in session, retry any runs
     // that previously failed to save (e.g. from an expired session before relogin).
@@ -641,7 +660,22 @@ export default function App() {
         )}
 
         {tab === 'upgrade' && (
-          <Upgrade />
+          <div className="min-h-full">
+            {checkoutNotice && (
+              <div
+                className={`px-4 py-3 text-center text-sm font-semibold ${
+                  checkoutNotice === 'success'
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-neutral-800 text-white/90'
+                }`}
+              >
+                {checkoutNotice === 'success'
+                  ? "Payment successful — you're now on Platinum!"
+                  : 'Checkout was cancelled. No charge was made.'}
+              </div>
+            )}
+            <Upgrade isLoggedIn={!!currentUser} />
+          </div>
         )}
 
         {tab === 'profile' && viewingProfileUsername && currentUser && (

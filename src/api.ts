@@ -270,5 +270,18 @@ export const api = {
         return { rating: 200, color: '#3b82f6' };
       }
     }
+  },
+
+  billing: {
+    async startCheckout(cycle: 'monthly' | 'yearly'): Promise<{ url: string }> {
+      return apiFetch<{ url: string }>('/billing/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ cycle })
+      });
+    },
+
+    async getStatus(): Promise<{ isPlatinum: boolean; status: string | null; plan: string | null; currentPeriodEnd: number | null }> {
+      return apiFetch('/billing/status');
+    }
   }
 };

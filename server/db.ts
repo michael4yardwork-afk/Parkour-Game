@@ -103,6 +103,19 @@ export async function initDb() {
   await pool.query(`
     ALTER TABLE leaderboard_entries DROP COLUMN IF EXISTS actions;
   `);
+
+  // Stripe billing fields — track subscription state per user.
+  // subscription_status mirrors Stripe's subscription status field
+  // (active, trialing, past_due, canceled, unpaid, incomplete, etc.) or NULL
+  // if the user has never started a checkout.
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_plan TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_current_period_end BIGINT;
+    CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users(stripe_customer_id);
+  `);
 }
 
 export default pool;

@@ -7,6 +7,8 @@ import authRoutes from './routes/auth';
 import leaderboardRoutes from './routes/leaderboard';
 import communityRoutes from './routes/community';
 import usersRoutes from './routes/users';
+import billingRoutes from './routes/billing';
+import stripeWebhookRoutes from './routes/stripeWebhook';
 import { setupWebSocketServer } from './ws';
 
 // ── Diagnostics: write crash info to startup.log so it is readable
@@ -33,6 +35,10 @@ const PORT = Number(process.env.PORT) || 3001;
 
 log(`Starting Delta Rush — PORT=${PORT} NODE_ENV=${process.env.NODE_ENV ?? '(not set)'} DATABASE_URL=${process.env.DATABASE_URL ? 'set' : 'NOT SET'}`);
 
+// Stripe webhook must be registered BEFORE express.json() — Stripe's
+// signature verification needs the exact raw request body.
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }), stripeWebhookRoutes);
+
 app.use(express.json({ limit: '5mb' }));
 
 app.use((req, res, next) => {
@@ -47,6 +53,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/billing', billingRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', port: PORT }));
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Crown, Check, FolderKanban, LineChart, GitCompareArrows, Ghost, Blocks, BarChart3, Sparkles, Save, Mail } from 'lucide-react';
+import { Crown, Check, FolderKanban, LineChart, GitCompareArrows, Ghost, Blocks, BarChart3, Sparkles, Save, Mail, Loader2 } from 'lucide-react';
 import { synths } from '../audio';
+import { api } from '../api';
 
 type BillingCycle = 'monthly' | 'yearly';
 
@@ -89,20 +90,37 @@ const SNEAK_PEEK: { icon: React.ReactNode; title: string; description: string; i
 ];
 
 interface UpgradeProps {
-  onSubscribe?: (cycle: BillingCycle) => void;
+  isLoggedIn?: boolean;
+  onRequireLogin?: () => void;
 }
 
-export default function Upgrade({ onSubscribe }: UpgradeProps) {
+export default function Upgrade({ isLoggedIn, onRequireLogin }: UpgradeProps) {
   const [cycle, setCycle] = useState<BillingCycle>('yearly');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSelect = (nextCycle: BillingCycle) => {
     setCycle(nextCycle);
     synths.playTick();
   };
 
-  const handleSubscribeClick = (selectedCycle: BillingCycle) => {
+  const handleSubscribeClick = async (selectedCycle: BillingCycle) => {
     synths.playTick();
-    onSubscribe?.(selectedCycle);
+    setError(null);
+
+    if (!isLoggedIn) {
+      onRequireLogin?.();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { url } = await api.billing.startCheckout(selectedCycle);
+      window.location.href = url;
+    } catch (e: any) {
+      setError(e.message || 'Could not start checkout. Please try again.');
+      setLoading(false);
+    }
   };
 
   return (
@@ -210,10 +228,25 @@ export default function Upgrade({ onSubscribe }: UpgradeProps) {
             </ul>
             <button
               onClick={() => handleSubscribeClick(cycle)}
-              className="mt-6 w-full py-2.5 rounded-xl text-sm font-black bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-300 text-neutral-900 hover:brightness-105 active:scale-[0.98] transition shadow-lg cursor-pointer"
+              disabled={loading}
+              className="mt-6 w-full py-2.5 rounded-xl text-sm font-black bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-300 text-neutral-900 hover:brightness-105 active:scale-[0.98] transition shadow-lg cursor-pointer disabled:opacity-70 disabled:cursor-default flex items-center justify-center gap-2"
             >
-              Get Platinum — {cycle === 'monthly' ? '$2.99/mo' : '$24.99/yr'}
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Redirecting to checkout…
+                </>
+              ) : (
+                <>Get Platinum — {cycle === 'monthly' ? '$2.99/mo' : '$24.99/yr'}</>
+              )}
             </button>
+            {error && (
+              <p className="mt-3 text-xs font-semibold text-red-300 text-center">{error}</p>
+            )}
+            {!isLoggedIn && !error && (
+              <p className="mt-3 text-xs font-medium text-white/60 text-center">
+                Log in or create an account to subscribe.
+              </p>
+            )}
           </div>
         </div>
 
