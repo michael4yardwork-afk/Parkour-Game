@@ -61,6 +61,33 @@ const FEATURES: { icon: React.ReactNode; title: string; free: string; platinum: 
   },
 ];
 
+const SNEAK_PEEK: { icon: React.ReactNode; title: string; description: string; image: string }[] = [
+  {
+    icon: <LineChart className="w-4 h-4" />,
+    title: 'Interactive performance graphs',
+    description: 'Hover any run to inspect exact speed and progress at every second of the course.',
+    image: '/marketing/leaderboard-compare.png',
+  },
+  {
+    icon: <Ghost className="w-4 h-4" />,
+    title: 'Race ghosts from the leaderboard',
+    description: 'Load any world-ranked run as a live ghost and chase it through the course in real time.',
+    image: '/marketing/leaderboard-ghost.png',
+  },
+  {
+    icon: <BarChart3 className="w-4 h-4" />,
+    title: 'Advanced career statistics',
+    description: 'Track completions, best world rank, race wins, and courses built from your dashboard.',
+    image: '/marketing/activity-stats.png',
+  },
+  {
+    icon: <Blocks className="w-4 h-4" />,
+    title: 'Bigger, bolder course builds',
+    description: 'Place up to 200 elements per course in the sandbox builder and publish as many as you like.',
+    image: '/marketing/course-builder-full.png',
+  },
+];
+
 interface UpgradeProps {
   onSubscribe?: (cycle: BillingCycle) => void;
 }
@@ -190,27 +217,39 @@ export default function Upgrade({ onSubscribe }: UpgradeProps) {
           </div>
         </div>
 
-        {/* Feature comparison detail */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/40 shadow-lg overflow-hidden max-w-3xl mx-auto">
-          <div className="px-6 py-4 border-b border-neutral-150">
-            <h2 className="text-sm font-bold text-neutral-800">What changes with Platinum</h2>
+        {/* Platinum sneak peek — real in-game screenshots of what unlocks */}
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/30 rounded-full px-3.5 py-1 mb-3">
+              <Sparkles className="w-3.5 h-3.5 text-yellow-200" />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-white">Sneak peek</span>
+            </div>
+            <h2 className="text-xl md:text-2xl font-black text-white drop-shadow-sm tracking-tight">
+              See Platinum in action
+            </h2>
+            <p className="mt-2 text-xs md:text-sm text-white/80 max-w-lg mx-auto font-medium">
+              Real screens pulled straight from the game — this is exactly what's waiting for you.
+            </p>
           </div>
-          <ul className="divide-y divide-neutral-100">
-            {FEATURES.map((f) => (
-              <li key={f.title} className="px-6 py-4 flex items-center gap-4">
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                  {f.icon}
+
+          <div className="grid sm:grid-cols-2 gap-5">
+            {SNEAK_PEEK.map((s) => (
+              <div key={s.title} className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/40 shadow-lg overflow-hidden flex flex-col">
+                <div className="bg-neutral-950 h-44 md:h-52 flex items-center justify-center overflow-hidden">
+                  <img src={s.image} alt={s.title} className="w-full h-full object-contain" loading="lazy" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-neutral-800">{f.title}</div>
-                  <div className="text-xs text-neutral-400 mt-0.5">{f.free}</div>
+                <div className="p-4 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                    {s.icon}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-neutral-800">{s.title}</div>
+                    <div className="text-xs text-neutral-500 mt-0.5 leading-relaxed">{s.description}</div>
+                  </div>
                 </div>
-                <div className="text-xs font-bold text-emerald-600 text-right shrink-0 max-w-[45%]">
-                  {f.platinum}
-                </div>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
 
         <p className="text-center text-white/70 text-xs font-medium mt-10">
