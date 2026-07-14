@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Code, Volume2, LogOut, User, KeyRound, ShieldAlert, Users, Trophy, Settings, HelpCircle, Bookmark, Bell } from 'lucide-react';
+import { Code, Volume2, LogOut, User, KeyRound, ShieldAlert, Users, Trophy, Settings, HelpCircle, Bookmark, Bell, Crown } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import LevelSelector from './components/LevelSelector';
 import LevelEditor from './components/LevelEditor';
@@ -12,6 +12,7 @@ import AuthScreen from './components/AuthScreen';
 import UserProfile from './components/UserProfile';
 import NotificationsTab from './components/NotificationsTab';
 import SettingsModal from './components/SettingsModal';
+import Upgrade from './components/Upgrade';
 import HelpModal from './components/HelpModal';
 import PrivacyModal from './components/PrivacyModal';
 import { LevelConfig, GameSettings, UserAccount, RaceParticipant, CourseNotification, GhostFrame } from './types';
@@ -31,7 +32,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   showJumpButton: true
 };
 
-type AppTab = 'home' | 'levels' | 'saved' | 'community' | 'editor' | 'play' | 'races' | 'profile' | 'notifications';
+type AppTab = 'home' | 'levels' | 'saved' | 'community' | 'editor' | 'play' | 'races' | 'profile' | 'notifications' | 'upgrade';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
@@ -507,6 +508,18 @@ export default function App() {
                 <Code className="w-3.5 h-3.5" />
                 Course Builder
               </button>
+              <button
+                id="upgrade-tab-trigger"
+                onClick={() => { setTab('upgrade'); synths.playTick(); }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition duration-200 cursor-pointer flex items-center gap-1.5 ${
+                  tab === 'upgrade'
+                    ? 'bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-300 text-neutral-900'
+                    : 'text-amber-600 hover:bg-amber-50'
+                }`}
+              >
+                <Crown className="w-3.5 h-3.5" />
+                Upgrade
+              </button>
             </nav>
 
             {/* Settings & Active User Badge */}
@@ -618,6 +631,10 @@ export default function App() {
               handleSelectRaceLevel(rl, isRacesMode, opponents, ws, roomId, startTime);
             }}
           />
+        )}
+
+        {tab === 'upgrade' && (
+          <Upgrade />
         )}
 
         {tab === 'profile' && viewingProfileUsername && currentUser && (

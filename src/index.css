@@ -36,6 +36,23 @@ body,
   animation: gradient-flow 15s ease infinite;
 }
 
+/* Flowing rainbow backdrop for the Platinum upgrade page. */
+.bg-rainbow-flow {
+  background-image: linear-gradient(
+    115deg,
+    #ff005c,
+    #ff8a00,
+    #ffe600,
+    #26e07f,
+    #00c2ff,
+    #7a5cff,
+    #ff2fb2,
+    #ff005c
+  );
+  background-size: 300% 300%;
+  animation: gradient-flow 12s ease infinite;
+}
+
 @keyframes progress-grow {
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
