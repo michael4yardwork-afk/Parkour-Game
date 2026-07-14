@@ -327,6 +327,13 @@ export default function App() {
 
   const handleRaceGhost = async (entry: import('./types').LeaderboardEntry) => {
     if (!leaderboardLevel) return;
+    const entryOwner = entry.playerName?.toLowerCase().trim();
+    const selfName = currentUser?.username?.toLowerCase().trim();
+    if (entry.id === 'user_pb' || (entryOwner && selfName && entryOwner === selfName)) {
+      // Players cannot race their own leaderboard ghost bot — only their regular
+      // (personal-best) ghost, which is toggled separately via Settings.
+      return;
+    }
     const result = await api.leaderboard.getEntryFrames(leaderboardLevel.id, entry.id);
     if (!result || !result.frames || result.frames.length === 0) {
       alert('No ghost replay available for this run.');
