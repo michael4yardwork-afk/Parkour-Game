@@ -59,3 +59,5 @@ run = ["node", "./dist/index.cjs"]
 [userenv]
 
 [userenv.shared]
+STRIPE_PRICE_MONTHLY = "price_1Tt9CfCaCz8fOQEhMUTNALy2"
+STRIPE_PRICE_YEARLY = "price_1Tt9CfCaCz8fOQEhTeuHjyJs"
