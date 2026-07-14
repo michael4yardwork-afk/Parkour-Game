@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Crown, Check, FolderKanban, Users, LineChart, GitCompareArrows, Ghost, Blocks, BarChart3, Sparkles } from 'lucide-react';
+import { Crown, Check, FolderKanban, LineChart, GitCompareArrows, Ghost, Blocks, BarChart3, Sparkles, Save, Mail } from 'lucide-react';
 import { synths } from '../audio';
 
 type BillingCycle = 'monthly' | 'yearly';
@@ -7,51 +7,57 @@ type BillingCycle = 'monthly' | 'yearly';
 const FEATURES: { icon: React.ReactNode; title: string; free: string; platinum: string }[] = [
   {
     icon: <FolderKanban className="w-4 h-4" />,
-    title: 'Published courses',
-    free: '1 course',
-    platinum: 'Unlimited courses',
-  },
-  {
-    icon: <Users className="w-4 h-4" />,
-    title: 'Followers',
-    free: 'Cannot follow or be followed',
-    platinum: 'Follow and be followed by anyone',
-  },
-  {
-    icon: <LineChart className="w-4 h-4" />,
-    title: 'Leaderboard graphs',
-    free: 'Not available',
-    platinum: 'Full access on every leaderboard',
-  },
-  {
-    icon: <GitCompareArrows className="w-4 h-4" />,
-    title: 'Compare feature',
-    free: 'Not available',
-    platinum: 'Compare runs on any leaderboard',
+    title: 'Course publishing',
+    free: 'Publish 1 Course',
+    platinum: 'Unlimited Course Publishing',
   },
   {
     icon: <Ghost className="w-4 h-4" />,
     title: 'Ghost racing',
-    free: 'Not available',
-    platinum: 'Race ghosts from any leaderboard',
+    free: 'No Ghost Racing',
+    platinum: 'Race Ghosts from Around the World',
+  },
+  {
+    icon: <LineChart className="w-4 h-4" />,
+    title: 'Performance graphs',
+    free: 'No Performance Graphs',
+    platinum: 'Interactive Performance Graphs',
+  },
+  {
+    icon: <GitCompareArrows className="w-4 h-4" />,
+    title: 'Player comparisons',
+    free: 'No Player Comparisons',
+    platinum: 'Compare Performance with Any Player',
+  },
+  {
+    icon: <Sparkles className="w-4 h-4" />,
+    title: 'Icons & backgrounds',
+    free: 'Basic Icons & Backgrounds',
+    platinum: 'Exclusive Icons & Backgrounds',
+  },
+  {
+    icon: <Save className="w-4 h-4" />,
+    title: 'Course saving',
+    free: "Can't Save Courses",
+    platinum: 'Save Unlimited Courses',
+  },
+  {
+    icon: <Mail className="w-4 h-4" />,
+    title: 'Mail & notifications',
+    free: 'Standard Mail',
+    platinum: 'Premium Mail & Notifications',
   },
   {
     icon: <Blocks className="w-4 h-4" />,
     title: 'Course builder elements',
-    free: 'Up to 50 elements',
-    platinum: 'Up to 200 elements',
+    free: 'Up to 50 Elements per Course',
+    platinum: 'Up to 200 Elements per Course',
   },
   {
     icon: <BarChart3 className="w-4 h-4" />,
     title: 'Statistics',
-    free: 'Hidden on Dashboard & Races',
-    platinum: 'Full stats on Dashboard & Races',
-  },
-  {
-    icon: <Sparkles className="w-4 h-4" />,
-    title: 'Special icons & backgrounds',
-    free: 'Standard set only',
-    platinum: 'Every ⭐ special icon & background',
+    free: 'No Advanced Statistics',
+    platinum: 'Advanced Statistics & Insights',
   },
 ];
 
