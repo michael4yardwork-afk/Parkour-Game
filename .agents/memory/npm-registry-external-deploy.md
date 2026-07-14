@@ -26,3 +26,11 @@ then verify with `npm ci` using an explicit public registry
 (`NPM_CONFIG_REGISTRY=https://registry.npmjs.org/ npm ci`) before committing.
 Integrity hashes are unaffected since the tarball content is identical either
 way.
+
+This recurs on *any* `npm install`/`installLanguagePackages` call inside
+Replit that adds/updates a package, not just full lockfile regeneration —
+each new/updated entry gets the internal `resolved` host. On a project that
+deploys externally, grep `package-lock.json` for
+`package-firewall.replit.local` and re-run the sed fix after every dependency
+change, before committing, rather than only when a deploy failure is
+reported.
