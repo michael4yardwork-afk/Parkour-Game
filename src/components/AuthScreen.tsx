@@ -17,12 +17,6 @@ const AVATARS = [
   { emoji: '🐺', name: 'Alpha Wolf' },
   { emoji: '🐉', name: 'Dragon Master' },
   { emoji: '🤖', name: 'Cybernetic' },
-  { emoji: '🐱', name: 'Ninja Cat' },
-  { emoji: '🦊', name: 'Swift Fox' },
-  { emoji: '🎯', name: 'Apex Precision' },
-  { emoji: '🔥', name: 'Overdrive' },
-  { emoji: '👑', name: 'Championship' },
-  { emoji: '🦁', name: 'Primal Spirit' },
 ];
 
 const GAME_FEATURES = [

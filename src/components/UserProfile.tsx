@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Trophy, Activity, Sparkles, Clock, User, Award, Play, ChevronRight, BookmarkCheck, Heart, Check, Plus, Users, Bookmark, RefreshCw, EyeOff, Flag, Crown } from 'lucide-react';
+import { ArrowLeft, Trophy, Activity, Sparkles, Clock, User, Award, Play, ChevronRight, BookmarkCheck, Heart, Check, Plus, Users, Bookmark, RefreshCw, EyeOff, Flag, Crown, Lock } from 'lucide-react';
 import PlatinumGate from './PlatinumGate';
 import { LevelConfig, SceneTheme, UserAccount, LeaderboardEntry } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
@@ -670,35 +670,72 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                   Signature Emoji Glyph
                 </span>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                  {AVATARS.map((avatar) => (
-                    <button
-                      key={avatar.emoji}
-                      onClick={() => selectAvatar(avatar.emoji)}
-                      className={`py-2 rounded-xl text-lg flex items-center justify-center border transition cursor-pointer ${
-                        currentUser.avatar === avatar.emoji
-                          ? 'bg-indigo-600/10 border-indigo-600 text-indigo-700 font-bold scale-105 shadow-sm'
-                          : 'bg-white border-neutral-250 hover:border-neutral-400 text-neutral-500'
-                      }`}
-                      title={avatar.name}
-                    >
-                      {avatar.emoji}
-                    </button>
-                  ))}
-                  {/* Flag picker trigger — 12th new slot */}
-                  <button
-                    onClick={() => { synths.playTick(); setShowFlagPicker(prev => !prev); setFlagSearch(''); }}
-                    className={`py-2 rounded-xl text-lg flex items-center justify-center border transition cursor-pointer relative ${
-                      COUNTRY_FLAGS.some(f => f.emoji === currentUser.avatar)
-                        ? 'bg-indigo-600/10 border-indigo-600 scale-105 shadow-sm'
-                        : showFlagPicker
-                        ? 'bg-neutral-100 border-neutral-400'
-                        : 'bg-white border-neutral-250 hover:border-neutral-400 text-neutral-500'
-                    }`}
-                    title="Country Flag"
-                  >
-                    {COUNTRY_FLAGS.some(f => f.emoji === currentUser.avatar) ? currentUser.avatar : '🌍'}
-                    <span className="absolute bottom-0.5 right-1 text-[7px] font-black text-neutral-400 leading-none select-none">▾</span>
-                  </button>
+                  {AVATARS.map((avatar, idx) => {
+                    const isLocked = idx >= 6 && !isPlatinum;
+                    const isSelected = currentUser.avatar === avatar.emoji;
+                    return (
+                      <button
+                        key={avatar.emoji}
+                        onClick={() => {
+                          if (isLocked) {
+                            setGate({ feature: 'Extra Icon Emojis', description: 'Unlock 17 additional emoji icons and country flags for your profile icon.' });
+                            return;
+                          }
+                          selectAvatar(avatar.emoji);
+                        }}
+                        className={`py-2 rounded-xl text-lg flex items-center justify-center border transition relative ${
+                          isSelected
+                            ? 'bg-indigo-600/10 border-indigo-600 scale-105 shadow-sm cursor-pointer'
+                            : isLocked
+                            ? 'bg-neutral-50 border-neutral-150 cursor-default'
+                            : 'bg-white border-neutral-250 hover:border-neutral-400 cursor-pointer'
+                        }`}
+                        title={isLocked ? `${avatar.name} — Platinum only` : avatar.name}
+                      >
+                        <span className={isLocked ? 'opacity-40 grayscale' : ''}>{avatar.emoji}</span>
+                        {idx >= 6 && !isPlatinum && (
+                          <Lock className="w-2.5 h-2.5 absolute bottom-0.5 right-0.5 text-neutral-400" />
+                        )}
+                      </button>
+                    );
+                  })}
+                  {/* Flag picker trigger — Platinum only */}
+                  {(() => {
+                    const flagLocked = !isPlatinum;
+                    const hasFlag = COUNTRY_FLAGS.some(f => f.emoji === currentUser.avatar);
+                    return (
+                      <button
+                        onClick={() => {
+                          if (flagLocked) {
+                            setGate({ feature: 'Country Flag Icons', description: 'Unlock all country flag emojis for your profile icon.' });
+                            return;
+                          }
+                          synths.playTick();
+                          setShowFlagPicker(prev => !prev);
+                          setFlagSearch('');
+                        }}
+                        className={`py-2 rounded-xl text-lg flex items-center justify-center border transition relative ${
+                          hasFlag
+                            ? 'bg-indigo-600/10 border-indigo-600 scale-105 shadow-sm cursor-pointer'
+                            : showFlagPicker
+                            ? 'bg-neutral-100 border-neutral-400 cursor-pointer'
+                            : flagLocked
+                            ? 'bg-neutral-50 border-neutral-150 cursor-default'
+                            : 'bg-white border-neutral-250 hover:border-neutral-400 cursor-pointer'
+                        }`}
+                        title={flagLocked ? 'Country Flag — Platinum only' : 'Country Flag'}
+                      >
+                        <span className={flagLocked ? 'opacity-40 grayscale' : ''}>
+                          {hasFlag ? currentUser.avatar : '🌍'}
+                        </span>
+                        {flagLocked ? (
+                          <Lock className="w-2.5 h-2.5 absolute bottom-0.5 right-0.5 text-neutral-400" />
+                        ) : (
+                          <span className="absolute bottom-0.5 right-1 text-[7px] font-black text-neutral-400 leading-none select-none">▾</span>
+                        )}
+                      </button>
+                    );
+                  })()}
                 </div>
 
                 {/* Flag picker dropdown */}
@@ -761,33 +798,43 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                   Icon Theme Background
                 </span>
                 <div className="flex flex-wrap gap-2">
-                  {AVATAR_BGS.map((bg) => (
-                    <div key={bg.value} className="relative">
-                      <button
-                        title={bg.special && !isPlatinum ? `${bg.label} — Platinum only` : bg.label}
-                        onClick={() => {
-                          if (bg.special && !isPlatinum) {
-                            setGate({ feature: 'Special Icon Backgrounds', description: 'Unlock exclusive gradient, metallic, and pattern backgrounds for your profile icon.' });
-                            return;
-                          }
-                          selectBg(bg.value);
-                        }}
-                        className={`w-8 h-8 rounded-full border-2 overflow-hidden relative flex items-center justify-center transition cursor-pointer ${bg.value} ${
-                          bg.value === (currentUser.avatarBg || 'bg-rose-500')
-                            ? 'border-white scale-110 shadow-md'
-                            : 'border-transparent hover:scale-105 hover:border-white/50'
-                        }`}
-                      >
-                        {bg.special && <span className={`absolute inset-0 ${bg.class}`} aria-hidden="true" />}
-                        {bg.value === (currentUser.avatarBg || 'bg-rose-500') && (
-                          <svg className={`w-3.5 h-3.5 drop-shadow relative z-10 ${bg.value === 'bg-white' ? 'text-neutral-700' : 'text-white'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  {AVATAR_BGS.map((bg) => {
+                    const bgLocked = bg.special && !isPlatinum;
+                    return (
+                      <div key={bg.value} className="relative">
+                        <button
+                          title={bgLocked ? `${bg.label} — Platinum only` : bg.label}
+                          onClick={() => {
+                            if (bg.special && !isPlatinum) {
+                              setGate({ feature: 'Special Icon Backgrounds', description: 'Unlock exclusive gradient, metallic, and pattern backgrounds for your profile icon.' });
+                              return;
+                            }
+                            selectBg(bg.value);
+                          }}
+                          className={`w-8 h-8 rounded-full border-2 overflow-hidden relative flex items-center justify-center transition ${bgLocked ? 'cursor-default' : 'cursor-pointer'} ${bg.value} ${
+                            bg.value === (currentUser.avatarBg || 'bg-rose-500')
+                              ? 'border-white scale-110 shadow-md'
+                              : 'border-transparent hover:scale-105 hover:border-white/50'
+                          }`}
+                        >
+                          {bg.special && (
+                            <span
+                              className={`absolute inset-0 ${bg.class} ${bgLocked ? 'opacity-40 grayscale' : ''}`}
+                              aria-hidden="true"
+                            />
+                          )}
+                          {bg.value === (currentUser.avatarBg || 'bg-rose-500') && (
+                            <svg className={`w-3.5 h-3.5 drop-shadow relative z-10 ${bg.value === 'bg-white' ? 'text-neutral-700' : 'text-white'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          )}
+                        </button>
+                        {bg.special && (
+                          bgLocked
+                            ? <Lock className="w-2.5 h-2.5 absolute -top-1 -right-1 text-neutral-400 drop-shadow pointer-events-none" />
+                            : <Sparkles className="w-2.5 h-2.5 absolute -top-1 -right-1 text-yellow-300 drop-shadow pointer-events-none" />
                         )}
-                      </button>
-                      {bg.special && (
-                        <Sparkles className="w-2.5 h-2.5 absolute -top-1 -right-1 text-yellow-300 drop-shadow pointer-events-none" />
-                      )}
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
