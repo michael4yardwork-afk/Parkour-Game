@@ -1,17 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { Save, Play, Trash2, ArrowLeft, Move, RotateCcw, Compass, ZoomIn, ZoomOut } from 'lucide-react';
+import { Save, Play, Trash2, ArrowLeft, Move, RotateCcw, Compass, ZoomIn, ZoomOut, Crown } from 'lucide-react';
 import { LevelConfig, BlockConfig, BlockType, SceneTheme } from '../types';
 import { hasVulgarLanguage } from '../utils';
+import PlatinumGate from './PlatinumGate';
 
 interface LevelEditorProps {
   initialLevel?: LevelConfig | null;
   onSave: (level: LevelConfig) => void;
   onExit: (level?: LevelConfig) => void;
   onTest: (level: LevelConfig) => void;
+  isPlatinum?: boolean;
+  onUpgrade?: () => void;
 }
 
-export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: LevelEditorProps) {
+export default function LevelEditor({ initialLevel, onSave, onExit, onTest, isPlatinum, onUpgrade }: LevelEditorProps) {
+  const [gate, setGate] = useState<{ feature: string; description?: string } | null>(null);
   // Try to restore draft if no specific level is being edited
   const getInitialValue = () => {
     if (initialLevel) return initialLevel;
@@ -345,11 +349,15 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
     cameraRef.current.lookAt(targetX, targetY, targetZ);
   }, [blocks, selectedBlockId, cameraZoom, cameraRotation, cameraHeight, panX, panZ, selectedBlock]);
 
-  const MAX_BLOCKS = 200;
+  const MAX_BLOCKS = isPlatinum ? 200 : 50;
 
   const handleAddBlock = (type: BlockType) => {
     if (blocks.length >= MAX_BLOCKS) {
-      alert(`Course element limit reached (${MAX_BLOCKS} max). Delete some elements before adding more.`);
+      if (!isPlatinum) {
+        setGate({ feature: 'Extended Course Builder', description: 'Free accounts can place up to 50 elements. Upgrade to Platinum to build with up to 200 elements.' });
+      } else {
+        alert(`Course element limit reached (${MAX_BLOCKS} max). Delete some elements before adding more.`);
+      }
       return;
     }
     // Determine random offset relative to last selected coordinate to make stacking quick
@@ -865,6 +873,15 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest }: Le
         </div>
       )}
 
+      {gate && (
+        <PlatinumGate
+          isVisible
+          feature={gate.feature}
+          description={gate.description}
+          onClose={() => setGate(null)}
+          onUpgrade={onUpgrade ?? (() => {})}
+        />
+      )}
     </div>
   );
 }

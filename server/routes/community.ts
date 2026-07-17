@@ -78,6 +78,26 @@ router.post('/courses', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid course data.' });
     }
 
+    // Enforce 1-course publish limit for free (non-platinum) users.
+    const subRes = await pool.query(
+      'SELECT subscription_status FROM users WHERE LOWER(username) = LOWER($1)',
+      [username]
+    );
+    const isPlatinum = ['active', 'trialing'].includes(subRes.rows[0]?.subscription_status ?? '');
+
+    if (!isPlatinum) {
+      const publishedCount = await pool.query(
+        'SELECT COUNT(*) AS cnt FROM community_courses WHERE LOWER(creator) = LOWER($1) AND is_published = TRUE AND id != $2',
+        [username, id]
+      );
+      if (parseInt(publishedCount.rows[0].cnt) >= 1) {
+        return res.status(403).json({
+          error: 'platinum_required',
+          message: 'Free accounts can publish 1 course. Upgrade to Platinum for unlimited publishing.',
+        });
+      }
+    }
+
     const existing = await pool.query(
       'SELECT id, is_published FROM community_courses WHERE id = $1',
       [id]

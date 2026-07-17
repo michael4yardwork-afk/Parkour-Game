@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Plus, Trash2, Code, Award, Sparkles, FolderHeart, Globe, User, Search, RotateCcw, X, RefreshCw, EyeOff } from 'lucide-react';
+import { Play, Plus, Trash2, Code, Award, Sparkles, FolderHeart, Globe, User, Search, RotateCcw, X, RefreshCw, EyeOff, Crown } from 'lucide-react';
+import PlatinumGate from './PlatinumGate';
 import { LevelConfig, SceneTheme, UserAccount } from '../types';
 import { synths } from '../audio';
 import { api } from '../api';
@@ -9,6 +10,8 @@ interface SavedCoursesProps {
   onCreateNewCustom: () => void;
   onEditCustom: (level: LevelConfig) => void;
   currentUser: UserAccount;
+  isPlatinum?: boolean;
+  onUpgrade?: () => void;
 }
 
 const formatWR = (seconds: number): string => {
@@ -19,7 +22,8 @@ const formatWR = (seconds: number): string => {
   return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${ms.toString().padStart(3, '0')}s`;
 };
 
-export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditCustom, currentUser }: SavedCoursesProps) {
+export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditCustom, currentUser, isPlatinum, onUpgrade }: SavedCoursesProps) {
+  const [gate, setGate] = useState<{ feature: string; description?: string } | null>(null);
   const [customLevels, setCustomLevels] = useState<LevelConfig[]>([]);
   const [deletingLevel, setDeletingLevel] = useState<LevelConfig | null>(null);
   const [publishingLevel, setPublishingLevel] = useState<LevelConfig | null>(null);
@@ -180,7 +184,12 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
       alert(`"${published.name}" has been published to the community! Edits are now locked.`);
     } catch (e: any) {
       console.error(e);
-      alert(e.message || 'Failed to publish course. Please try again.');
+      if (e.message === 'platinum_required') {
+        setPublishingLevel(null);
+        setGate({ feature: 'Unlimited Course Publishing', description: 'Free accounts can publish 1 course. Upgrade to Platinum for unlimited publishing.' });
+      } else {
+        alert(e.message || 'Failed to publish course. Please try again.');
+      }
     } finally {
       setPublishing(false);
     }
@@ -447,6 +456,15 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
             </div>
           </div>
         </div>
+      )}
+      {gate && (
+        <PlatinumGate
+          isVisible
+          feature={gate.feature}
+          description={gate.description}
+          onClose={() => setGate(null)}
+          onUpgrade={onUpgrade ?? (() => {})}
+        />
       )}
     </div>
   );

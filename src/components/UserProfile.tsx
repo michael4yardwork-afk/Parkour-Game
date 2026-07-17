@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Trophy, Activity, Sparkles, Clock, User, Award, Play, ChevronRight, BookmarkCheck, Heart, Check, Plus, Users, Bookmark, RefreshCw, EyeOff, Flag } from 'lucide-react';
+import { ArrowLeft, Trophy, Activity, Sparkles, Clock, User, Award, Play, ChevronRight, BookmarkCheck, Heart, Check, Plus, Users, Bookmark, RefreshCw, EyeOff, Flag, Crown } from 'lucide-react';
+import PlatinumGate from './PlatinumGate';
 import { LevelConfig, SceneTheme, UserAccount, LeaderboardEntry } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { synths } from '../audio';
@@ -14,6 +15,8 @@ interface UserProfileProps {
   onSelectLevel: (level: LevelConfig) => void;
   onUpdateCurrentUser?: (updatedUser: UserAccount) => void;
   onViewProfile?: (username: string) => void;
+  isPlatinum?: boolean;
+  onUpgrade?: () => void;
 }
 
 // Map level IDs to their beautiful theme backgrounds
@@ -49,7 +52,9 @@ const formatWR = (seconds: number): string => {
   return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${ms.toString().padStart(3, '0')}s`;
 };
 
-export default function UserProfile({ username, currentUser, onBack, onSelectLevel, onUpdateCurrentUser, onViewProfile }: UserProfileProps) {
+export default function UserProfile({ username, currentUser, onBack, onSelectLevel, onUpdateCurrentUser, onViewProfile, isPlatinum, onUpgrade }: UserProfileProps) {
+  const [gate, setGate] = useState<{ feature: string; description?: string } | null>(null);
+  const [profileIsPlatinum, setProfileIsPlatinum] = useState(false);
   const [resolvedName, setResolvedName] = useState(username);
   const [avatarInfo, setAvatarInfo] = useState({ avatar: '🚀', avatarBg: 'bg-rose-500' });
   const [racingElo, setRacingElo] = useState(100);
@@ -128,6 +133,7 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
         setPublishedCourses(profileData.courses || []);
         setFollowerCount(profileData.followersCount || 0);
         setIsFollowing(profileData.isFollowing || false);
+        setProfileIsPlatinum((profileData as any).isPlatinum ?? false);
       } else {
         // Fallback for users not found via API
         setResolvedName(username);
@@ -237,13 +243,22 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
   };
 
   const handleToggleFollow = async () => {
+    // Gate: free-plan users cannot receive followers. Show the gate before calling the API.
+    if (!isFollowing && !profileIsPlatinum) {
+      setGate({ feature: 'Following Players', description: 'Only Platinum members can be followed. This player needs to upgrade before others can follow them.' });
+      return;
+    }
     try {
       const { following } = await api.users.toggleFollow(resolvedName);
       setIsFollowing(following);
       setFollowerCount(prev => following ? prev + 1 : Math.max(0, prev - 1));
       if (following) synths.playFinish(); else synths.playTick();
-    } catch (e) {
-      console.error('Failed to toggle follow:', e);
+    } catch (e: any) {
+      if (e.message === 'platinum_required') {
+        setGate({ feature: 'Following Players', description: 'Only Platinum members can be followed by others.' });
+      } else {
+        console.error('Failed to toggle follow:', e);
+      }
     }
   };
 
@@ -466,8 +481,14 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                   {AVATAR_BGS.map((bg) => (
                     <div key={bg.value} className="relative">
                       <button
-                        title={bg.label}
-                        onClick={() => selectBg(bg.value)}
+                        title={bg.special && !isPlatinum ? `${bg.label} — Platinum only` : bg.label}
+                        onClick={() => {
+                          if (bg.special && !isPlatinum) {
+                            setGate({ feature: 'Special Icon Backgrounds', description: 'Unlock exclusive gradient, metallic, and pattern backgrounds for your profile icon.' });
+                            return;
+                          }
+                          selectBg(bg.value);
+                        }}
                         className={`w-8 h-8 rounded-full border-2 overflow-hidden relative flex items-center justify-center transition cursor-pointer ${bg.value} ${
                           bg.value === (currentUser.avatarBg || 'bg-rose-500')
                             ? 'border-white scale-110 shadow-md'
@@ -678,6 +699,15 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
           </div>
         )}
       </div>
+      {gate && (
+        <PlatinumGate
+          isVisible
+          feature={gate.feature}
+          description={gate.description}
+          onClose={() => setGate(null)}
+          onUpgrade={onUpgrade ?? (() => {})}
+        />
+      )}
     </div>
   );
 }

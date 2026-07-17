@@ -22,7 +22,7 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
     const viewer = getAuth(req);
 
     const userRes = await pool.query(
-      'SELECT username, avatar, avatar_bg, created_at FROM users WHERE LOWER(username) = LOWER($1)',
+      'SELECT username, avatar, avatar_bg, created_at, subscription_status FROM users WHERE LOWER(username) = LOWER($1)',
       [username]
     );
     if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' });
@@ -68,6 +68,8 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
       isFollowing = fRes.rows.length > 0;
     }
 
+    const profileIsPlatinum = ['active', 'trialing'].includes(u.subscription_status ?? '');
+
     res.json({
       user: {
         username: u.username,
@@ -76,6 +78,7 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
         createdAt: parseInt(u.created_at),
         passwordHash: ''
       },
+      isPlatinum: profileIsPlatinum,
       rating: ratingRes.rows[0]?.rating ?? 200,
       color: ratingRes.rows[0]?.color ?? '#3b82f6',
       courses: coursesRes.rows.map(r => ({
@@ -117,12 +120,25 @@ router.post('/:username/follow', async (req: Request, res: Response) => {
     );
 
     if (existing.rows.length > 0) {
+      // Unfollow — always allowed regardless of platinum status.
       await pool.query(
         'DELETE FROM user_follows WHERE LOWER(follower) = LOWER($1) AND LOWER(following) = LOWER($2)',
         [viewer, username]
       );
       res.json({ following: false });
     } else {
+      // New follow — only allowed when the target user has an active Platinum subscription.
+      const targetSubRes = await pool.query(
+        'SELECT subscription_status FROM users WHERE LOWER(username) = LOWER($1)',
+        [username]
+      );
+      const targetIsPlatinum = ['active', 'trialing'].includes(targetSubRes.rows[0]?.subscription_status ?? '');
+      if (!targetIsPlatinum) {
+        return res.status(403).json({
+          error: 'platinum_required',
+          message: 'This player needs Platinum to be followed by others.',
+        });
+      }
       await pool.query(
         'INSERT INTO user_follows (follower, following) VALUES ($1, $2) ON CONFLICT DO NOTHING',
         [viewer, username]

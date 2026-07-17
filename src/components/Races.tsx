@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trophy, Timer, Bot, User, Users, Flame, History, Play, Sparkles } from 'lucide-react';
+import { Trophy, Timer, Bot, User, Users, Flame, History, Play, Sparkles, Crown } from 'lucide-react';
+import PlatinumGate from './PlatinumGate';
 import { LevelConfig, UserAccount, RaceParticipant, RaceHistoryEntry } from '../types';
 import { synths } from '../audio';
 import { DEFAULT_LEVELS } from '../defaultLevels';
@@ -17,6 +18,8 @@ interface RacesProps {
   ) => void;
   /** Bumped by the parent whenever a race result finishes saving, so stats refresh immediately. */
   refreshKey?: number;
+  isPlatinum?: boolean;
+  onUpgrade?: () => void;
 }
 
 // Fixed list of vibrant opponent colors
@@ -43,7 +46,8 @@ const BOT_NAMES = [
   'MomentumMaster'
 ];
 
-export default function Races({ currentUser, onSelectLevel, refreshKey }: RacesProps) {
+export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatinum, onUpgrade }: RacesProps) {
+  const [gate, setGate] = useState<{ feature: string; description?: string } | null>(null);
   // Stats
   const [rating, setRating] = useState<number>(100);
   const [history, setHistory] = useState<RaceHistoryEntry[]>([]);
@@ -442,24 +446,36 @@ export default function Races({ currentUser, onSelectLevel, refreshKey }: RacesP
         )}
 
         {/* Triple Bento Stats Block */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
-            <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Total Matches</div>
-            <div className="text-3xl font-black font-mono text-neutral-50 mt-2">{totalRaces}</div>
+        {isPlatinum ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
+              <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Total Matches</div>
+              <div className="text-3xl font-black font-mono text-neutral-50 mt-2">{totalRaces}</div>
+            </div>
+            <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
+              <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Champion Runs (1st)</div>
+              <div className="text-3xl font-black font-mono text-emerald-400 mt-2">{firstPlaces}</div>
+            </div>
+            <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
+              <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Podium Finishes (Top 3)</div>
+              <div className="text-3xl font-black font-mono text-amber-500 mt-2">{podiums}</div>
+            </div>
+            <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
+              <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Win Percentage</div>
+              <div className="text-3xl font-black font-mono text-indigo-400 mt-2">{winRatio}%</div>
+            </div>
           </div>
-          <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
-            <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Champion Runs (1st)</div>
-            <div className="text-3xl font-black font-mono text-emerald-400 mt-2">{firstPlaces}</div>
-          </div>
-          <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
-            <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Podium Finishes (Top 3)</div>
-            <div className="text-3xl font-black font-mono text-amber-500 mt-2">{podiums}</div>
-          </div>
-          <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
-            <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Win Percentage</div>
-            <div className="text-3xl font-black font-mono text-indigo-400 mt-2">{winRatio}%</div>
-          </div>
-        </div>
+        ) : (
+          <button
+            onClick={() => setGate({ feature: 'Race Statistics', description: 'Track your wins, podiums, and performance across all your multiplayer races.' })}
+            className="w-full rounded-2xl border-2 border-dashed border-yellow-400/20 bg-yellow-500/5 hover:bg-yellow-500/10 transition p-8 text-center cursor-pointer"
+          >
+            <Crown className="w-7 h-7 text-yellow-400/60 mx-auto mb-2.5" />
+            <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-yellow-500/70 mb-1">Platinum Feature</p>
+            <p className="text-sm font-semibold text-neutral-400">Race Statistics</p>
+            <p className="text-xs text-neutral-600 mt-1">Upgrade to Platinum to unlock your race stats</p>
+          </button>
+        )}
 
         {/* Races Log and History */}
         <div className="space-y-4">
@@ -539,6 +555,15 @@ export default function Races({ currentUser, onSelectLevel, refreshKey }: RacesP
         </div>
 
       </div>
+      {gate && (
+        <PlatinumGate
+          isVisible
+          feature={gate.feature}
+          description={gate.description}
+          onClose={() => setGate(null)}
+          onUpgrade={onUpgrade ?? (() => {})}
+        />
+      )}
     </div>
   );
 }

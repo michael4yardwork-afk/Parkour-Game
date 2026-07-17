@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Code, Settings, Trophy, ArrowRight, ShieldCheck, Info, LogOut, User, KeyRound, Sparkles, Check, Lock, ShieldAlert, Users, Star, Flag, Zap, Swords, Hammer, Medal } from 'lucide-react';
+import { Code, Settings, Trophy, ArrowRight, ShieldCheck, Info, LogOut, User, KeyRound, Sparkles, Check, Lock, ShieldAlert, Users, Star, Flag, Zap, Swords, Hammer, Medal, Crown } from 'lucide-react';
+import PlatinumGate from './PlatinumGate';
 import { GameSettings, UserAccount, RaceHistoryEntry } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { synths } from '../audio';
@@ -12,6 +13,8 @@ interface DashboardProps {
   currentUser: UserAccount;
   onLogout: () => void;
   onUpdateCurrentUser: (updatedUser: UserAccount) => void;
+  isPlatinum?: boolean;
+  onUpgrade?: () => void;
 }
 
 const AVATARS = [
@@ -69,7 +72,8 @@ const getWorldRankAndPercentile = (levelId: string, time: number | null, usernam
   }
 };
 
-export default function Dashboard({ settings, onChangeSettings, onNavigate, currentUser, onLogout, onUpdateCurrentUser }: DashboardProps) {
+export default function Dashboard({ settings, onChangeSettings, onNavigate, currentUser, onLogout, onUpdateCurrentUser, isPlatinum, onUpgrade }: DashboardProps) {
+  const [gate, setGate] = useState<{ feature: string; description?: string } | null>(null);
   // Security Panel State
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -529,6 +533,7 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
           </div>
         </div>
 
+        {isPlatinum ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* Total Completions */}
           <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-amber-300/60 hover:shadow-amber-500/5 transition duration-200 group">
@@ -605,6 +610,17 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
             <span className="text-[10px] text-neutral-400 font-mono">in sandbox builder</span>
           </div>
         </div>
+        ) : (
+        <button
+          onClick={() => setGate({ feature: 'Activity Statistics', description: 'Track your race wins, completions, world rank, and full career performance data.' })}
+          className="w-full rounded-2xl border-2 border-dashed border-yellow-400/20 bg-yellow-500/5 hover:bg-yellow-500/10 transition p-8 text-center cursor-pointer"
+        >
+          <Crown className="w-7 h-7 text-yellow-400/60 mx-auto mb-2.5" />
+          <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-yellow-500/70 mb-1">Platinum Feature</p>
+          <p className="text-sm font-semibold text-neutral-400">Activity Statistics</p>
+          <p className="text-xs text-neutral-600 mt-1">Upgrade to Platinum to see your career stats</p>
+        </button>
+        )}
       </div>
 
       {showLogoutConfirm && (
@@ -643,6 +659,15 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
         </div>
       )}
 
+      {gate && (
+        <PlatinumGate
+          isVisible
+          feature={gate.feature}
+          description={gate.description}
+          onClose={() => setGate(null)}
+          onUpgrade={onUpgrade ?? (() => {})}
+        />
+      )}
     </div>
   );
 }

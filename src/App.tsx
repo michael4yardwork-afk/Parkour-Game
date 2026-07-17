@@ -401,6 +401,16 @@ export default function App() {
 
   const [checkoutNotice, setCheckoutNotice] = useState<'success' | 'cancelled' | null>(null);
 
+  // Platinum subscription status — fetched once per session and refreshed on login/checkout.
+  const [isPlatinum, setIsPlatinum] = useState(false);
+
+  useEffect(() => {
+    if (!currentUser) { setIsPlatinum(false); return; }
+    api.billing.getStatus()
+      .then(({ isPlatinum: p }) => setIsPlatinum(p))
+      .catch(() => setIsPlatinum(false));
+  }, [currentUser?.username]);
+
   useEffect(() => {
     // Stripe Checkout redirects back with ?checkout=success|cancelled — surface
     // a brief notice, then clean the URL so refreshing doesn't repeat it.
@@ -621,6 +631,8 @@ export default function App() {
             currentUser={currentUser}
             onLogout={handleLogout}
             onUpdateCurrentUser={handleUpdateCurrentUser}
+            isPlatinum={isPlatinum}
+            onUpgrade={() => setTab('upgrade')}
           />
         )}
 
@@ -638,6 +650,8 @@ export default function App() {
             onCreateNewCustom={handleStartBuilder}
             onEditCustom={handleEditCustomLevel}
             currentUser={currentUser}
+            isPlatinum={isPlatinum}
+            onUpgrade={() => setTab('upgrade')}
           />
         )}
 
@@ -656,6 +670,8 @@ export default function App() {
             onSelectLevel={(rl, isRacesMode, opponents, ws, roomId, startTime) => {
               handleSelectRaceLevel(rl, isRacesMode, opponents, ws, roomId, startTime);
             }}
+            isPlatinum={isPlatinum}
+            onUpgrade={() => setTab('upgrade')}
           />
         )}
 
@@ -685,6 +701,8 @@ export default function App() {
             onBack={() => setTab(previousTab)}
             onSelectLevel={handleSelectLevel}
             onUpdateCurrentUser={handleUpdateCurrentUser}
+            isPlatinum={isPlatinum}
+            onUpgrade={() => setTab('upgrade')}
           />
         )}
 
@@ -701,6 +719,8 @@ export default function App() {
           <LevelEditor
             initialLevel={editingLevel}
             onSave={handleSaveCustomLevel}
+            isPlatinum={isPlatinum}
+            onUpgrade={() => setTab('upgrade')}
             onExit={(latestLevel) => {
               if (latestLevel) {
                 setEditingLevel(latestLevel);
@@ -790,6 +810,8 @@ export default function App() {
           onClose={() => setLeaderboardOpen(false)}
           onViewProfile={handleViewProfile}
           onRaceGhost={handleRaceGhost}
+          isPlatinum={isPlatinum}
+          onUpgrade={() => setTab('upgrade')}
         />
       )}
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, RefreshCw, Award, LineChart, Activity, TrendingUp, GitCompare, Play, Loader } from 'lucide-react';
+import { Trophy, RefreshCw, Award, LineChart, Activity, TrendingUp, GitCompare, Play, Loader, Crown } from 'lucide-react';
 import { LeaderboardEntry, UserAccount } from '../types';
 import { api } from '../api';
 import VelocityChart from './VelocityChart';
+import PlatinumGate from './PlatinumGate';
 
 interface LeaderboardProps {
   levelId: string;
@@ -12,9 +13,11 @@ interface LeaderboardProps {
   currentUser?: UserAccount | null;
   onViewProfile?: (username: string) => void;
   onRaceGhost?: (entry: LeaderboardEntry) => Promise<void>;
+  isPlatinum?: boolean;
+  onUpgrade?: () => void;
 }
 
-export default function Leaderboard({ levelId, levelName, localBest, onClose, currentUser, onViewProfile, onRaceGhost }: LeaderboardProps) {
+export default function Leaderboard({ levelId, levelName, localBest, onClose, currentUser, onViewProfile, onRaceGhost, isPlatinum, onUpgrade }: LeaderboardProps) {
   const [filter, setFilter] = useState<'world' | 'local'>('world');
   const [worldView, setWorldView] = useState<'top' | 'my_position'>('top');
   const [rawEntries, setRawEntries] = useState<LeaderboardEntry[]>([]);
@@ -24,6 +27,7 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
   const [compareRunId, setCompareRunId] = useState<string | null>(null);
   const [userIconMap, setUserIconMap] = useState<Record<string, { avatar: string; avatarBg: string }>>({});
   const [loadingGhostId, setLoadingGhostId] = useState<string | null>(null);
+  const [gate, setGate] = useState<{ feature: string; description?: string } | null>(null);
 
   useEffect(() => {
     setCurrentLocalBest(localBest);
@@ -335,6 +339,7 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
                             {entry.hasFrames && onRaceGhost && !isCurrentUser && (filter !== 'local' || entry.rank === 1) && (
                               <button
                                 onClick={async () => {
+                                  if (!isPlatinum) { setGate({ feature: 'Ghost Racing', description: 'Race against recorded ghost runs to challenge the best times on the leaderboard.' }); return; }
                                   if (loadingGhostId) return;
                                   setLoadingGhostId(entry.id);
                                   try {
@@ -358,7 +363,7 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
                               </button>
                             )}
                             <button
-                              onClick={() => { if (isExpanded) { setExpandedRunId(null); setCompareRunId(null); } else { setExpandedRunId(entry.id); setCompareRunId(null); } }}
+                              onClick={() => { if (!isPlatinum) { setGate({ feature: 'Velocity Graphs', description: 'View detailed speed profiles for any run to analyze acceleration and momentum.' }); return; } if (isExpanded) { setExpandedRunId(null); setCompareRunId(null); } else { setExpandedRunId(entry.id); setCompareRunId(null); } }}
                               className={`p-1.5 rounded-lg transition-all duration-200 cursor-pointer flex items-center justify-center border ${isExpanded ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'text-neutral-500 hover:text-indigo-400 hover:bg-neutral-800 border-transparent'}`}
                               title="Show velocity graph"
                             >
@@ -367,6 +372,7 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
                             {expandedRunId && (
                               <button
                                 onClick={() => {
+                                  if (!isPlatinum) { setGate({ feature: 'Run Comparison', description: 'Overlay two velocity graphs to compare runs side by side on the leaderboard.' }); return; }
                                   if (entry.id === expandedRunId) return;
                                   if (!expandedRunId) { setExpandedRunId(entry.id); return; }
                                   setCompareRunId(prev => prev === entry.id ? null : entry.id);
@@ -453,6 +459,15 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
           )}
         </div>
       </div>
+      {gate && (
+        <PlatinumGate
+          isVisible
+          feature={gate.feature}
+          description={gate.description}
+          onClose={() => setGate(null)}
+          onUpgrade={onUpgrade ?? (() => {})}
+        />
+      )}
     </div>
   );
 }
