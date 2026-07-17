@@ -10,7 +10,7 @@ interface SettingsModalProps {
   settings: GameSettings;
   onChangeSettings: (settings: GameSettings) => void;
   currentUser: UserAccount;
-  onUpdateCurrentUser: (updatedUser: UserAccount) => void;
+  onUpdateCurrentUser: (updates: Partial<UserAccount>) => void;
 }
 
 const AVATARS = [
@@ -44,18 +44,12 @@ export default function SettingsModal({
 
   const selectAvatar = (emoji: string) => {
     synths.playTick();
-    onUpdateCurrentUser({
-      ...currentUser,
-      avatar: emoji,
-    });
+    onUpdateCurrentUser({ avatar: emoji });
   };
 
   const selectBg = (bgValue: string) => {
     synths.playTick();
-    onUpdateCurrentUser({
-      ...currentUser,
-      avatarBg: bgValue,
-    });
+    onUpdateCurrentUser({ avatarBg: bgValue });
   };
 
   const handleFovChange = (val: number) => {
@@ -91,10 +85,7 @@ export default function SettingsModal({
       return;
     }
 
-    onUpdateCurrentUser({
-      ...currentUser,
-      passwordHash: btoa(newPassword),
-    });
+    onUpdateCurrentUser({ passwordHash: btoa(newPassword) });
 
     setPasswordFeedback({ type: 'success', message: 'Security password changed successfully!' });
     setCurrentPassword('');

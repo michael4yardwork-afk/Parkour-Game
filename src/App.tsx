@@ -437,13 +437,22 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleUpdateCurrentUser = async (updatedUser: UserAccount) => {
-    setCurrentUser(updatedUser);
-    localStorage.setItem('momentum_current_user', JSON.stringify(updatedUser));
+  // Keep a ref that always holds the latest currentUser so rapid successive
+  // calls (e.g. picking emoji then immediately picking a background) merge
+  // onto the real latest state rather than a stale prop snapshot.
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+
+  const handleUpdateCurrentUser = async (updates: Partial<UserAccount>) => {
+    const merged: UserAccount = { ...currentUserRef.current!, ...updates };
+    // Update ref immediately so the next rapid call also sees the new value.
+    currentUserRef.current = merged;
+    setCurrentUser(merged);
+    localStorage.setItem('momentum_current_user', JSON.stringify(merged));
     try {
-      await api.auth.updateUser(updatedUser.username, {
-        avatar: updatedUser.avatar,
-        avatarBg: updatedUser.avatarBg
+      await api.auth.updateUser(merged.username, {
+        avatar: merged.avatar,
+        avatarBg: merged.avatarBg
       });
     } catch (e) {
       console.error('Failed to sync profile update:', e);

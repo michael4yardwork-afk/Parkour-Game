@@ -12,7 +12,7 @@ interface DashboardProps {
   onNavigate: (tab: 'levels' | 'editor') => void;
   currentUser: UserAccount;
   onLogout: () => void;
-  onUpdateCurrentUser: (updatedUser: UserAccount) => void;
+  onUpdateCurrentUser: (updates: Partial<UserAccount>) => void;
   isPlatinum?: boolean;
   onUpgrade?: () => void;
 }
@@ -160,12 +160,7 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
       return;
     }
 
-    // Save update
-    const updatedUser: UserAccount = {
-      ...currentUser,
-      passwordHash: btoa(newPassword)
-    };
-    onUpdateCurrentUser(updatedUser);
+    onUpdateCurrentUser({ passwordHash: btoa(newPassword) });
     setPasswordFeedback({ type: 'success', message: 'Security password changed successfully!' });
     setCurrentPassword('');
     setNewPassword('');
@@ -175,18 +170,12 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
 
   const selectAvatar = (emoji: string) => {
     synths.playTick();
-    onUpdateCurrentUser({
-      ...currentUser,
-      avatar: emoji
-    });
+    onUpdateCurrentUser({ avatar: emoji });
   };
 
   const selectBg = (bgValue: string) => {
     synths.playTick();
-    onUpdateCurrentUser({
-      ...currentUser,
-      avatarBg: bgValue
-    });
+    onUpdateCurrentUser({ avatarBg: bgValue });
   };
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

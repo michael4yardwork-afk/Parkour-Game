@@ -13,7 +13,7 @@ interface UserProfileProps {
   currentUser: UserAccount;
   onBack: () => void;
   onSelectLevel: (level: LevelConfig) => void;
-  onUpdateCurrentUser?: (updatedUser: UserAccount) => void;
+  onUpdateCurrentUser?: (updates: Partial<UserAccount>) => void;
   onViewProfile?: (username: string) => void;
   isPlatinum?: boolean;
   onUpgrade?: () => void;
@@ -284,20 +284,14 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
   const selectAvatar = (emoji: string) => {
     if (onUpdateCurrentUser) {
       synths.playTick();
-      onUpdateCurrentUser({
-        ...currentUser,
-        avatar: emoji,
-      });
+      onUpdateCurrentUser({ avatar: emoji });
     }
   };
 
   const selectBg = (bgValue: string) => {
     if (onUpdateCurrentUser) {
       synths.playTick();
-      onUpdateCurrentUser({
-        ...currentUser,
-        avatarBg: bgValue,
-      });
+      onUpdateCurrentUser({ avatarBg: bgValue });
     }
   };
 

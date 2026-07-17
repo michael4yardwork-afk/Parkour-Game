@@ -36655,6 +36655,24 @@ async function initDb() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_current_period_end BIGINT;
     CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users(stripe_customer_id);
   `);
+  await pool.query(`
+    UPDATE community_courses
+    SET is_published = FALSE
+    WHERE id IN (
+      SELECT cc.id
+      FROM community_courses cc
+      LEFT JOIN users u ON LOWER(u.username) = LOWER(cc.creator)
+      WHERE cc.is_published = TRUE
+        AND (u.subscription_status IS NULL
+             OR u.subscription_status NOT IN ('active', 'trialing'))
+        AND cc.created_at < (
+          SELECT MAX(cc2.created_at)
+          FROM community_courses cc2
+          WHERE LOWER(cc2.creator) = LOWER(cc.creator)
+            AND cc2.is_published = TRUE
+        )
+    );
+  `);
 }
 var db_default = pool;
 
@@ -38716,10 +38734,27 @@ router3.post("/courses", async (req, res) => {
       "SELECT id, is_published FROM community_courses WHERE id = $1",
       [id]
     );
-    if (existing.rows.length > 0) {
-      if (existing.rows[0].is_published) {
-        return res.status(409).json({ error: "Course already published." });
+    if (existing.rows.length > 0 && existing.rows[0].is_published) {
+      return res.status(409).json({ error: "Course already published." });
+    }
+    const subRes = await db_default.query(
+      "SELECT subscription_status FROM users WHERE LOWER(username) = LOWER($1)",
+      [username]
+    );
+    const isPlatinum = ["active", "trialing"].includes(subRes.rows[0]?.subscription_status ?? "");
+    if (!isPlatinum) {
+      const publishedCount = await db_default.query(
+        "SELECT COUNT(*) AS cnt FROM community_courses WHERE LOWER(creator) = LOWER($1) AND is_published = TRUE",
+        [username]
+      );
+      if (parseInt(publishedCount.rows[0].cnt) >= 1) {
+        return res.status(403).json({
+          error: "platinum_required",
+          message: "Free accounts can publish 1 course. Upgrade to Platinum for unlimited publishing."
+        });
       }
+    }
+    if (existing.rows.length > 0) {
       await db_default.query(
         `UPDATE community_courses
          SET name = $2, description = $3, blocks = $4, theme = $5, is_published = TRUE
@@ -38897,7 +38932,7 @@ router4.get("/:username/profile", async (req, res) => {
     const { username } = req.params;
     const viewer = getAuth3(req);
     const userRes = await db_default.query(
-      "SELECT username, avatar, avatar_bg, created_at FROM users WHERE LOWER(username) = LOWER($1)",
+      "SELECT username, avatar, avatar_bg, created_at, subscription_status FROM users WHERE LOWER(username) = LOWER($1)",
       [username]
     );
     if (userRes.rows.length === 0) return res.status(404).json({ error: "User not found." });
@@ -38936,6 +38971,7 @@ router4.get("/:username/profile", async (req, res) => {
       );
       isFollowing = fRes.rows.length > 0;
     }
+    const profileIsPlatinum = ["active", "trialing"].includes(u.subscription_status ?? "");
     res.json({
       user: {
         username: u.username,
@@ -38944,6 +38980,7 @@ router4.get("/:username/profile", async (req, res) => {
         createdAt: parseInt(u.created_at),
         passwordHash: ""
       },
+      isPlatinum: profileIsPlatinum,
       rating: ratingRes.rows[0]?.rating ?? 200,
       color: ratingRes.rows[0]?.color ?? "#3b82f6",
       courses: coursesRes.rows.map((r) => ({
@@ -38987,6 +39024,17 @@ router4.post("/:username/follow", async (req, res) => {
       );
       res.json({ following: false });
     } else {
+      const targetSubRes = await db_default.query(
+        "SELECT subscription_status FROM users WHERE LOWER(username) = LOWER($1)",
+        [username]
+      );
+      const targetIsPlatinum = ["active", "trialing"].includes(targetSubRes.rows[0]?.subscription_status ?? "");
+      if (!targetIsPlatinum) {
+        return res.status(403).json({
+          error: "platinum_required",
+          message: "This player needs Platinum to be followed by others."
+        });
+      }
       await db_default.query(
         "INSERT INTO user_follows (follower, following) VALUES ($1, $2) ON CONFLICT DO NOTHING",
         [viewer, username]
