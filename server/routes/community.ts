@@ -78,7 +78,19 @@ router.post('/courses', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid course data.' });
     }
 
-    // Enforce 1-course publish limit for free (non-platinum) users.
+    // ── Step 1: check whether this exact course is already live ──────────────
+    const existing = await pool.query(
+      'SELECT id, is_published FROM community_courses WHERE id = $1',
+      [id]
+    );
+
+    if (existing.rows.length > 0 && existing.rows[0].is_published) {
+      return res.status(409).json({ error: 'Course already published.' });
+    }
+
+    // ── Step 2: enforce 1-course publish limit for non-platinum users ─────────
+    // Count is taken AFTER the already-published guard so the course being
+    // re-published (is_published was FALSE) is not in the count.
     const subRes = await pool.query(
       'SELECT subscription_status FROM users WHERE LOWER(username) = LOWER($1)',
       [username]
@@ -87,8 +99,8 @@ router.post('/courses', async (req: Request, res: Response) => {
 
     if (!isPlatinum) {
       const publishedCount = await pool.query(
-        'SELECT COUNT(*) AS cnt FROM community_courses WHERE LOWER(creator) = LOWER($1) AND is_published = TRUE AND id != $2',
-        [username, id]
+        'SELECT COUNT(*) AS cnt FROM community_courses WHERE LOWER(creator) = LOWER($1) AND is_published = TRUE',
+        [username]
       );
       if (parseInt(publishedCount.rows[0].cnt) >= 1) {
         return res.status(403).json({
@@ -98,16 +110,9 @@ router.post('/courses', async (req: Request, res: Response) => {
       }
     }
 
-    const existing = await pool.query(
-      'SELECT id, is_published FROM community_courses WHERE id = $1',
-      [id]
-    );
-
+    // ── Step 3: insert or re-publish ─────────────────────────────────────────
     if (existing.rows.length > 0) {
-      if (existing.rows[0].is_published) {
-        return res.status(409).json({ error: 'Course already published.' });
-      }
-      // Row exists but was unpublished — re-publish it with fresh data
+      // Row exists but was unpublished — re-publish it with fresh data.
       await pool.query(
         `UPDATE community_courses
          SET name = $2, description = $3, blocks = $4, theme = $5, is_published = TRUE

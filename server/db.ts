@@ -116,6 +116,29 @@ export async function initDb() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_current_period_end BIGINT;
     CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users(stripe_customer_id);
   `);
+
+  // Retroactively enforce the 1-course publish limit for non-platinum users.
+  // For each free user who has more than one published course, keep only the
+  // newest one (by created_at DESC) and unpublish the rest.  This runs on
+  // every server start so the invariant is always restored after any edge-case.
+  await pool.query(`
+    UPDATE community_courses
+    SET is_published = FALSE
+    WHERE id IN (
+      SELECT cc.id
+      FROM community_courses cc
+      LEFT JOIN users u ON LOWER(u.username) = LOWER(cc.creator)
+      WHERE cc.is_published = TRUE
+        AND (u.subscription_status IS NULL
+             OR u.subscription_status NOT IN ('active', 'trialing'))
+        AND cc.created_at < (
+          SELECT MAX(cc2.created_at)
+          FROM community_courses cc2
+          WHERE LOWER(cc2.creator) = LOWER(cc.creator)
+            AND cc2.is_published = TRUE
+        )
+    );
+  `);
 }
 
 export default pool;
