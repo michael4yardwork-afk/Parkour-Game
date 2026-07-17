@@ -811,7 +811,7 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                             }
                             selectBg(bg.value);
                           }}
-                          className={`w-8 h-8 rounded-full border-2 overflow-hidden relative flex items-center justify-center transition ${bgLocked ? 'cursor-default' : 'cursor-pointer'} ${bg.value} ${
+                          className={`w-8 h-8 rounded-full border-2 overflow-hidden relative flex items-center justify-center transition ${bgLocked ? 'cursor-default opacity-40 grayscale' : 'cursor-pointer'} ${bg.value} ${
                             bg.value === (currentUser.avatarBg || 'bg-rose-500')
                               ? 'border-white scale-110 shadow-md'
                               : 'border-transparent hover:scale-105 hover:border-white/50'
@@ -819,7 +819,7 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                         >
                           {bg.special && (
                             <span
-                              className={`absolute inset-0 ${bg.class} ${bgLocked ? 'opacity-40 grayscale' : ''}`}
+                              className={`absolute inset-0 ${bg.class}`}
                               aria-hidden="true"
                             />
                           )}
