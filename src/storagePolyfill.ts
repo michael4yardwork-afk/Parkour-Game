@@ -115,7 +115,6 @@ try {
         if (freedSome) {
           try {
             originalSet.call(this, finalKey, value);
-            console.log(`Successfully saved ${finalKey} after freeing storage space.`);
             return;
           } catch (retryErr) {
             console.warn(`Retry failed after clearing other ghost replays. Attempting downsampling...`);
@@ -135,7 +134,6 @@ try {
               
               try {
                 originalSet.call(this, finalKey, downsampledValue);
-                console.log(`Successfully saved downsampled ghost replay for ${finalKey}.`);
                 return;
               } catch (downsampleErr) {
                 console.error("Downsampled save also failed:", downsampleErr);

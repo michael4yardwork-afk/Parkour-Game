@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Code, Volume2, LogOut, User, KeyRound, ShieldAlert, Users, Trophy, Settings, HelpCircle, Bookmark, Bell, Crown } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Code, Users, Trophy, Settings, HelpCircle, Bookmark, Bell, Crown } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import LevelSelector from './components/LevelSelector';
 import LevelEditor from './components/LevelEditor';
@@ -74,7 +74,7 @@ export default function App() {
   // Notifications state
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
 
-  const checkUnreadNotifications = async () => {
+  const checkUnreadNotifications = useCallback(async () => {
     if (!currentUser) return;
     try {
       const notifs = await api.users.getNotifications(currentUser.username);
@@ -82,11 +82,11 @@ export default function App() {
     } catch (e) {
       setHasUnreadNotifications(false);
     }
-  };
+  }, [currentUser]);
 
   useEffect(() => {
     checkUnreadNotifications();
-  }, [currentUser, tab]);
+  }, [currentUser, tab, checkUnreadNotifications]);
 
   
   // Game session states

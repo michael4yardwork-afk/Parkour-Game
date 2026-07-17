@@ -90,8 +90,6 @@ router.post('/:levelId', async (req: Request, res: Response) => {
       if (validatedFrames.length === 0) validatedFrames = null;
     }
 
-    console.log(`[leaderboard] Accepting submit for level="${levelId}" user="${username}" time=${time} isNewPb=${!!isNewPb} hasFrames=${!!validatedFrames} frameCount=${validatedFrames?.length ?? 0}`);
-
     const id = `run_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
     // When this run is a new personal best, clear ghost frames from all previous

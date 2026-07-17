@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RotateCcw, Award, CheckCircle, Flame, Compass, Clock, LogOut } from 'lucide-react';
 
@@ -63,7 +63,6 @@ export default function GameCanvas({
   ghostOverrideLabel = null,
 }: GameCanvasProps) {
   // Game states
-  const [, setIsPlaying] = useState(false);
   const [showExitConfirmation, setShowExitConfirmation] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0.00);
   const [personalBest, setPersonalBest] = useState<number | null>(null);
@@ -514,7 +513,7 @@ export default function GameCanvas({
             const dx = pool[i].x - currentBlock.x;
             const dy = pool[i].y - currentBlock.y;
             const dz = pool[i].z - currentBlock.z;
-            const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            const dist = dx*dx + dy*dy + dz*dz;
             if (dist < minDistance) {
               minDistance = dist;
               closestIdx = i;
@@ -1106,7 +1105,6 @@ export default function GameCanvas({
     // Direct game startup mechanics
     initGame();
     setSceneReady(true);
-    setIsPlaying(true);
     isPlayingRef.current = true;
     isCompletedRef.current = false;
 
