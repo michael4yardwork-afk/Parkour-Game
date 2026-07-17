@@ -387,8 +387,8 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                       {(isSignUp ? SIGNUP_AVATAR_BGS : AVATAR_BGS).map(bg => (
                         <div key={bg.value} className="relative">
                           <button type="button" title={bg.label} onClick={() => { setSelectedBg(bg.value); synths.playTick(); }}
-                            className={`w-8 h-8 rounded-full border overflow-hidden relative flex items-center justify-center transition focus:outline-none ${bg.class}`}>
-                            {bg.special && <span className={`absolute inset-0 ${bg.class}`} aria-hidden="true" />}
+                            className={`w-8 h-8 rounded-full border relative flex items-center justify-center transition focus:outline-none ${selectedBg === bg.value ? 'border-white scale-110 shadow-md' : 'border-transparent hover:scale-105 hover:border-white/50'}`}>
+                            <span className={`absolute inset-0 rounded-full ${bg.class}`} aria-hidden="true" />
                             {selectedBg === bg.value && <Check className={`w-3.5 h-3.5 stroke-[3] drop-shadow relative z-10 ${bg.lightBg ? 'text-neutral-800' : 'text-white'}`} />}
                           </button>
                           {bg.special && (
