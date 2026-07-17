@@ -819,7 +819,7 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                         >
                           {bg.special && (
                             <span
-                              className={`absolute inset-0 ${bg.class}`}
+                              className={`absolute inset-0 rounded-full ${bg.class}`}
                               aria-hidden="true"
                             />
                           )}
