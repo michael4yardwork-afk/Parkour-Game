@@ -42,6 +42,218 @@ const AVATARS = [
   { emoji: '🔥', name: 'Overdrive' },
   { emoji: '👑', name: 'Championship' },
   { emoji: '🦁', name: 'Primal Spirit' },
+  { emoji: '🌊', name: 'Wave Rider' },
+  { emoji: '💎', name: 'Diamond Rush' },
+  { emoji: '🦅', name: 'Eagle Strike' },
+  { emoji: '🌀', name: 'Vortex' },
+  { emoji: '🎮', name: 'Player One' },
+  { emoji: '🦋', name: 'Phantom' },
+  { emoji: '🐲', name: 'Drake Force' },
+  { emoji: '⭐', name: 'Star Dash' },
+  { emoji: '🌙', name: 'Night Runner' },
+  { emoji: '💀', name: 'Skull Crusher' },
+  { emoji: '🦄', name: 'Unicorn Speed' },
+];
+
+const COUNTRY_FLAGS = [
+  { emoji: '🇦🇫', name: 'Afghanistan' },
+  { emoji: '🇦🇱', name: 'Albania' },
+  { emoji: '🇩🇿', name: 'Algeria' },
+  { emoji: '🇦🇩', name: 'Andorra' },
+  { emoji: '🇦🇴', name: 'Angola' },
+  { emoji: '🇦🇬', name: 'Antigua and Barbuda' },
+  { emoji: '🇦🇷', name: 'Argentina' },
+  { emoji: '🇦🇲', name: 'Armenia' },
+  { emoji: '🇦🇺', name: 'Australia' },
+  { emoji: '🇦🇹', name: 'Austria' },
+  { emoji: '🇦🇿', name: 'Azerbaijan' },
+  { emoji: '🇧🇸', name: 'Bahamas' },
+  { emoji: '🇧🇭', name: 'Bahrain' },
+  { emoji: '🇧🇩', name: 'Bangladesh' },
+  { emoji: '🇧🇧', name: 'Barbados' },
+  { emoji: '🇧🇾', name: 'Belarus' },
+  { emoji: '🇧🇪', name: 'Belgium' },
+  { emoji: '🇧🇿', name: 'Belize' },
+  { emoji: '🇧🇯', name: 'Benin' },
+  { emoji: '🇧🇹', name: 'Bhutan' },
+  { emoji: '🇧🇴', name: 'Bolivia' },
+  { emoji: '🇧🇦', name: 'Bosnia and Herzegovina' },
+  { emoji: '🇧🇼', name: 'Botswana' },
+  { emoji: '🇧🇷', name: 'Brazil' },
+  { emoji: '🇧🇳', name: 'Brunei' },
+  { emoji: '🇧🇬', name: 'Bulgaria' },
+  { emoji: '🇧🇫', name: 'Burkina Faso' },
+  { emoji: '🇧🇮', name: 'Burundi' },
+  { emoji: '🇨🇻', name: 'Cabo Verde' },
+  { emoji: '🇰🇭', name: 'Cambodia' },
+  { emoji: '🇨🇲', name: 'Cameroon' },
+  { emoji: '🇨🇦', name: 'Canada' },
+  { emoji: '🇨🇫', name: 'Central African Republic' },
+  { emoji: '🇹🇩', name: 'Chad' },
+  { emoji: '🇨🇱', name: 'Chile' },
+  { emoji: '🇨🇳', name: 'China' },
+  { emoji: '🇨🇴', name: 'Colombia' },
+  { emoji: '🇰🇲', name: 'Comoros' },
+  { emoji: '🇨🇬', name: 'Congo' },
+  { emoji: '🇨🇩', name: 'Congo (DRC)' },
+  { emoji: '🇨🇷', name: 'Costa Rica' },
+  { emoji: '🇭🇷', name: 'Croatia' },
+  { emoji: '🇨🇺', name: 'Cuba' },
+  { emoji: '🇨🇾', name: 'Cyprus' },
+  { emoji: '🇨🇿', name: 'Czechia' },
+  { emoji: '🇩🇰', name: 'Denmark' },
+  { emoji: '🇩🇯', name: 'Djibouti' },
+  { emoji: '🇩🇲', name: 'Dominica' },
+  { emoji: '🇩🇴', name: 'Dominican Republic' },
+  { emoji: '🇪🇨', name: 'Ecuador' },
+  { emoji: '🇪🇬', name: 'Egypt' },
+  { emoji: '🇸🇻', name: 'El Salvador' },
+  { emoji: '🇬🇶', name: 'Equatorial Guinea' },
+  { emoji: '🇪🇷', name: 'Eritrea' },
+  { emoji: '🇪🇪', name: 'Estonia' },
+  { emoji: '🇸🇿', name: 'Eswatini' },
+  { emoji: '🇪🇹', name: 'Ethiopia' },
+  { emoji: '🇫🇯', name: 'Fiji' },
+  { emoji: '🇫🇮', name: 'Finland' },
+  { emoji: '🇫🇷', name: 'France' },
+  { emoji: '🇬🇦', name: 'Gabon' },
+  { emoji: '🇬🇲', name: 'Gambia' },
+  { emoji: '🇬🇪', name: 'Georgia' },
+  { emoji: '🇩🇪', name: 'Germany' },
+  { emoji: '🇬🇭', name: 'Ghana' },
+  { emoji: '🇬🇷', name: 'Greece' },
+  { emoji: '🇬🇩', name: 'Grenada' },
+  { emoji: '🇬🇹', name: 'Guatemala' },
+  { emoji: '🇬🇳', name: 'Guinea' },
+  { emoji: '🇬🇼', name: 'Guinea-Bissau' },
+  { emoji: '🇬🇾', name: 'Guyana' },
+  { emoji: '🇭🇹', name: 'Haiti' },
+  { emoji: '🇭🇳', name: 'Honduras' },
+  { emoji: '🇭🇺', name: 'Hungary' },
+  { emoji: '🇮🇸', name: 'Iceland' },
+  { emoji: '🇮🇳', name: 'India' },
+  { emoji: '🇮🇩', name: 'Indonesia' },
+  { emoji: '🇮🇷', name: 'Iran' },
+  { emoji: '🇮🇶', name: 'Iraq' },
+  { emoji: '🇮🇪', name: 'Ireland' },
+  { emoji: '🇮🇱', name: 'Israel' },
+  { emoji: '🇮🇹', name: 'Italy' },
+  { emoji: '🇯🇲', name: 'Jamaica' },
+  { emoji: '🇯🇵', name: 'Japan' },
+  { emoji: '🇯🇴', name: 'Jordan' },
+  { emoji: '🇰🇿', name: 'Kazakhstan' },
+  { emoji: '🇰🇪', name: 'Kenya' },
+  { emoji: '🇰🇮', name: 'Kiribati' },
+  { emoji: '🇰🇵', name: 'North Korea' },
+  { emoji: '🇰🇷', name: 'South Korea' },
+  { emoji: '🇽🇰', name: 'Kosovo' },
+  { emoji: '🇰🇼', name: 'Kuwait' },
+  { emoji: '🇰🇬', name: 'Kyrgyzstan' },
+  { emoji: '🇱🇦', name: 'Laos' },
+  { emoji: '🇱🇻', name: 'Latvia' },
+  { emoji: '🇱🇧', name: 'Lebanon' },
+  { emoji: '🇱🇸', name: 'Lesotho' },
+  { emoji: '🇱🇷', name: 'Liberia' },
+  { emoji: '🇱🇾', name: 'Libya' },
+  { emoji: '🇱🇮', name: 'Liechtenstein' },
+  { emoji: '🇱🇹', name: 'Lithuania' },
+  { emoji: '🇱🇺', name: 'Luxembourg' },
+  { emoji: '🇲🇬', name: 'Madagascar' },
+  { emoji: '🇲🇼', name: 'Malawi' },
+  { emoji: '🇲🇾', name: 'Malaysia' },
+  { emoji: '🇲🇻', name: 'Maldives' },
+  { emoji: '🇲🇱', name: 'Mali' },
+  { emoji: '🇲🇹', name: 'Malta' },
+  { emoji: '🇲🇭', name: 'Marshall Islands' },
+  { emoji: '🇲🇷', name: 'Mauritania' },
+  { emoji: '🇲🇺', name: 'Mauritius' },
+  { emoji: '🇲🇽', name: 'Mexico' },
+  { emoji: '🇫🇲', name: 'Micronesia' },
+  { emoji: '🇲🇩', name: 'Moldova' },
+  { emoji: '🇲🇨', name: 'Monaco' },
+  { emoji: '🇲🇳', name: 'Mongolia' },
+  { emoji: '🇲🇪', name: 'Montenegro' },
+  { emoji: '🇲🇦', name: 'Morocco' },
+  { emoji: '🇲🇿', name: 'Mozambique' },
+  { emoji: '🇲🇲', name: 'Myanmar' },
+  { emoji: '🇳🇦', name: 'Namibia' },
+  { emoji: '🇳🇷', name: 'Nauru' },
+  { emoji: '🇳🇵', name: 'Nepal' },
+  { emoji: '🇳🇱', name: 'Netherlands' },
+  { emoji: '🇳🇿', name: 'New Zealand' },
+  { emoji: '🇳🇮', name: 'Nicaragua' },
+  { emoji: '🇳🇪', name: 'Niger' },
+  { emoji: '🇳🇬', name: 'Nigeria' },
+  { emoji: '🇲🇰', name: 'North Macedonia' },
+  { emoji: '🇳🇴', name: 'Norway' },
+  { emoji: '🇴🇲', name: 'Oman' },
+  { emoji: '🇵🇰', name: 'Pakistan' },
+  { emoji: '🇵🇼', name: 'Palau' },
+  { emoji: '🇵🇦', name: 'Panama' },
+  { emoji: '🇵🇬', name: 'Papua New Guinea' },
+  { emoji: '🇵🇾', name: 'Paraguay' },
+  { emoji: '🇵🇪', name: 'Peru' },
+  { emoji: '🇵🇭', name: 'Philippines' },
+  { emoji: '🇵🇱', name: 'Poland' },
+  { emoji: '🇵🇹', name: 'Portugal' },
+  { emoji: '🇶🇦', name: 'Qatar' },
+  { emoji: '🇷🇴', name: 'Romania' },
+  { emoji: '🇷🇺', name: 'Russia' },
+  { emoji: '🇷🇼', name: 'Rwanda' },
+  { emoji: '🇰🇳', name: 'Saint Kitts and Nevis' },
+  { emoji: '🇱🇨', name: 'Saint Lucia' },
+  { emoji: '🇻🇨', name: 'Saint Vincent and the Grenadines' },
+  { emoji: '🇼🇸', name: 'Samoa' },
+  { emoji: '🇸🇲', name: 'San Marino' },
+  { emoji: '🇸🇹', name: 'São Tomé and Príncipe' },
+  { emoji: '🇸🇦', name: 'Saudi Arabia' },
+  { emoji: '🇸🇳', name: 'Senegal' },
+  { emoji: '🇷🇸', name: 'Serbia' },
+  { emoji: '🇸🇨', name: 'Seychelles' },
+  { emoji: '🇸🇱', name: 'Sierra Leone' },
+  { emoji: '🇸🇬', name: 'Singapore' },
+  { emoji: '🇸🇰', name: 'Slovakia' },
+  { emoji: '🇸🇮', name: 'Slovenia' },
+  { emoji: '🇸🇧', name: 'Solomon Islands' },
+  { emoji: '🇸🇴', name: 'Somalia' },
+  { emoji: '🇿🇦', name: 'South Africa' },
+  { emoji: '🇸🇸', name: 'South Sudan' },
+  { emoji: '🇪🇸', name: 'Spain' },
+  { emoji: '🇱🇰', name: 'Sri Lanka' },
+  { emoji: '🇸🇩', name: 'Sudan' },
+  { emoji: '🇸🇷', name: 'Suriname' },
+  { emoji: '🇸🇪', name: 'Sweden' },
+  { emoji: '🇨🇭', name: 'Switzerland' },
+  { emoji: '🇸🇾', name: 'Syria' },
+  { emoji: '🇹🇼', name: 'Taiwan' },
+  { emoji: '🇹🇯', name: 'Tajikistan' },
+  { emoji: '🇹🇿', name: 'Tanzania' },
+  { emoji: '🇹🇭', name: 'Thailand' },
+  { emoji: '🇹🇱', name: 'Timor-Leste' },
+  { emoji: '🇹🇬', name: 'Togo' },
+  { emoji: '🇹🇴', name: 'Tonga' },
+  { emoji: '🇹🇹', name: 'Trinidad and Tobago' },
+  { emoji: '🇹🇳', name: 'Tunisia' },
+  { emoji: '🇹🇷', name: 'Turkey' },
+  { emoji: '🇹🇲', name: 'Turkmenistan' },
+  { emoji: '🇹🇻', name: 'Tuvalu' },
+  { emoji: '🇺🇬', name: 'Uganda' },
+  { emoji: '🇺🇦', name: 'Ukraine' },
+  { emoji: '🇦🇪', name: 'United Arab Emirates' },
+  { emoji: '🇬🇧', name: 'United Kingdom' },
+  { emoji: '🇺🇸', name: 'United States' },
+  { emoji: '🇺🇾', name: 'Uruguay' },
+  { emoji: '🇺🇿', name: 'Uzbekistan' },
+  { emoji: '🇻🇺', name: 'Vanuatu' },
+  { emoji: '🇻🇦', name: 'Vatican City' },
+  { emoji: '🇻🇪', name: 'Venezuela' },
+  { emoji: '🇻🇳', name: 'Vietnam' },
+  { emoji: '🇾🇪', name: 'Yemen' },
+  { emoji: '🇿🇲', name: 'Zambia' },
+  { emoji: '🇿🇼', name: 'Zimbabwe' },
+  { emoji: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', name: 'England' },
+  { emoji: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', name: 'Scotland' },
+  { emoji: '🏴󠁧󠁢󠁷󠁬󠁳󠁿', name: 'Wales' },
 ];
 
 const formatWR = (seconds: number): string => {
@@ -65,6 +277,8 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
   const [completionsMap, setCompletionsMap] = useState<Record<string, number>>({});
   const [courseStats, setCourseStats] = useState<Record<string, { pbTime: number | null; rank: number | null; totalPlayers: number | null; percentile: number | null }>>({});
   const [showCustomizer, setShowCustomizer] = useState(false);
+  const [showFlagPicker, setShowFlagPicker] = useState(false);
+  const [flagSearch, setFlagSearch] = useState('');
 
   const selectAvatar = (emoji: string) => {
     if (onUpdateCurrentUser) {
@@ -137,7 +351,7 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
       } else {
         // Fallback for users not found via API
         setResolvedName(username);
-        const emojis = ['🚀', '⚡', '🛹', '🐺', '🐉', '🤖', '🐱', '🦊', '🎯', '🔥', '👑', '🦁'];
+        const emojis = ['🚀', '⚡', '🛹', '🐺', '🐉', '🤖', '🐱', '🦊', '🎯', '🔥', '👑', '🦁', '🌊', '💎', '🦅', '🌀', '🎮', '🦋', '🐲', '⭐', '🌙', '💀', '🦄'];
         const bgs = ['bg-rose-500', 'bg-green-500', 'bg-purple-500', 'bg-blue-500', 'bg-amber-500', 'bg-indigo-505'];
         let hash = 0;
         for (let i = 0; i < normName.length; i++) hash = normName.charCodeAt(i) + ((hash << 5) - hash);
@@ -469,7 +683,75 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                       {avatar.emoji}
                     </button>
                   ))}
+                  {/* Flag picker trigger — 12th new slot */}
+                  <button
+                    onClick={() => { synths.playTick(); setShowFlagPicker(prev => !prev); setFlagSearch(''); }}
+                    className={`py-2 rounded-xl text-lg flex items-center justify-center border transition cursor-pointer relative ${
+                      COUNTRY_FLAGS.some(f => f.emoji === currentUser.avatar)
+                        ? 'bg-indigo-600/10 border-indigo-600 scale-105 shadow-sm'
+                        : showFlagPicker
+                        ? 'bg-neutral-100 border-neutral-400'
+                        : 'bg-white border-neutral-250 hover:border-neutral-400 text-neutral-500'
+                    }`}
+                    title="Country Flag"
+                  >
+                    {COUNTRY_FLAGS.some(f => f.emoji === currentUser.avatar) ? currentUser.avatar : '🌍'}
+                    <span className="absolute bottom-0.5 right-1 text-[7px] font-black text-neutral-400 leading-none select-none">▾</span>
+                  </button>
                 </div>
+
+                {/* Flag picker dropdown */}
+                {showFlagPicker && (
+                  <div className="mt-1 bg-white border border-neutral-200 rounded-xl p-3 shadow-lg">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <input
+                        type="text"
+                        placeholder="Search country…"
+                        value={flagSearch}
+                        onChange={(e) => setFlagSearch(e.target.value)}
+                        className="flex-1 text-xs border border-neutral-200 rounded-lg px-3 py-1.5 font-mono focus:outline-none focus:border-indigo-400 bg-neutral-50"
+                        autoFocus
+                      />
+                      {flagSearch && (
+                        <button
+                          onClick={() => setFlagSearch('')}
+                          className="text-[10px] font-bold text-neutral-400 hover:text-neutral-600 px-2 py-1.5 hover:bg-neutral-100 rounded-lg transition cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-6 sm:grid-cols-8 gap-1 max-h-44 overflow-y-auto pr-0.5">
+                      {COUNTRY_FLAGS.filter(f =>
+                        f.name.toLowerCase().includes(flagSearch.toLowerCase())
+                      ).map((flag) => (
+                        <button
+                          key={flag.emoji}
+                          onClick={() => {
+                            selectAvatar(flag.emoji);
+                            setShowFlagPicker(false);
+                            setFlagSearch('');
+                          }}
+                          className={`py-1.5 rounded-lg text-xl flex items-center justify-center border transition cursor-pointer ${
+                            currentUser.avatar === flag.emoji
+                              ? 'bg-indigo-600/10 border-indigo-500 scale-105 shadow-sm'
+                              : 'bg-neutral-50 border-transparent hover:border-neutral-300 hover:bg-neutral-100'
+                          }`}
+                          title={flag.name}
+                        >
+                          {flag.emoji}
+                        </button>
+                      ))}
+                      {COUNTRY_FLAGS.filter(f =>
+                        f.name.toLowerCase().includes(flagSearch.toLowerCase())
+                      ).length === 0 && (
+                        <div className="col-span-full text-center text-[10px] font-mono text-neutral-400 py-4 italic">
+                          No countries match "{flagSearch}"
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Theme selection */}
