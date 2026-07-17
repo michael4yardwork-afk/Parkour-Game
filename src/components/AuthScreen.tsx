@@ -78,7 +78,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
   
   const [selectedAvatar, setSelectedAvatar] = useState('🚀');
   const [selectedBg, setSelectedBg] = useState(SIGNUP_AVATAR_BGS[0].value);
-  const [selectedDevice, setSelectedDevice] = useState<'phone' | 'tablet' | 'computer' | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<'phone' | 'tablet' | 'computer' | null>('computer');
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -406,20 +406,25 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">Your Device</span>
                     <div className="grid grid-cols-3 gap-2">
                       {([
-                        { value: 'phone',    label: 'Phone',    Icon: Smartphone },
-                        { value: 'tablet',   label: 'Tablet',   Icon: Tablet     },
-                        { value: 'computer', label: 'Computer', Icon: Monitor    },
-                      ] as const).map(({ value, label, Icon }) => (
+                        { value: 'computer', label: 'Computer', Icon: Monitor,    recommended: true  },
+                        { value: 'tablet',   label: 'Tablet',   Icon: Tablet,     recommended: false },
+                        { value: 'phone',    label: 'Phone',    Icon: Smartphone, recommended: false },
+                      ] as const).map(({ value, label, Icon, recommended }) => (
                         <button
                           key={value}
                           type="button"
                           onClick={() => { setSelectedDevice(value); synths.playTick(); }}
-                          className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                          className={`relative flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-semibold transition cursor-pointer ${
                             selectedDevice === value
                               ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
                               : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
                           }`}
                         >
+                          {recommended && (
+                            <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                              Recommended
+                            </span>
+                          )}
                           <Icon className="w-5 h-5" />
                           {label}
                         </button>
