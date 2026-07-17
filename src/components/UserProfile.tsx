@@ -189,6 +189,7 @@ const COUNTRY_FLAGS = [
   { emoji: '🇴🇲', name: 'Oman' },
   { emoji: '🇵🇰', name: 'Pakistan' },
   { emoji: '🇵🇼', name: 'Palau' },
+  { emoji: '🇵🇸', name: 'Palestine' },
   { emoji: '🇵🇦', name: 'Panama' },
   { emoji: '🇵🇬', name: 'Papua New Guinea' },
   { emoji: '🇵🇾', name: 'Paraguay' },
@@ -706,7 +707,7 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                     <div className="flex items-center gap-2 mb-2.5">
                       <input
                         type="text"
-                        placeholder="Search country…"
+                        placeholder="Search flag…"
                         value={flagSearch}
                         onChange={(e) => setFlagSearch(e.target.value)}
                         className="flex-1 text-xs border border-neutral-200 rounded-lg px-3 py-1.5 font-mono focus:outline-none focus:border-indigo-400 bg-neutral-50"
