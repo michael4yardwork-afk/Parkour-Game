@@ -48,6 +48,12 @@ interface GameCanvasProps {
   ghostOverride?: GhostFrame[] | null;
   /** Display name for the ghost override (e.g. "PlayerName") */
   ghostOverrideLabel?: string | null;
+  /** When true, the game runs in demo mode: no server submission, no ghost, no leaderboard */
+  demoMode?: boolean;
+  /** Called when the user clicks a "Log in" CTA from within the demo */
+  onDemoLoginRequest?: () => void;
+  /** Called each time the user completes a run in demo mode; overwrites the previous pending run */
+  onDemoRunComplete?: (levelId: string, payload: any) => void;
 }
 
 
@@ -67,6 +73,9 @@ export default function GameCanvas({
   raceStartTime = null,
   ghostOverride = null,
   ghostOverrideLabel = null,
+  demoMode = false,
+  onDemoLoginRequest,
+  onDemoRunComplete,
 }: GameCanvasProps) {
   // Game states
   const [showExitConfirmation, setShowExitConfirmation] = useState(false);
@@ -250,11 +259,12 @@ export default function GameCanvas({
     }
 
     // Keep the showGhostRef in sync whenever showGhost or level changes
-    showGhostRef.current = settings.showGhost;
+    // Demo mode always forces ghost off — player must log in to use it.
+    showGhostRef.current = demoMode ? false : settings.showGhost;
 
-    // Attempt to load Ghost — PR ghost is disabled entirely during races (bots and/or players)
-    const ghostData = raceMode ? null : localStorage.getItem(`ghost_replay_${level.id}`);
-    if (ghostData && settings.showGhost) {
+    // Attempt to load Ghost — PR ghost is disabled entirely during races and in demo mode
+    const ghostData = (raceMode || demoMode) ? null : localStorage.getItem(`ghost_replay_${level.id}`);
+    if (ghostData && settings.showGhost && !demoMode) {
       try {
         const parsed: RunReplay = JSON.parse(ghostData);
         ghostFramesRef.current = parsed.frames;
@@ -294,7 +304,7 @@ export default function GameCanvas({
     };
     checkMobile();
 
-  }, [level.id, settings.showGhost, raceMode, sceneReady]);
+  }, [level.id, settings.showGhost, raceMode, demoMode, sceneReady]);
 
   const handleExitAttempt = () => {
     if (raceMode && !isCompleted) {
@@ -2422,6 +2432,36 @@ export default function GameCanvas({
       try {
         const activeName = (currentUser?.username || 'Guest').toLowerCase().trim();
 
+        // ── Demo mode: skip server submission; store run for post-login submit ──
+        if (demoMode) {
+          setCompletionPercentile(null);
+          setCompletionWorldRank(null);
+          if (level.id !== 'test_level_active' && onDemoRunComplete) {
+            const resampledSpeeds = resampleSpeedsToUniformTime(
+              currentRunFramesRef.current,
+              currentRunSpeedsRef.current,
+              finalTime
+            );
+            const pbFramesForDemo: GhostFrame[] = [];
+            let lastKeptMsDemo = -Infinity;
+            for (const f of currentRunFramesRef.current) {
+              if (f.time - lastKeptMsDemo >= 100) {
+                pbFramesForDemo.push(f);
+                lastKeptMsDemo = f.time;
+              }
+            }
+            onDemoRunComplete(level.id, {
+              time: finalTime,
+              date: Date.now(),
+              device: isMobileRef.current ? 'mobile' : 'desktop',
+              speeds: resampledSpeeds,
+              frames: pbFramesForDemo,
+              isNewPb: true,
+            });
+          }
+          return;
+        }
+
         if (isNewPb && level.id !== 'test_level_active') {
           // Show a placeholder from localStorage immediately so the card appears
           // at once, then replace it with accurate server data after the submit.
@@ -2752,7 +2792,7 @@ export default function GameCanvas({
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
-                {!raceMode && (
+                {!raceMode && !demoMode && (
                   <button
                     onClick={() => onChangeSettings?.({ ...settings, showGhost: !settings.showGhost })}
                     title={settings.showGhost ? 'Ghost: On — click to turn off' : 'Ghost: Off — click to turn on'}
@@ -2770,6 +2810,16 @@ export default function GameCanvas({
                         }`}
                       />
                     </div>
+                  </button>
+                )}
+                {!raceMode && demoMode && (
+                  <button
+                    title="Log in to unlock ghost replay"
+                    onClick={() => onDemoLoginRequest?.()}
+                    className="pointer-events-auto flex items-center gap-1.5 bg-neutral-900/90 border border-neutral-700/60 px-2.5 py-1.5 rounded-lg cursor-pointer transition hover:border-indigo-500/60 hover:bg-neutral-900 text-neutral-400 hover:text-indigo-300"
+                  >
+                    <span className="text-[11px]">👻</span>
+                    <span className="text-[10px] font-mono">🔒 Log in</span>
                   </button>
                 )}
                 <button
@@ -3046,8 +3096,21 @@ export default function GameCanvas({
                   </div>
                 </div>
 
-                {/* Percentile Box */}
-                {completionPercentile !== null && completionWorldRank !== null && level.id !== 'test_level_active' && (
+                {/* Percentile Box — hidden in demo; replaced with login CTA */}
+                {demoMode ? (
+                  <div className="w-full mt-3 bg-neutral-800/60 border border-neutral-700/60 p-4 rounded-2xl flex flex-col items-center gap-2">
+                    <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-wider font-bold">🔒 World Rank &amp; Percentile</span>
+                    <p className="text-xs text-neutral-400 text-center leading-relaxed">
+                      Create a free account to see how your run stacks up against players worldwide.
+                    </p>
+                    <button
+                      onClick={() => onDemoLoginRequest?.()}
+                      className="mt-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                    >
+                      Log In / Sign Up
+                    </button>
+                  </div>
+                ) : completionPercentile !== null && completionWorldRank !== null && level.id !== 'test_level_active' && (
                   <div id="completion-percentile-card" className="w-full mt-3 bg-indigo-500/15 border border-indigo-500/30 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-inner">
                     <span className="text-[9px] font-mono text-indigo-400 uppercase tracking-wider font-bold">Community Standing</span>
                     
@@ -3080,15 +3143,15 @@ export default function GameCanvas({
             )}
 
             {!raceMode && (
-              <div className={`${level.id === 'test_level_active' ? 'flex' : 'grid grid-cols-2'} gap-2.5 w-full mt-8`}>
+              <div className={`${level.id === 'test_level_active' || demoMode ? 'flex' : 'grid grid-cols-2'} gap-2.5 w-full mt-8`}>
                 <button
                   onClick={initGame}
-                  className={`py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-900 text-xs font-bold rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer ${level.id === 'test_level_active' ? 'w-full' : ''}`}
+                  className={`py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-900 text-xs font-bold rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer ${level.id === 'test_level_active' || demoMode ? 'w-full' : ''}`}
                 >
                   <RotateCcw className="w-4 h-4" />
                   Retry Run
                 </button>
-                {level.id !== 'test_level_active' && (
+                {level.id !== 'test_level_active' && !demoMode && (
                   <button
                     onClick={onShowLeaderboard}
                     className="py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer border border-neutral-700"
@@ -3098,6 +3161,16 @@ export default function GameCanvas({
                   </button>
                 )}
               </div>
+            )}
+
+            {/* Demo mode — exit to login CTA */}
+            {demoMode && (
+              <button
+                onClick={() => onDemoLoginRequest?.()}
+                className="mt-2 w-full py-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                🔓 Log In / Sign Up — Save Your Run &amp; See Rankings
+              </button>
             )}
 
             <button

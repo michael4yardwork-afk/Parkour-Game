@@ -8,6 +8,7 @@ import { AVATAR_BGS, SIGNUP_AVATAR_BGS } from '../avatarThemes';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: UserAccount) => void;
+  onPlayDemo?: () => void;
 }
 
 const AVATARS = [
@@ -70,7 +71,7 @@ const GAME_FEATURES = [
   },
 ];
 
-export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
+export default function AuthScreen({ onLoginSuccess, onPlayDemo }: AuthScreenProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -456,6 +457,22 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
             <Sparkles className="w-3 h-3 text-indigo-500" />
             <span>Accounts secured server-side with bcrypt.</span>
           </div>
+
+          {onPlayDemo && (
+            <div className="mt-4 pt-4 border-t border-neutral-800/50">
+              <button
+                type="button"
+                onClick={() => { synths.playTick(); onPlayDemo(); }}
+                className="w-full py-2.5 bg-neutral-800/60 hover:bg-neutral-800 border border-neutral-700/60 hover:border-neutral-600 text-neutral-300 hover:text-neutral-100 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer font-mono uppercase tracking-wider"
+              >
+                <span className="text-base leading-none">▶</span>
+                Play Demo — Delta Skyway
+              </button>
+              <p className="text-[9px] text-neutral-600 text-center mt-2 font-mono">
+                No account required · leaderboard &amp; ghost locked
+              </p>
+            </div>
+          )}
         </div>
 
         <div

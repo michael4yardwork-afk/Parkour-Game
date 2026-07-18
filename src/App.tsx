@@ -18,6 +18,7 @@ import PrivacyModal from './components/PrivacyModal';
 import { LevelConfig, GameSettings, UserAccount, RaceParticipant, CourseNotification, GhostFrame } from './types';
 import { synths } from './audio';
 import { api, flushPendingSubmissions } from './api';
+import { DEFAULT_LEVELS } from './defaultLevels';
 
 
 // Initial default settings
@@ -484,8 +485,66 @@ export default function App() {
     }
   };
 
+  // ── Demo mode state (must come before the !currentUser early-return) ──────
+  const [demoMode, setDemoMode] = useState(false);
+  const [showDemoLogin, setShowDemoLogin] = useState(false);
+  // Stores the last completed run in demo mode for submission on login
+  const pendingDemoRunRef = useRef<{ levelId: string; payload: any } | null>(null);
+
+  const DEMO_LEVEL = DEFAULT_LEVELS.find(l => l.id === 'tutorial_skyway') ?? DEFAULT_LEVELS[0];
+
+  const handleDemoLoginSuccess = async (user: UserAccount) => {
+    handleLoginSuccess(user);
+    // Submit the last demo run (if any) to the leaderboard
+    if (pendingDemoRunRef.current) {
+      const { levelId, payload } = pendingDemoRunRef.current;
+      pendingDemoRunRef.current = null;
+      try {
+        await api.leaderboard.submit(levelId, { ...payload, isNewPb: true });
+      } catch (e) {
+        console.warn('[demo] Failed to submit demo run on login:', e);
+      }
+    }
+    setDemoMode(false);
+    setShowDemoLogin(false);
+  };
+
+  if (!currentUser && demoMode) {
+    return (
+      <div className="game-fullscreen overflow-hidden text-neutral-800">
+        <GameCanvas
+          level={DEMO_LEVEL}
+          settings={{ ...DEFAULT_SETTINGS, showGhost: false }}
+          onExit={() => setDemoMode(false)}
+          onShowLeaderboard={() => {}}
+          currentUser={null}
+          demoMode
+          onDemoLoginRequest={() => setShowDemoLogin(true)}
+          onDemoRunComplete={(levelId, payload) => {
+            pendingDemoRunRef.current = { levelId, payload };
+          }}
+        />
+        {showDemoLogin && (
+          <div className="absolute inset-0 z-[100] flex items-center justify-center bg-neutral-950/80 backdrop-blur-sm p-4">
+            <div className="relative w-full max-w-md">
+              <AuthScreen
+                onLoginSuccess={handleDemoLoginSuccess}
+              />
+              <button
+                onClick={() => setShowDemoLogin(false)}
+                className="absolute top-4 right-4 z-10 text-xs text-neutral-400 hover:text-neutral-200 font-mono bg-neutral-900/80 px-3 py-1.5 rounded-lg border border-neutral-700 transition"
+              >
+                ✕ Back to Demo
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (!currentUser) {
-    return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
+    return <AuthScreen onLoginSuccess={handleLoginSuccess} onPlayDemo={() => setDemoMode(true)} />;
   }
 
   // Navigate to the Upgrade tab cleanly — closes any open modals first and
