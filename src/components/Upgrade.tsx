@@ -229,9 +229,9 @@ export default function Upgrade({ isLoggedIn, onRequireLogin, isPlatinum, plan, 
 
           {/* Platinum plan */}
           <div className="relative bg-gradient-to-br from-neutral-900 via-neutral-900 to-indigo-950 rounded-2xl border border-white/40 p-6 flex flex-col shadow-2xl ring-2 ring-yellow-300/60">
-            {!isPlatinum && (
+            {!isPlatinum && cycle === 'yearly' && (
               <div className="absolute -top-3 right-6 bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-300 text-neutral-900 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow">
-                Most Popular
+                Best Deal
               </div>
             )}
             {isPlatinum && (
