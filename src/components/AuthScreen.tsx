@@ -271,7 +271,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
             <h1 className="text-2xl font-black font-sans uppercase tracking-widest text-neutral-50">
               DELTA RUSH<span className="text-sm font-mono font-bold text-indigo-500 lowercase ml-1">.win</span>
             </h1>
-            <p className="text-xs text-neutral-400 font-mono uppercase tracking-widest mt-1">High Velocity 3D Speedrunning</p>
+            <p className="text-xs text-neutral-400 font-mono uppercase tracking-widest mt-1">High Velocity Minimalistic Speedrunning</p>
           </div>
         </div>
 
