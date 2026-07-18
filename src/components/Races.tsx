@@ -88,7 +88,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
 
   // Lobby/Matchmaking state
   const [isSearching, setIsSearching] = useState<boolean>(false);
-  const [timeLeft, setTimeLeft] = useState<number>(15);
+  const [timeLeft, setTimeLeft] = useState<number>(10);
   const [timerActive, setTimerActive] = useState<boolean>(false);
   const [lobbyPlayers, setLobbyPlayers] = useState<RaceParticipant[]>([]);
 
@@ -170,7 +170,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
     localStorage.setItem(`racer_color_${currentUser.username}`, randomColor);
 
     setIsSearching(true);
-    setTimeLeft(15);
+    setTimeLeft(10);
     setTimerActive(false);
 
     // Optimistically show ourselves immediately

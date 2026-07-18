@@ -38,8 +38,10 @@ const DEFAULT_LEVEL_IDS = [
 const queue: QueueEntry[] = [];
 const rooms = new Map<string, Room>();
 
+const MAX_PLAYERS = 6;
+
 let queueTimer: ReturnType<typeof setInterval> | null = null;
-let queueTimeLeft = 15;
+let queueTimeLeft = 10;
 let timerActive = false;
 
 // ---------------------------------------------------------------------------
@@ -71,7 +73,7 @@ function broadcastQueueUpdate() {
 function startQueueCountdown() {
   if (timerActive) return;
   timerActive = true;
-  queueTimeLeft = 15;
+  queueTimeLeft = 10;
   broadcastQueueUpdate();
   queueTimer = setInterval(() => {
     queueTimeLeft--;
@@ -85,13 +87,19 @@ function startQueueCountdown() {
   }, 1000);
 }
 
+function resetQueueCountdown() {
+  // Reset the countdown to 10 s without stopping the interval tick.
+  queueTimeLeft = 10;
+  broadcastQueueUpdate();
+}
+
 function stopQueueCountdown() {
   if (queueTimer) {
     clearInterval(queueTimer);
     queueTimer = null;
   }
   timerActive = false;
-  queueTimeLeft = 15;
+  queueTimeLeft = 10;
 }
 
 function startRace() {
@@ -177,8 +185,23 @@ export function setupWebSocketServer(httpServer: Server) {
             avatar: avatar || '🏃',
           });
 
-          broadcastQueueUpdate();
-          if (queue.length >= 2 && !timerActive) startQueueCountdown();
+          // 6 real players — start immediately, no need to wait
+          if (queue.length >= MAX_PLAYERS) {
+            stopQueueCountdown();
+            startRace();
+            break;
+          }
+
+          // Each new joiner resets the countdown to give everyone fair notice
+          if (queue.length >= 2) {
+            if (timerActive) {
+              resetQueueCountdown();
+            } else {
+              startQueueCountdown();
+            }
+          } else {
+            broadcastQueueUpdate();
+          }
           break;
         }
 
