@@ -10,6 +10,7 @@ interface QueueEntry {
   username: string;
   color: string;
   avatar: string;
+  avatarBg: string;
 }
 
 interface RoomPlayer {
@@ -59,6 +60,7 @@ function broadcastQueueUpdate() {
     username: q.username,
     color: q.color,
     avatar: q.avatar,
+    avatarBg: q.avatarBg,
   }));
   for (const entry of queue) {
     send(entry.ws, {
@@ -114,6 +116,7 @@ function startRace() {
     username: q.username,
     color: q.color,
     avatar: q.avatar,
+    avatarBg: q.avatarBg,
     isNpc: false,
   }));
 
@@ -168,7 +171,7 @@ export function setupWebSocketServer(httpServer: Server) {
       switch (msg.type) {
         // ── Matchmaking ─────────────────────────────────────────────────────
         case 'QUEUE_JOIN': {
-          const { username, color, avatar } = msg;
+          const { username, color, avatar, avatarBg } = msg;
           if (!username) break;
           // Remove stale entry for the same connection
           removeFromQueue(ws);
@@ -183,6 +186,7 @@ export function setupWebSocketServer(httpServer: Server) {
             username,
             color: color || '#3b82f6',
             avatar: avatar || '🏃',
+            avatarBg: avatarBg || '',
           });
 
           // 6 real players — start immediately, no need to wait

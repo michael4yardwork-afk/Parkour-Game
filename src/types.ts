@@ -104,6 +104,7 @@ export interface RaceParticipant {
   username: string;
   color: string;
   avatar: string;
+  avatarBg?: string;
   isNpc: boolean;
   baseSpeed: number;
   seed: number;

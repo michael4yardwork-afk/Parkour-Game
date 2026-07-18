@@ -122,6 +122,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
         username: currentUser.username,
         color,
         avatar: currentUser.avatar || '🏃',
+        avatarBg: currentUser.avatarBg || '',
       }));
     };
 
@@ -135,10 +136,11 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
         // Play tick sound whenever countdown advances
         if (msg.timerActive) synths.playTick();
         setLobbyPlayers(
-          (msg.players as { username: string; color: string; avatar: string }[]).map(p => ({
+          (msg.players as { username: string; color: string; avatar: string; avatarBg?: string }[]).map(p => ({
             username: p.username,
             color: p.color,
             avatar: p.avatar || '🏃',
+            avatarBg: p.avatarBg || '',
             isNpc: false,
             baseSpeed: 10 + Math.random() * 2,
             seed: Math.random(),
@@ -146,7 +148,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
         );
       } else if (msg.type === 'RACE_START') {
         // msg.players contains only the real human players from the server
-        startRaceMatch(msg.roomId, msg.levelId, msg.seed, msg.players as { username: string; color: string; avatar: string; isNpc: boolean }[], msg.startTime as number | undefined);
+        startRaceMatch(msg.roomId, msg.levelId, msg.seed, msg.players as { username: string; color: string; avatar: string; avatarBg?: string; isNpc: boolean }[], msg.startTime as number | undefined);
       }
     };
 
@@ -178,6 +180,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
       username: currentUser.username,
       color: randomColor,
       avatar: currentUser.avatar || '🏃',
+      avatarBg: currentUser.avatarBg || '',
       isNpc: false,
       baseSpeed: 11,
       seed: Math.random(),
@@ -225,7 +228,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
     roomId: string | null,
     levelId: string,
     seed: number,
-    serverPlayers: { username: string; color: string; avatar: string; isNpc: boolean }[],
+    serverPlayers: { username: string; color: string; avatar: string; avatarBg?: string; isNpc: boolean }[],
     raceStartTime?: number
   ) => {
     setIsSearching(false);
@@ -240,6 +243,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
         username: p.username,
         color: p.color,
         avatar: p.avatar || '👤',
+        avatarBg: p.avatarBg || '',
         isNpc: false,
         baseSpeed: 10 + Math.random() * 2,
         seed: Math.random(),
@@ -399,9 +403,9 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
                           }`}
                         >
                           <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm shadow-sm shrink-0 border`}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm shadow-sm shrink-0 border ${player?.avatarBg || ''}`}
                             style={{
-                              backgroundColor: player ? player.color : '#262626',
+                              backgroundColor: player ? (player.avatarBg ? undefined : player.color) : '#262626',
                               borderColor: player ? 'rgba(255,255,255,0.15)' : 'transparent'
                             }}
                           >
