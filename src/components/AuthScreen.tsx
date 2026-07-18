@@ -9,6 +9,7 @@ import { AVATAR_BGS, SIGNUP_AVATAR_BGS } from '../avatarThemes';
 interface AuthScreenProps {
   onLoginSuccess: (user: UserAccount) => void;
   onPlayDemo?: () => void;
+  initialMode?: 'login' | 'signup';
 }
 
 const AVATARS = [
@@ -71,8 +72,8 @@ const GAME_FEATURES = [
   },
 ];
 
-export default function AuthScreen({ onLoginSuccess, onPlayDemo }: AuthScreenProps) {
-  const [isSignUp, setIsSignUp] = useState(false);
+export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: AuthScreenProps) {
+  const [isSignUp, setIsSignUp] = useState(initialMode === 'signup');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

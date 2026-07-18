@@ -515,7 +515,7 @@ export default function App() {
     if (showDemoLogin) {
       return (
         <div className="relative min-h-full">
-          <AuthScreen onLoginSuccess={handleDemoLoginSuccess} />
+          <AuthScreen onLoginSuccess={handleDemoLoginSuccess} initialMode="signup" />
           <button
             onClick={() => setShowDemoLogin(false)}
             className="fixed top-4 left-4 z-[200] text-xs text-neutral-400 hover:text-neutral-200 font-mono bg-neutral-900/90 px-3 py-1.5 rounded-lg border border-neutral-700 transition cursor-pointer"
