@@ -2819,7 +2819,7 @@ export default function GameCanvas({
                     className="pointer-events-auto flex items-center gap-1.5 bg-neutral-900/90 border border-neutral-700/60 px-2.5 py-1.5 rounded-lg cursor-pointer transition hover:border-indigo-500/60 hover:bg-neutral-900 text-neutral-400 hover:text-indigo-300"
                   >
                     <span className="text-[11px]">👻</span>
-                    <span className="text-[10px] font-mono">🔒 Log in</span>
+                    <span className="text-[10px] font-mono">🔒 Sign Up</span>
                   </button>
                 )}
                 <button
