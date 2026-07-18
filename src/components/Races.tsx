@@ -403,11 +403,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
                           }`}
                         >
                           <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm shadow-sm shrink-0 border ${player?.avatarBg || ''}`}
-                            style={{
-                              backgroundColor: player ? (player.avatarBg ? undefined : player.color) : '#262626',
-                              borderColor: player ? 'rgba(255,255,255,0.15)' : 'transparent'
-                            }}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm shadow-sm shrink-0 border border-white/10 ${player ? (player.avatarBg || 'bg-neutral-700') : 'bg-neutral-800'}`}
                           >
                             {player ? player.avatar : '?'}
                           </div>
