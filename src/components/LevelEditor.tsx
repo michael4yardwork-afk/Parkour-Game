@@ -466,7 +466,7 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest, isPl
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-[90vh] bg-neutral-950 font-sans">
+    <div className="flex flex-col lg:flex-row h-screen bg-neutral-950 font-sans">
       
       {/* 3D Visualizer Panel (Left or top) */}
       <div className="flex-1 relative h-2/5 lg:h-full flex flex-col border-b lg:border-b-0 lg:border-r border-neutral-800">
