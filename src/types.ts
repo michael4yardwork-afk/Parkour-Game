@@ -97,6 +97,7 @@ export interface UserAccount {
   avatar: string;
   avatarBg: string;
   createdAt: number;
+  device?: string; // 'computer' | 'tablet' | 'phone' — set at signup
 }
 
 export interface RaceParticipant {

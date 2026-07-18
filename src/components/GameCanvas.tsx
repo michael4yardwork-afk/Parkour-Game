@@ -2448,7 +2448,7 @@ export default function GameCanvas({
           const submitPayload = {
             time: finalTime,
             date: Date.now(),
-            device: isMobileRef.current ? 'mobile' : 'desktop',
+            device: currentUser?.device ?? (isMobileRef.current ? 'mobile' : 'desktop'),
             speeds: resampledSpeeds,
             frames: downsampledFrames,
             isNewPb,

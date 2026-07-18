@@ -104,7 +104,12 @@ export async function initDb() {
     ALTER TABLE leaderboard_entries DROP COLUMN IF EXISTS actions;
   `);
 
-  // Stripe billing fields — track subscription state per user.
+  // Device field — stored at signup from the user's explicit selection.
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS device TEXT;
+  `);
+
+  // Stripe billing fields — track current subscription state per user.
   // subscription_status mirrors Stripe's subscription status field
   // (active, trialing, past_due, canceled, unpaid, incomplete, etc.) or NULL
   // if the user has never started a checkout.
@@ -115,6 +120,30 @@ export async function initDb() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_plan TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_current_period_end BIGINT;
     CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users(stripe_customer_id);
+  `);
+
+  // Platinum purchase history — one row per Stripe lifecycle event so we have
+  // a full audit trail of every purchase, renewal, and cancellation.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS platinum_purchases (
+      id                    TEXT PRIMARY KEY,
+      username              TEXT NOT NULL,
+      stripe_subscription_id TEXT,
+      stripe_customer_id    TEXT,
+      stripe_invoice_id     TEXT,
+      plan                  TEXT,
+      amount_cents          INTEGER,
+      currency              TEXT,
+      event_type            TEXT NOT NULL,
+      subscription_status   TEXT,
+      period_start          BIGINT,
+      period_end            BIGINT,
+      recorded_at           BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_platinum_purchases_username
+      ON platinum_purchases(username);
+    CREATE INDEX IF NOT EXISTS idx_platinum_purchases_subscription
+      ON platinum_purchases(stripe_subscription_id);
   `);
 
   // Retroactively enforce the 1-course publish limit for non-platinum users.

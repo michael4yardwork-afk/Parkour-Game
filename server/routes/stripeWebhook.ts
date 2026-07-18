@@ -8,8 +8,9 @@ const router = Router();
 /**
  * Applies a subscription's current status/plan/period-end to the user it
  * belongs to (matched by Stripe customer id).
+ * Returns the username so callers can record purchase history.
  */
-async function syncSubscription(subscription: Stripe.Subscription) {
+async function syncSubscription(subscription: Stripe.Subscription): Promise<string | null> {
   const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
   const plan = (subscription.metadata?.cycle as string) || null;
   const periodEndItem = subscription.items.data[0];
@@ -17,14 +18,67 @@ async function syncSubscription(subscription: Stripe.Subscription) {
     ? periodEndItem.current_period_end * 1000
     : null;
 
-  await pool.query(
+  const result = await pool.query(
     `UPDATE users
      SET stripe_subscription_id = $1,
          subscription_status = $2,
          subscription_plan = COALESCE($3, subscription_plan),
          subscription_current_period_end = $4
-     WHERE stripe_customer_id = $5`,
+     WHERE stripe_customer_id = $5
+     RETURNING username`,
     [subscription.id, subscription.status, plan, currentPeriodEnd, customerId]
+  );
+
+  return result.rows[0]?.username ?? null;
+}
+
+/**
+ * Records a single lifecycle event into platinum_purchases.
+ * Uses ON CONFLICT DO NOTHING so replayed webhooks are idempotent.
+ */
+async function recordPurchaseEvent(opts: {
+  id: string;
+  username: string;
+  subscription: Stripe.Subscription;
+  eventType: string;
+  invoiceId?: string | null;
+  amountCents?: number | null;
+  currency?: string | null;
+}) {
+  const { id, username, subscription, eventType, invoiceId, amountCents, currency } = opts;
+  const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
+  const plan = (subscription.metadata?.cycle as string) || null;
+  const periodEndItem = subscription.items.data[0];
+  const rawSub = subscription as Stripe.Subscription & { current_period_start?: number };
+  const periodStart = rawSub.current_period_start
+    ? rawSub.current_period_start * 1000
+    : null;
+  const periodEnd = periodEndItem?.current_period_end
+    ? periodEndItem.current_period_end * 1000
+    : null;
+
+  await pool.query(
+    `INSERT INTO platinum_purchases
+       (id, username, stripe_subscription_id, stripe_customer_id, stripe_invoice_id,
+        plan, amount_cents, currency, event_type, subscription_status,
+        period_start, period_end, recorded_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      id,
+      username,
+      subscription.id,
+      customerId,
+      invoiceId ?? null,
+      plan,
+      amountCents ?? null,
+      currency ?? null,
+      eventType,
+      subscription.status,
+      periodStart,
+      periodEnd,
+      Date.now(),
+    ]
   );
 }
 
@@ -60,17 +114,88 @@ router.post('/', async (req: Request, res: Response) => {
           const subscriptionId =
             typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          await syncSubscription(subscription);
+          const username = await syncSubscription(subscription);
+          if (username) {
+            await recordPurchaseEvent({
+              id: `checkout_${event.id}`,
+              username,
+              subscription,
+              eventType: 'checkout_completed',
+              invoiceId: typeof session.invoice === 'string' ? session.invoice : session.invoice?.id ?? null,
+              amountCents: session.amount_total,
+              currency: session.currency,
+            });
+          }
         }
         break;
       }
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated':
-      case 'customer.subscription.deleted': {
+
+      case 'customer.subscription.created': {
         const subscription = event.data.object as Stripe.Subscription;
-        await syncSubscription(subscription);
+        const username = await syncSubscription(subscription);
+        if (username) {
+          await recordPurchaseEvent({
+            id: `sub_created_${event.id}`,
+            username,
+            subscription,
+            eventType: 'subscription_created',
+          });
+        }
         break;
       }
+
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const username = await syncSubscription(subscription);
+        if (username) {
+          await recordPurchaseEvent({
+            id: `sub_updated_${event.id}`,
+            username,
+            subscription,
+            eventType: 'subscription_updated',
+          });
+        }
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const username = await syncSubscription(subscription);
+        if (username) {
+          await recordPurchaseEvent({
+            id: `sub_deleted_${event.id}`,
+            username,
+            subscription,
+            eventType: 'subscription_cancelled',
+          });
+        }
+        break;
+      }
+
+      case 'invoice.payment_succeeded': {
+        // Captures renewal payments (after the initial checkout).
+        const invoice = event.data.object as Stripe.Invoice & { subscription?: string | { id: string } };
+        if (invoice.billing_reason === 'subscription_cycle' && invoice.subscription) {
+          const stripe = getStripeClient();
+          const subscriptionId =
+            typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription.id;
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          const username = await syncSubscription(subscription);
+          if (username) {
+            await recordPurchaseEvent({
+              id: `renewal_${event.id}`,
+              username,
+              subscription,
+              eventType: 'subscription_renewed',
+              invoiceId: invoice.id,
+              amountCents: invoice.amount_paid,
+              currency: invoice.currency,
+            });
+          }
+        }
+        break;
+      }
+
       default:
         break;
     }

@@ -238,7 +238,7 @@ export default function AuthScreen({ onLoginSuccess }: AuthScreenProps) {
         };
         localStorage.setItem('momentum_player_settings', JSON.stringify(initialSettings));
 
-        const result = await api.auth.signup(trimmedUsername, password, selectedAvatar, selectedBg);
+        const result = await api.auth.signup(trimmedUsername, password, selectedAvatar, selectedBg, selectedDevice ?? undefined);
         notifyFeedback('success', 'Account created successfully! Logging you in...');
         setTimeout(() => onLoginSuccess(result.user), 800);
       } else {

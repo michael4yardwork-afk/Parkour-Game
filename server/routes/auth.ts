@@ -8,7 +8,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'delta-rush-secret-key-change-in-pr
 
 router.post('/signup', async (req: Request, res: Response) => {
   try {
-    const { username, password, avatar, avatarBg } = req.body;
+    const { username, password, avatar, avatarBg, device } = req.body;
 
     if (!username || !password || username.length < 3 || password.length < 6) {
       return res.status(400).json({ error: 'Invalid username or password.' });
@@ -21,9 +21,9 @@ router.post('/signup', async (req: Request, res: Response) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      `INSERT INTO users (username, password_hash, avatar, avatar_bg, created_at)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id, username, avatar, avatar_bg, created_at`,
-      [username, passwordHash, avatar || '🚀', avatarBg || 'bg-indigo-500', Date.now()]
+      `INSERT INTO users (username, password_hash, avatar, avatar_bg, device, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, avatar, avatar_bg, device, created_at`,
+      [username, passwordHash, avatar || '🚀', avatarBg || 'bg-indigo-500', device || null, Date.now()]
     );
 
     const user = result.rows[0];
@@ -35,6 +35,7 @@ router.post('/signup', async (req: Request, res: Response) => {
         username: user.username,
         avatar: user.avatar,
         avatarBg: user.avatar_bg,
+        device: user.device ?? null,
         createdAt: parseInt(user.created_at),
         passwordHash: ''
       }
@@ -72,6 +73,7 @@ router.post('/login', async (req: Request, res: Response) => {
         username: user.username,
         avatar: user.avatar,
         avatarBg: user.avatar_bg,
+        device: user.device ?? null,
         createdAt: parseInt(user.created_at),
         passwordHash: ''
       }
