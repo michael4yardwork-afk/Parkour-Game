@@ -768,7 +768,7 @@ export default function GameCanvas({
           o => o.username.toLowerCase().trim() === (username || '').toLowerCase().trim()
         );
         if (opp && !opp.isNpc) {
-          opp.targetPosition.set(x, y, z);
+          opp.targetPosition.set(x, y + 0.8, z);
           opp.targetYaw = ry;
           opp.lastUpdateMs = Date.now();
           opp.progressDistance = Math.max(0, -z);
@@ -811,7 +811,7 @@ export default function GameCanvas({
       if (type === 'GAME_TICK') {
         const opp = opponentMeshesRef.current.find(o => o.username.toLowerCase().trim() === username.toLowerCase().trim());
         if (opp && !opp.isNpc) {
-          opp.targetPosition.set(x, y, z);
+          opp.targetPosition.set(x, y + 0.8, z);
           opp.targetYaw = ry;
           opp.lastUpdateMs = Date.now();
           opp.progressDistance = Math.max(0, -z);
