@@ -2814,7 +2814,7 @@ export default function GameCanvas({
                 )}
                 {!raceMode && demoMode && (
                   <button
-                    title="Log in to unlock ghost replay"
+                    title="Sign up to unlock ghost replay"
                     onClick={() => onDemoLoginRequest?.()}
                     className="pointer-events-auto flex items-center gap-1.5 bg-neutral-900/90 border border-neutral-700/60 px-2.5 py-1.5 rounded-lg cursor-pointer transition hover:border-indigo-500/60 hover:bg-neutral-900 text-neutral-400 hover:text-indigo-300"
                   >
@@ -3107,7 +3107,7 @@ export default function GameCanvas({
                       onClick={() => onDemoLoginRequest?.()}
                       className="mt-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition cursor-pointer"
                     >
-                      Log In / Sign Up
+                      Sign Up — It's Free
                     </button>
                   </div>
                 ) : completionPercentile !== null && completionWorldRank !== null && level.id !== 'test_level_active' && (
@@ -3169,7 +3169,7 @@ export default function GameCanvas({
                 onClick={() => onDemoLoginRequest?.()}
                 className="mt-2 w-full py-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                🔓 Log In / Sign Up — Save Your Run &amp; See Rankings
+                🔓 Sign Up — Save Your Run &amp; See Rankings
               </button>
             )}
 

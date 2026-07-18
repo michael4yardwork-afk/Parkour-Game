@@ -510,6 +510,22 @@ export default function App() {
   };
 
   if (!currentUser && demoMode) {
+    // When the user wants to sign up from within the demo, show the full
+    // AuthScreen (not a cramped modal) so the layout renders correctly.
+    if (showDemoLogin) {
+      return (
+        <div className="relative min-h-full">
+          <AuthScreen onLoginSuccess={handleDemoLoginSuccess} />
+          <button
+            onClick={() => setShowDemoLogin(false)}
+            className="fixed top-4 left-4 z-[200] text-xs text-neutral-400 hover:text-neutral-200 font-mono bg-neutral-900/90 px-3 py-1.5 rounded-lg border border-neutral-700 transition cursor-pointer"
+          >
+            ← Back to Demo
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="game-fullscreen overflow-hidden text-neutral-800">
         <GameCanvas
@@ -524,21 +540,6 @@ export default function App() {
             pendingDemoRunRef.current = { levelId, payload };
           }}
         />
-        {showDemoLogin && (
-          <div className="absolute inset-0 z-[100] flex items-center justify-center bg-neutral-950/80 backdrop-blur-sm p-4">
-            <div className="relative w-full max-w-md">
-              <AuthScreen
-                onLoginSuccess={handleDemoLoginSuccess}
-              />
-              <button
-                onClick={() => setShowDemoLogin(false)}
-                className="absolute top-4 right-4 z-10 text-xs text-neutral-400 hover:text-neutral-200 font-mono bg-neutral-900/80 px-3 py-1.5 rounded-lg border border-neutral-700 transition"
-              >
-                ✕ Back to Demo
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
