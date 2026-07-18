@@ -340,7 +340,11 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold text-neutral-950 tracking-tight">Greetings, {currentUser.username}</h2>
-              <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full font-mono uppercase tracking-wider">Aesthetic Tracker</span>
+              {isPlatinum ? (
+                <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-bold rounded-full font-mono uppercase tracking-wider">Platinum Plan</span>
+              ) : (
+                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full font-mono uppercase tracking-wider">Regular Plan</span>
+              )}
             </div>
             <p className="text-xs text-neutral-500 mt-0.5 font-mono">
               Registrant Since: {currentUser.createdAt ? new Date(currentUser.createdAt).toLocaleDateString() : 'Active Session'}
