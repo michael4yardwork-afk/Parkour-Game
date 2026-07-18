@@ -459,7 +459,9 @@ export default function GameCanvas({
 
     // Locate the spawn coordinate block
     const spawnBlock = level.blocks.find(b => b.type === 'start') || level.blocks[0];
-    const spawnY = spawnBlock ? spawnBlock.y + spawnBlock.h + 1.2 : 4;
+    // In race mode, spawn directly on the block surface so players start grounded.
+    // In regular courses, keep the 1.2-unit drop so the initial fall feels natural.
+    const spawnY = spawnBlock ? spawnBlock.y + spawnBlock.h + (raceMode ? 0 : 1.2) : 4;
     const spawnX = spawnBlock ? spawnBlock.x : 0;
     const spawnZ = spawnBlock ? spawnBlock.z : 0;
 
@@ -584,7 +586,8 @@ export default function GameCanvas({
     playerVel.current.set(0, 0, 0);
     playerYaw.current = Math.PI; // point forward (down negative Z)
     playerPitch.current = 0;
-    groundedRef.current = false;
+    // In race mode the player spawns on the block surface, so start grounded.
+    groundedRef.current = raceMode;
     lastTimeGroundedRef.current = 0;
     slideTimerRef.current = 0;
     slidingRef.current = false;
