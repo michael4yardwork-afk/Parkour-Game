@@ -1282,8 +1282,11 @@ export default function GameCanvas({
               opp.mesh.rotation.y = Math.PI;
 
               opp.mesh.scale.set(1, 1, 1);
+              return;
             }
-            return;
+            // Finished real (WS) players fall through to the lerp below so
+            // their mesh keeps tracking the live targetPosition updates that
+            // continue arriving from the remote client after they finish.
           }
 
           if (opp.isNpc) {
@@ -1342,9 +1345,10 @@ export default function GameCanvas({
           }
         });
 
-        // Broadcast current position to opponents (nothing left to broadcast
-        // once the local player has already finished)
-        if (raceMode && !isCompletedRef.current) {
+        // Broadcast current position to opponents continuously so that
+        // every other client can see the local player's position even after
+        // they have crossed the finish line.
+        if (raceMode) {
           const tickPayload = {
             type: 'GAME_TICK',
             roomId: raceRoomId,
