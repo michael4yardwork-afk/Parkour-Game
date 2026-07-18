@@ -3096,18 +3096,26 @@ export default function GameCanvas({
                   </div>
                 </div>
 
-                {/* Percentile Box — hidden in demo; replaced with login CTA */}
+                {/* Percentile Box — demo shows blurred placeholders; real mode shows live data */}
                 {demoMode ? (
-                  <div className="w-full mt-3 bg-neutral-800/60 border border-neutral-700/60 p-4 rounded-2xl flex flex-col items-center gap-2">
-                    <span className="text-[9px] font-mono text-neutral-400 uppercase tracking-wider font-bold">🔒 World Rank &amp; Percentile</span>
-                    <p className="text-xs text-neutral-400 text-center leading-relaxed">
-                      Create a free account to see how your run stacks up against players worldwide.
-                    </p>
+                  <div className="w-full mt-3 bg-indigo-500/15 border border-indigo-500/30 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-inner relative overflow-hidden">
+                    <span className="text-[9px] font-mono text-indigo-400 uppercase tracking-wider font-bold">Community Standing</span>
+                    <div className="flex items-center justify-around w-full gap-4 mt-1">
+                      <div className="flex flex-col items-center">
+                        <span className="text-2xl font-black font-mono text-indigo-300 select-none" style={{ filter: 'blur(7px)' }}>Top 4%</span>
+                        <span className="text-[9px] text-neutral-400 uppercase font-mono font-bold tracking-wider">Percentile</span>
+                      </div>
+                      <div className="w-px h-8 bg-indigo-500/30 shrink-0" />
+                      <div className="flex flex-col items-center">
+                        <span className="text-2xl font-black font-mono text-emerald-400 select-none" style={{ filter: 'blur(7px)' }}>#142</span>
+                        <span className="text-[9px] text-neutral-400 uppercase font-mono font-bold tracking-wider">World Rank</span>
+                      </div>
+                    </div>
                     <button
                       onClick={() => onDemoLoginRequest?.()}
-                      className="mt-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                      className="mt-1 flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-lg transition cursor-pointer"
                     >
-                      Sign Up — It's Free
+                      🔒 Sign Up to Reveal Your Ranking
                     </button>
                   </div>
                 ) : completionPercentile !== null && completionWorldRank !== null && level.id !== 'test_level_active' && (
@@ -3143,33 +3151,42 @@ export default function GameCanvas({
             )}
 
             {!raceMode && (
-              <div className={`${level.id === 'test_level_active' || demoMode ? 'flex' : 'grid grid-cols-2'} gap-2.5 w-full mt-8`}>
+              <div className={`${level.id === 'test_level_active' ? 'flex' : 'grid grid-cols-2'} gap-2.5 w-full mt-8`}>
                 <button
                   onClick={initGame}
-                  className={`py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-900 text-xs font-bold rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer ${level.id === 'test_level_active' || demoMode ? 'w-full' : ''}`}
+                  className={`py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-900 text-xs font-bold rounded-xl transition shadow flex items-center justify-center gap-1.5 cursor-pointer ${level.id === 'test_level_active' ? 'w-full' : ''}`}
                 >
                   <RotateCcw className="w-4 h-4" />
                   Retry Run
                 </button>
-                {level.id !== 'test_level_active' && !demoMode && (
-                  <button
-                    onClick={onShowLeaderboard}
-                    className="py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer border border-neutral-700"
-                  >
-                    <Award className="w-4 h-4" />
-                    Leaderboard
-                  </button>
+                {level.id !== 'test_level_active' && (
+                  demoMode ? (
+                    <button
+                      onClick={() => onDemoLoginRequest?.()}
+                      className="py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer border border-neutral-700"
+                    >
+                      🔒 Leaderboard
+                    </button>
+                  ) : (
+                    <button
+                      onClick={onShowLeaderboard}
+                      className="py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer border border-neutral-700"
+                    >
+                      <Award className="w-4 h-4" />
+                      Leaderboard
+                    </button>
+                  )
                 )}
               </div>
             )}
 
-            {/* Demo mode — exit to login CTA */}
+            {/* Demo mode — sign-up CTA to save run */}
             {demoMode && (
               <button
                 onClick={() => onDemoLoginRequest?.()}
-                className="mt-2 w-full py-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+                className="mt-2 w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-600/20"
               >
-                🔓 Sign Up — Save Your Run &amp; See Rankings
+                🔓 Sign Up Free — Save This Run &amp; See Rankings
               </button>
             )}
 
