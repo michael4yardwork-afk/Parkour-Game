@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Crown, Check, FolderKanban, LineChart, GitCompareArrows, Ghost, Blocks, BarChart3, Sparkles, Save, Mail, Loader2 } from 'lucide-react';
+import { Crown, Check, FolderKanban, LineChart, GitCompareArrows, Ghost, Blocks, BarChart3, Sparkles, Save, Mail, Loader2, BadgeCheck } from 'lucide-react';
 import { synths } from '../audio';
 import { api } from '../api';
 
@@ -92,9 +92,17 @@ const SNEAK_PEEK: { icon: React.ReactNode; title: string; description: string; i
 interface UpgradeProps {
   isLoggedIn?: boolean;
   onRequireLogin?: () => void;
+  isPlatinum?: boolean;
+  plan?: string | null;
+  currentPeriodEnd?: number | null;
 }
 
-export default function Upgrade({ isLoggedIn, onRequireLogin }: UpgradeProps) {
+function formatRenewalDate(ts: number | null | undefined): string {
+  if (!ts) return '';
+  return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+export default function Upgrade({ isLoggedIn, onRequireLogin, isPlatinum, plan, currentPeriodEnd }: UpgradeProps) {
   const [cycle, setCycle] = useState<BillingCycle>('yearly');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +131,9 @@ export default function Upgrade({ isLoggedIn, onRequireLogin }: UpgradeProps) {
     }
   };
 
+  const renewalDate = formatRenewalDate(currentPeriodEnd);
+  const planLabel = plan === 'monthly' ? 'Monthly' : plan === 'yearly' ? 'Yearly' : null;
+
   return (
     <div className="relative min-h-full overflow-hidden">
       {/* Flowing rainbow backdrop */}
@@ -136,38 +147,58 @@ export default function Upgrade({ isLoggedIn, onRequireLogin }: UpgradeProps) {
             <Crown className="w-4 h-4 text-yellow-200" />
             <span className="text-xs font-bold uppercase tracking-wider text-white">Delta Rush Platinum</span>
           </div>
-          <h1 className="text-3xl md:text-5xl font-black text-white drop-shadow-sm tracking-tight">
-            Go Platinum. Race without limits.
-          </h1>
-          <p className="mt-4 text-sm md:text-base text-white/90 max-w-xl mx-auto font-medium">
-            Unlock unlimited course publishing, full leaderboard tools, bigger course builds, and every special icon in the game.
-          </p>
+          {isPlatinum ? (
+            <>
+              <h1 className="text-3xl md:text-5xl font-black text-white drop-shadow-sm tracking-tight">
+                You're on{' '}
+                <span className="bg-gradient-to-r from-yellow-300 to-amber-400 bg-clip-text text-transparent">
+                  Platinum
+                </span>{' '}
+                ✦
+              </h1>
+              <p className="mt-4 text-sm md:text-base text-white/90 max-w-xl mx-auto font-medium">
+                All Platinum features are active on your account.
+                {renewalDate && ` Your ${planLabel ? planLabel.toLowerCase() : ''} plan renews on ${renewalDate}.`}
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-3xl md:text-5xl font-black text-white drop-shadow-sm tracking-tight">
+                Go Platinum. Race without limits.
+              </h1>
+              <p className="mt-4 text-sm md:text-base text-white/90 max-w-xl mx-auto font-medium">
+                Unlock unlimited course publishing, full leaderboard tools, bigger course builds, and every special icon in the game.
+              </p>
+            </>
+          )}
         </div>
 
-        {/* Billing toggle */}
-        <div className="flex justify-center mb-8">
-          <div className="inline-flex bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl p-1 shadow-sm">
-            <button
-              onClick={() => handleSelect('monthly')}
-              className={`px-5 py-2 rounded-xl text-sm font-bold transition cursor-pointer ${
-                cycle === 'monthly' ? 'bg-white text-neutral-900 shadow' : 'text-white/90 hover:text-white'
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => handleSelect('yearly')}
-              className={`px-5 py-2 rounded-xl text-sm font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                cycle === 'yearly' ? 'bg-white text-neutral-900 shadow' : 'text-white/90 hover:text-white'
-              }`}
-            >
-              Yearly
-              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${cycle === 'yearly' ? 'bg-emerald-500 text-white' : 'bg-white/25 text-white'}`}>
-                SAVE 30%
-              </span>
-            </button>
+        {/* Billing toggle — only shown when not yet platinum */}
+        {!isPlatinum && (
+          <div className="flex justify-center mb-8">
+            <div className="inline-flex bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl p-1 shadow-sm">
+              <button
+                onClick={() => handleSelect('monthly')}
+                className={`px-5 py-2 rounded-xl text-sm font-bold transition cursor-pointer ${
+                  cycle === 'monthly' ? 'bg-white text-neutral-900 shadow' : 'text-white/90 hover:text-white'
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => handleSelect('yearly')}
+                className={`px-5 py-2 rounded-xl text-sm font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                  cycle === 'yearly' ? 'bg-white text-neutral-900 shadow' : 'text-white/90 hover:text-white'
+                }`}
+              >
+                Yearly
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${cycle === 'yearly' ? 'bg-emerald-500 text-white' : 'bg-white/25 text-white'}`}>
+                  SAVE 30%
+                </span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Pricing cards */}
         <div className="grid md:grid-cols-2 gap-5 max-w-3xl mx-auto mb-14">
@@ -192,31 +223,55 @@ export default function Upgrade({ isLoggedIn, onRequireLogin }: UpgradeProps) {
               disabled
               className="mt-6 w-full py-2.5 rounded-xl text-sm font-bold bg-neutral-100 text-neutral-400 cursor-default"
             >
-              Current plan
+              {isPlatinum ? 'Free tier' : 'Current plan'}
             </button>
           </div>
 
           {/* Platinum plan */}
           <div className="relative bg-gradient-to-br from-neutral-900 via-neutral-900 to-indigo-950 rounded-2xl border border-white/40 p-6 flex flex-col shadow-2xl ring-2 ring-yellow-300/60">
-            <div className="absolute -top-3 right-6 bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-300 text-neutral-900 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow">
-              Most Popular
-            </div>
+            {!isPlatinum && (
+              <div className="absolute -top-3 right-6 bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-300 text-neutral-900 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow">
+                Most Popular
+              </div>
+            )}
+            {isPlatinum && (
+              <div className="absolute -top-3 right-6 bg-gradient-to-r from-emerald-400 to-green-400 text-neutral-900 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow flex items-center gap-1">
+                <BadgeCheck className="w-3 h-3" /> Active
+              </div>
+            )}
             <span className="text-xs font-bold uppercase tracking-wider text-yellow-300 flex items-center gap-1.5">
               <Crown className="w-3.5 h-3.5" /> Platinum
             </span>
-            <div className="mt-2 flex items-baseline gap-1">
-              <span className="text-3xl font-black text-white">
-                {cycle === 'monthly' ? '$2.99' : '$24.99'}
-              </span>
-              <span className="text-sm font-semibold text-white/50">
-                {cycle === 'monthly' ? '/ month' : '/ year'}
-              </span>
-            </div>
-            <p className="mt-2 text-sm text-white/60 font-medium">
-              {cycle === 'monthly'
-                ? 'Billed monthly. Cancel anytime.'
-                : 'Just $2.08/month, billed annually.'}
-            </p>
+            {isPlatinum ? (
+              <>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-black text-white">
+                    {planLabel ? `${planLabel} plan` : 'Active'}
+                  </span>
+                </div>
+                {renewalDate && (
+                  <p className="mt-1 text-sm text-white/60 font-medium">
+                    Renews {renewalDate}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-white">
+                    {cycle === 'monthly' ? '$2.99' : '$24.99'}
+                  </span>
+                  <span className="text-sm font-semibold text-white/50">
+                    {cycle === 'monthly' ? '/ month' : '/ year'}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-white/60 font-medium">
+                  {cycle === 'monthly'
+                    ? 'Billed monthly. Cancel anytime.'
+                    : 'Just $2.08/month, billed annually.'}
+                </p>
+              </>
+            )}
             <div className="mt-6 h-px bg-white/10" />
             <ul className="mt-5 space-y-3 flex-1">
               {FEATURES.map((f) => (
@@ -226,26 +281,36 @@ export default function Upgrade({ isLoggedIn, onRequireLogin }: UpgradeProps) {
                 </li>
               ))}
             </ul>
-            <button
-              onClick={() => handleSubscribeClick(cycle)}
-              disabled={loading}
-              className="mt-6 w-full py-2.5 rounded-xl text-sm font-black bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-300 text-neutral-900 hover:brightness-105 active:scale-[0.98] transition shadow-lg cursor-pointer disabled:opacity-70 disabled:cursor-default flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Redirecting to checkout…
-                </>
-              ) : (
-                <>Get Platinum — {cycle === 'monthly' ? '$2.99/mo' : '$24.99/yr'}</>
-              )}
-            </button>
-            {error && (
-              <p className="mt-3 text-xs font-semibold text-red-300 text-center">{error}</p>
-            )}
-            {!isLoggedIn && !error && (
-              <p className="mt-3 text-xs font-medium text-white/60 text-center">
-                Log in or create an account to subscribe.
-              </p>
+
+            {isPlatinum ? (
+              <div className="mt-6 w-full py-2.5 rounded-xl text-sm font-black bg-gradient-to-r from-emerald-400 to-green-400 text-neutral-900 flex items-center justify-center gap-2 shadow-lg">
+                <BadgeCheck className="w-4 h-4" />
+                Your current plan
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => handleSubscribeClick(cycle)}
+                  disabled={loading}
+                  className="mt-6 w-full py-2.5 rounded-xl text-sm font-black bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-300 text-neutral-900 hover:brightness-105 active:scale-[0.98] transition shadow-lg cursor-pointer disabled:opacity-70 disabled:cursor-default flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Redirecting to checkout…
+                    </>
+                  ) : (
+                    <>Get Platinum — {cycle === 'monthly' ? '$2.99/mo' : '$24.99/yr'}</>
+                  )}
+                </button>
+                {error && (
+                  <p className="mt-3 text-xs font-semibold text-red-300 text-center">{error}</p>
+                )}
+                {!isLoggedIn && !error && (
+                  <p className="mt-3 text-xs font-medium text-white/60 text-center">
+                    Log in or create an account to subscribe.
+                  </p>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -255,13 +320,17 @@ export default function Upgrade({ isLoggedIn, onRequireLogin }: UpgradeProps) {
           <div className="text-center mb-6">
             <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/30 rounded-full px-3.5 py-1 mb-3">
               <Sparkles className="w-3.5 h-3.5 text-yellow-200" />
-              <span className="text-[11px] font-bold uppercase tracking-wider text-white">Sneak peek</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-white">
+                {isPlatinum ? 'Your features' : 'Sneak peek'}
+              </span>
             </div>
             <h2 className="text-xl md:text-2xl font-black text-white drop-shadow-sm tracking-tight">
-              See Platinum in action
+              {isPlatinum ? 'Everything included in your plan' : 'See Platinum in action'}
             </h2>
             <p className="mt-2 text-xs md:text-sm text-white/80 max-w-lg mx-auto font-medium">
-              Real screens pulled straight from the game — this is exactly what's waiting for you.
+              {isPlatinum
+                ? 'All of these features are live on your account right now.'
+                : 'Real screens pulled straight from the game — this is exactly what\'s waiting for you.'}
             </p>
           </div>
 

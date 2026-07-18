@@ -403,13 +403,30 @@ export default function App() {
 
   // Platinum subscription status — fetched once per session and refreshed on login/checkout.
   const [isPlatinum, setIsPlatinum] = useState(false);
+  const [platinumPlan, setPlatinumPlan] = useState<string | null>(null);
+  const [platinumPeriodEnd, setPlatinumPeriodEnd] = useState<number | null>(null);
+  // Bumped to force a re-fetch of billing status (e.g. after checkout success).
+  const [billingRefreshKey, setBillingRefreshKey] = useState(0);
 
   useEffect(() => {
-    if (!currentUser) { setIsPlatinum(false); return; }
+    if (!currentUser) {
+      setIsPlatinum(false);
+      setPlatinumPlan(null);
+      setPlatinumPeriodEnd(null);
+      return;
+    }
     api.billing.getStatus()
-      .then(({ isPlatinum: p }) => setIsPlatinum(p))
-      .catch(() => setIsPlatinum(false));
-  }, [currentUser?.username]);
+      .then(({ isPlatinum: p, plan, currentPeriodEnd }) => {
+        setIsPlatinum(p);
+        setPlatinumPlan(plan);
+        setPlatinumPeriodEnd(currentPeriodEnd);
+      })
+      .catch(() => {
+        setIsPlatinum(false);
+        setPlatinumPlan(null);
+        setPlatinumPeriodEnd(null);
+      });
+  }, [currentUser?.username, billingRefreshKey]);
 
   useEffect(() => {
     // Stripe Checkout redirects back with ?checkout=success|cancelled — surface
@@ -423,6 +440,14 @@ export default function App() {
       const newSearch = params.toString();
       window.history.replaceState({}, '', window.location.pathname + (newSearch ? `?${newSearch}` : ''));
       const timer = setTimeout(() => setCheckoutNotice(null), 8000);
+      if (checkout === 'success') {
+        // Stripe webhooks can take a few seconds — poll billing status at 2 s,
+        // 5 s, and 10 s so the UI reliably reflects platinum once the webhook lands.
+        const t1 = setTimeout(() => setBillingRefreshKey(k => k + 1), 2000);
+        const t2 = setTimeout(() => setBillingRefreshKey(k => k + 1), 5000);
+        const t3 = setTimeout(() => setBillingRefreshKey(k => k + 1), 10000);
+        return () => { clearTimeout(timer); clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+      }
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -699,7 +724,12 @@ export default function App() {
                   : 'Checkout was cancelled. No charge was made.'}
               </div>
             )}
-            <Upgrade isLoggedIn={!!currentUser} />
+            <Upgrade
+              isLoggedIn={!!currentUser}
+              isPlatinum={isPlatinum}
+              plan={platinumPlan}
+              currentPeriodEnd={platinumPeriodEnd}
+            />
           </div>
         )}
 
