@@ -464,10 +464,10 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
               <button
                 type="button"
                 onClick={() => { synths.playTick(); onPlayDemo(); }}
-                className="w-full py-2.5 bg-neutral-800/60 hover:bg-neutral-800 border border-neutral-700/60 hover:border-neutral-600 text-neutral-300 hover:text-neutral-100 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer font-mono uppercase tracking-wider"
+                className="w-full py-2.5 bg-red-600 hover:bg-red-500 border border-red-500/60 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer font-mono uppercase tracking-wider"
               >
                 <span className="text-base leading-none">▶</span>
-                Play Demo — Delta Skyway
+                Play Demo
               </button>
               <p className="text-[9px] text-neutral-600 text-center mt-2 font-mono">
                 No account required · leaderboard &amp; ghost locked
