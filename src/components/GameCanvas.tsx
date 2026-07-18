@@ -1383,7 +1383,7 @@ export default function GameCanvas({
           if (raceWs && raceWs.readyState === WebSocket.OPEN) {
             raceWs.send(JSON.stringify(tickPayload));
           } else if (bcRef.current) {
-            bcRef.current.postMessage(tickPayload);
+            try { bcRef.current.postMessage(tickPayload); } catch { /* channel closed during unmount */ }
           }
         }
 
@@ -2333,7 +2333,7 @@ export default function GameCanvas({
       if (raceWs && raceWs.readyState === WebSocket.OPEN) {
         raceWs.send(JSON.stringify(finishedPayload));
       } else if (bcRef.current) {
-        bcRef.current.postMessage(finishedPayload);
+        try { bcRef.current.postMessage(finishedPayload); } catch { /* channel closed during unmount */ }
       }
 
       // Check if all opponents are already done (e.g. we finished last)
