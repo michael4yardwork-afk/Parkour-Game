@@ -601,7 +601,7 @@ export default function App() {
             </nav>
 
             {/* Settings & Active User Badge */}
-            <div className="hidden sm:flex items-center gap-3 text-xs font-mono">
+            <div className="hidden sm:flex items-center gap-3 text-xs font-mono ml-auto">
               <button
                 id="notifications-icon-trigger"
                 onClick={() => {
