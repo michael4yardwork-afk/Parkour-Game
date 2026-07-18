@@ -2,6 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RotateCcw, Award, CheckCircle, Flame, Compass, Clock, LogOut } from 'lucide-react';
 
+const formatPercentile = (p: number): string => {
+  if (p < 1) return p.toFixed(2);
+  if (p < 5) return p.toFixed(1);
+  return Math.round(p).toString();
+};
+
 /** Deterministic per-bot PRNG (mulberry32). Seeded from RaceParticipant.seed so
  *  all clients simulate the same stumble/boost sequence for every bot. */
 function makeBotRng(seed: number): () => number {
@@ -2496,7 +2502,7 @@ export default function GameCanvas({
                 const serverRank = serverRankIdx + 1;
                 const serverPercentile =
                   serverTotal > 1
-                    ? Math.round((serverRankIdx / (serverTotal - 1)) * 100)
+                    ? (serverRankIdx / (serverTotal - 1)) * 100
                     : 0;
 
                 setCompletionPercentile(serverPercentile);
@@ -2516,7 +2522,7 @@ export default function GameCanvas({
                 const rankIdx = sorted.findIndex(t => Math.abs(t - finalTime) < 0.001);
                 const total = sorted.length;
                 setCompletionPercentile(
-                  total > 1 ? Math.round((rankIdx / (total - 1)) * 100) : 0
+                  total > 1 ? (rankIdx / (total - 1)) * 100 : 0
                 );
                 setCompletionWorldRank({ rank: rankIdx + 1, total });
               }
@@ -3045,7 +3051,7 @@ export default function GameCanvas({
                     <div className="flex items-center justify-around w-full gap-4 mt-1">
                       <div className="flex flex-col items-center">
                         <span className="text-2xl font-black font-mono text-indigo-300">
-                          Top {completionPercentile}%
+                          Top {formatPercentile(completionPercentile!)}%
                         </span>
                         <span className="text-[9px] text-neutral-400 uppercase font-mono font-bold tracking-wider">Percentile</span>
                       </div>

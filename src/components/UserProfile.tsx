@@ -8,6 +8,12 @@ import { synths } from '../audio';
 import { api } from '../api';
 import { AVATAR_BGS } from '../avatarThemes';
 
+const formatPercentile = (p: number): string => {
+  if (p < 1) return p.toFixed(2);
+  if (p < 5) return p.toFixed(1);
+  return Math.round(p).toString();
+};
+
 interface UserProfileProps {
   username: string;
   currentUser: UserAccount;
@@ -394,7 +400,7 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
           const sortedTimes = Object.values(playerBests).sort((a, b) => a - b);
           const rank = sortedTimes.indexOf(pbTime) + 1;
           const totalPlayers = sortedTimes.length;
-          const percentile = totalPlayers > 1 ? Math.round((sortedTimes.indexOf(pbTime) / (totalPlayers - 1)) * 100) : 0;
+          const percentile = totalPlayers > 1 ? (sortedTimes.indexOf(pbTime) / (totalPlayers - 1)) * 100 : 0;
           statsMap[level.id] = { pbTime, rank, totalPlayers, percentile };
         } catch {
           statsMap[level.id] = { pbTime: null, rank: null, totalPlayers: null, percentile: null };
@@ -882,7 +888,7 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
                           <span>World Rank: #{stats.rank}</span>
                         </div>
                         <div className="bg-indigo-500/10 text-indigo-700 px-1.5 py-0.5 rounded font-black">
-                          Top {stats.percentile}%
+                          Top {formatPercentile(stats.percentile!)}%
                         </div>
                       </div>
                     </>

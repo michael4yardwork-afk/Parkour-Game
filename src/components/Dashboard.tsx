@@ -6,6 +6,12 @@ import { DEFAULT_LEVELS } from '../defaultLevels';
 import { synths } from '../audio';
 import { api } from '../api';
 
+const formatPercentile = (p: number): string => {
+  if (p < 1) return p.toFixed(2);
+  if (p < 5) return p.toFixed(1);
+  return Math.round(p).toString();
+};
+
 interface DashboardProps {
   settings: GameSettings;
   onChangeSettings: (settings: GameSettings) => void;
@@ -61,7 +67,7 @@ const getWorldRankAndPercentile = (levelId: string, time: number | null, usernam
     
     let percentile = 0;
     if (totalLen > 1) {
-      percentile = Math.round((rankIdx / (totalLen - 1)) * 100);
+      percentile = (rankIdx / (totalLen - 1)) * 100;
     } else {
       percentile = 0;
     }
@@ -500,7 +506,7 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
                           </span>
                           {percentile !== null && (
                             <span className="font-bold font-sans text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px]">
-                              Top {percentile}%
+                              Top {formatPercentile(percentile)}%
                             </span>
                           )}
                         </>
