@@ -488,6 +488,14 @@ export default function App() {
     return <AuthScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
+  // Navigate to the Upgrade tab cleanly — closes any open modals first and
+  // scrolls to the top so the user always lands at the top of the page.
+  const handleGoToUpgrade = () => {
+    setLeaderboardOpen(false);
+    setTab('upgrade');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
   const isCoolBlueTab = ['home', 'levels', 'saved', 'community', 'races', 'profile', 'notifications'].includes(tab);
 
   const isPlaying = tab === 'play';
@@ -666,7 +674,7 @@ export default function App() {
             onLogout={handleLogout}
             onUpdateCurrentUser={handleUpdateCurrentUser}
             isPlatinum={isPlatinum}
-            onUpgrade={() => setTab('upgrade')}
+            onUpgrade={handleGoToUpgrade}
           />
         )}
 
@@ -685,7 +693,7 @@ export default function App() {
             onEditCustom={handleEditCustomLevel}
             currentUser={currentUser}
             isPlatinum={isPlatinum}
-            onUpgrade={() => setTab('upgrade')}
+            onUpgrade={handleGoToUpgrade}
           />
         )}
 
@@ -705,7 +713,7 @@ export default function App() {
               handleSelectRaceLevel(rl, isRacesMode, opponents, ws, roomId, startTime);
             }}
             isPlatinum={isPlatinum}
-            onUpgrade={() => setTab('upgrade')}
+            onUpgrade={handleGoToUpgrade}
           />
         )}
 
@@ -741,7 +749,7 @@ export default function App() {
             onSelectLevel={handleSelectLevel}
             onUpdateCurrentUser={handleUpdateCurrentUser}
             isPlatinum={isPlatinum}
-            onUpgrade={() => setTab('upgrade')}
+            onUpgrade={handleGoToUpgrade}
           />
         )}
 
@@ -759,7 +767,7 @@ export default function App() {
             initialLevel={editingLevel}
             onSave={handleSaveCustomLevel}
             isPlatinum={isPlatinum}
-            onUpgrade={() => setTab('upgrade')}
+            onUpgrade={handleGoToUpgrade}
             onExit={(latestLevel) => {
               if (latestLevel) {
                 setEditingLevel(latestLevel);
@@ -850,7 +858,7 @@ export default function App() {
           onViewProfile={handleViewProfile}
           onRaceGhost={handleRaceGhost}
           isPlatinum={isPlatinum}
-          onUpgrade={() => setTab('upgrade')}
+          onUpgrade={handleGoToUpgrade}
         />
       )}
 
