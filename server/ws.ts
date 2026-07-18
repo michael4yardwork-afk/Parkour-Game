@@ -181,6 +181,18 @@ export function setupWebSocketServer(httpServer: Server) {
           );
           if (byName !== -1) queue.splice(byName, 1);
 
+          // Evict from any active room — handles the case where the player's
+          // previous race WS wasn't closed before they rejoined the queue.
+          for (const [roomId, room] of rooms.entries()) {
+            const roomIdx = room.players.findIndex(
+              p => p.username.toLowerCase() === username.toLowerCase()
+            );
+            if (roomIdx !== -1) {
+              room.players.splice(roomIdx, 1);
+              if (room.players.length === 0) rooms.delete(roomId);
+            }
+          }
+
           queue.push({
             ws,
             username,

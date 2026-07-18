@@ -869,9 +869,14 @@ export default function App() {
             ghostOverrideLabel={ghostOverrideLabel}
             onExit={async () => {
               const wasRaces = raceMode;
-              // Don't close the WebSocket here — Races.tsx manages its lifetime.
-              // Just clear the refs so the next race starts fresh.
-              raceWsRef.current = null;
+              // Close the race WebSocket so the server immediately removes this
+              // player from their room, freeing the slot for the next race.
+              // (Races.tsx already skips its own cleanup when raceActiveRef is
+              // true, so nothing else will close this socket.)
+              if (raceWsRef.current) {
+                raceWsRef.current.close();
+                raceWsRef.current = null;
+              }
               setRaceRoomId(null);
               setRaceStartTime(null);
               setRaceMode(false);
