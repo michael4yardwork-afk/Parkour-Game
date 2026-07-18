@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
+import pool from './db';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -160,7 +161,7 @@ export function setupWebSocketServer(httpServer: Server) {
   });
 
   wss.on('connection', ws => {
-    ws.on('message', raw => {
+    ws.on('message', async raw => {
       let msg: any;
       try {
         msg = JSON.parse(raw.toString());
@@ -171,8 +172,26 @@ export function setupWebSocketServer(httpServer: Server) {
       switch (msg.type) {
         // ── Matchmaking ─────────────────────────────────────────────────────
         case 'QUEUE_JOIN': {
-          const { username, color, avatar, avatarBg } = msg;
+          const { username, color } = msg;
           if (!username) break;
+
+          // Fetch canonical avatar/avatarBg from DB so the lobby always
+          // shows the player's real profile icon, not a stale client value.
+          let avatar = msg.avatar || '🏃';
+          let avatarBg = msg.avatarBg || '';
+          try {
+            const result = await pool.query(
+              'SELECT avatar, avatar_bg FROM users WHERE LOWER(username) = LOWER($1)',
+              [username]
+            );
+            if (result.rows.length > 0) {
+              avatar = result.rows[0].avatar || avatar;
+              avatarBg = result.rows[0].avatar_bg || avatarBg;
+            }
+          } catch {
+            // DB unavailable — fall back to client-supplied values
+          }
+
           // Remove stale entry for the same connection
           removeFromQueue(ws);
           // Also remove any prior entry from same username (reconnect)
@@ -197,8 +216,8 @@ export function setupWebSocketServer(httpServer: Server) {
             ws,
             username,
             color: color || '#3b82f6',
-            avatar: avatar || '🏃',
-            avatarBg: avatarBg || '',
+            avatar,
+            avatarBg,
           });
 
           // 6 real players — start immediately, no need to wait

@@ -36648,12 +36648,36 @@ async function initDb() {
     ALTER TABLE leaderboard_entries DROP COLUMN IF EXISTS actions;
   `);
   await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS device TEXT;
+  `);
+  await pool.query(`
     ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_plan TEXT;
     ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_current_period_end BIGINT;
     CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users(stripe_customer_id);
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS platinum_purchases (
+      id                    TEXT PRIMARY KEY,
+      username              TEXT NOT NULL,
+      stripe_subscription_id TEXT,
+      stripe_customer_id    TEXT,
+      stripe_invoice_id     TEXT,
+      plan                  TEXT,
+      amount_cents          INTEGER,
+      currency              TEXT,
+      event_type            TEXT NOT NULL,
+      subscription_status   TEXT,
+      period_start          BIGINT,
+      period_end            BIGINT,
+      recorded_at           BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_platinum_purchases_username
+      ON platinum_purchases(username);
+    CREATE INDEX IF NOT EXISTS idx_platinum_purchases_subscription
+      ON platinum_purchases(stripe_subscription_id);
   `);
   await pool.query(`
     UPDATE community_courses
@@ -38408,7 +38432,7 @@ var router = (0, import_express.Router)();
 var JWT_SECRET = process.env.JWT_SECRET || "delta-rush-secret-key-change-in-production";
 router.post("/signup", async (req, res) => {
   try {
-    const { username, password, avatar, avatarBg } = req.body;
+    const { username, password, avatar, avatarBg, device } = req.body;
     if (!username || !password || username.length < 3 || password.length < 6) {
       return res.status(400).json({ error: "Invalid username or password." });
     }
@@ -38418,9 +38442,9 @@ router.post("/signup", async (req, res) => {
     }
     const passwordHash = await bcryptjs_default.hash(password, 10);
     const result = await db_default.query(
-      `INSERT INTO users (username, password_hash, avatar, avatar_bg, created_at)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id, username, avatar, avatar_bg, created_at`,
-      [username, passwordHash, avatar || "\u{1F680}", avatarBg || "bg-indigo-500", Date.now()]
+      `INSERT INTO users (username, password_hash, avatar, avatar_bg, device, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, avatar, avatar_bg, device, created_at`,
+      [username, passwordHash, avatar || "\u{1F680}", avatarBg || "bg-indigo-500", device || null, Date.now()]
     );
     const user = result.rows[0];
     const token = import_jsonwebtoken.default.sign({ username: user.username }, JWT_SECRET, { expiresIn: "30d" });
@@ -38430,6 +38454,7 @@ router.post("/signup", async (req, res) => {
         username: user.username,
         avatar: user.avatar,
         avatarBg: user.avatar_bg,
+        device: user.device ?? null,
         createdAt: parseInt(user.created_at),
         passwordHash: ""
       }
@@ -38461,6 +38486,7 @@ router.post("/login", async (req, res) => {
         username: user.username,
         avatar: user.avatar,
         avatarBg: user.avatar_bg,
+        device: user.device ?? null,
         createdAt: parseInt(user.created_at),
         passwordHash: ""
       }
@@ -38619,7 +38645,6 @@ router2.post("/:levelId", async (req, res) => {
       );
       if (validatedFrames.length === 0) validatedFrames = null;
     }
-    console.log(`[leaderboard] Accepting submit for level="${levelId}" user="${username}" time=${time} isNewPb=${!!isNewPb} hasFrames=${!!validatedFrames} frameCount=${validatedFrames?.length ?? 0}`);
     const id = `run_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     if (isNewPb) {
       await db_default.query(
@@ -56742,14 +56767,48 @@ async function syncSubscription(subscription) {
   const plan = subscription.metadata?.cycle || null;
   const periodEndItem = subscription.items.data[0];
   const currentPeriodEnd = periodEndItem?.current_period_end ? periodEndItem.current_period_end * 1e3 : null;
-  await db_default.query(
+  const result = await db_default.query(
     `UPDATE users
      SET stripe_subscription_id = $1,
          subscription_status = $2,
          subscription_plan = COALESCE($3, subscription_plan),
          subscription_current_period_end = $4
-     WHERE stripe_customer_id = $5`,
+     WHERE stripe_customer_id = $5
+     RETURNING username`,
     [subscription.id, subscription.status, plan, currentPeriodEnd, customerId]
+  );
+  return result.rows[0]?.username ?? null;
+}
+async function recordPurchaseEvent(opts) {
+  const { id, username, subscription, eventType, invoiceId, amountCents, currency } = opts;
+  const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
+  const plan = subscription.metadata?.cycle || null;
+  const periodEndItem = subscription.items.data[0];
+  const rawSub = subscription;
+  const periodStart = rawSub.current_period_start ? rawSub.current_period_start * 1e3 : null;
+  const periodEnd = periodEndItem?.current_period_end ? periodEndItem.current_period_end * 1e3 : null;
+  await db_default.query(
+    `INSERT INTO platinum_purchases
+       (id, username, stripe_subscription_id, stripe_customer_id, stripe_invoice_id,
+        plan, amount_cents, currency, event_type, subscription_status,
+        period_start, period_end, recorded_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      id,
+      username,
+      subscription.id,
+      customerId,
+      invoiceId ?? null,
+      plan,
+      amountCents ?? null,
+      currency ?? null,
+      eventType,
+      subscription.status,
+      periodStart,
+      periodEnd,
+      Date.now()
+    ]
   );
 }
 router6.post("/", async (req, res) => {
@@ -56775,15 +56834,79 @@ router6.post("/", async (req, res) => {
           const stripe = getStripeClient();
           const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          await syncSubscription(subscription);
+          const username = await syncSubscription(subscription);
+          if (username) {
+            await recordPurchaseEvent({
+              id: `checkout_${event.id}`,
+              username,
+              subscription,
+              eventType: "checkout_completed",
+              invoiceId: typeof session.invoice === "string" ? session.invoice : session.invoice?.id ?? null,
+              amountCents: session.amount_total,
+              currency: session.currency
+            });
+          }
         }
         break;
       }
-      case "customer.subscription.created":
-      case "customer.subscription.updated":
+      case "customer.subscription.created": {
+        const subscription = event.data.object;
+        const username = await syncSubscription(subscription);
+        if (username) {
+          await recordPurchaseEvent({
+            id: `sub_created_${event.id}`,
+            username,
+            subscription,
+            eventType: "subscription_created"
+          });
+        }
+        break;
+      }
+      case "customer.subscription.updated": {
+        const subscription = event.data.object;
+        const username = await syncSubscription(subscription);
+        if (username) {
+          await recordPurchaseEvent({
+            id: `sub_updated_${event.id}`,
+            username,
+            subscription,
+            eventType: "subscription_updated"
+          });
+        }
+        break;
+      }
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
-        await syncSubscription(subscription);
+        const username = await syncSubscription(subscription);
+        if (username) {
+          await recordPurchaseEvent({
+            id: `sub_deleted_${event.id}`,
+            username,
+            subscription,
+            eventType: "subscription_cancelled"
+          });
+        }
+        break;
+      }
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object;
+        if (invoice.billing_reason === "subscription_cycle" && invoice.subscription) {
+          const stripe = getStripeClient();
+          const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription.id;
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          const username = await syncSubscription(subscription);
+          if (username) {
+            await recordPurchaseEvent({
+              id: `renewal_${event.id}`,
+              username,
+              subscription,
+              eventType: "subscription_renewed",
+              invoiceId: invoice.id,
+              amountCents: invoice.amount_paid,
+              currency: invoice.currency
+            });
+          }
+        }
         break;
       }
       default:
@@ -56818,8 +56941,9 @@ var DEFAULT_LEVEL_IDS = [
 ];
 var queue = [];
 var rooms = /* @__PURE__ */ new Map();
+var MAX_PLAYERS = 6;
 var queueTimer = null;
-var queueTimeLeft = 15;
+var queueTimeLeft = 10;
 var timerActive = false;
 function send(ws, data) {
   if (ws.readyState === import_websocket.default.OPEN) {
@@ -56830,7 +56954,8 @@ function broadcastQueueUpdate() {
   const players = queue.map((q) => ({
     username: q.username,
     color: q.color,
-    avatar: q.avatar
+    avatar: q.avatar,
+    avatarBg: q.avatarBg
   }));
   for (const entry of queue) {
     send(entry.ws, {
@@ -56844,7 +56969,7 @@ function broadcastQueueUpdate() {
 function startQueueCountdown() {
   if (timerActive) return;
   timerActive = true;
-  queueTimeLeft = 15;
+  queueTimeLeft = 10;
   broadcastQueueUpdate();
   queueTimer = setInterval(() => {
     queueTimeLeft--;
@@ -56857,13 +56982,17 @@ function startQueueCountdown() {
     }
   }, 1e3);
 }
+function resetQueueCountdown() {
+  queueTimeLeft = 10;
+  broadcastQueueUpdate();
+}
 function stopQueueCountdown() {
   if (queueTimer) {
     clearInterval(queueTimer);
     queueTimer = null;
   }
   timerActive = false;
-  queueTimeLeft = 15;
+  queueTimeLeft = 10;
 }
 function startRace() {
   if (queue.length === 0) return;
@@ -56874,6 +57003,7 @@ function startRace() {
     username: q.username,
     color: q.color,
     avatar: q.avatar,
+    avatarBg: q.avatarBg,
     isNpc: false
   }));
   const room = {
@@ -56901,7 +57031,7 @@ function setupWebSocketServer(httpServer2) {
     console.error("[WS] WebSocketServer error:", err);
   });
   wss.on("connection", (ws) => {
-    ws.on("message", (raw) => {
+    ws.on("message", async (raw) => {
       let msg;
       try {
         msg = JSON.parse(raw.toString());
@@ -56911,21 +57041,56 @@ function setupWebSocketServer(httpServer2) {
       switch (msg.type) {
         // ── Matchmaking ─────────────────────────────────────────────────────
         case "QUEUE_JOIN": {
-          const { username, color, avatar } = msg;
+          const { username, color } = msg;
           if (!username) break;
+          let avatar = msg.avatar || "\u{1F3C3}";
+          let avatarBg = msg.avatarBg || "";
+          try {
+            const result = await db_default.query(
+              "SELECT avatar, avatar_bg FROM users WHERE LOWER(username) = LOWER($1)",
+              [username]
+            );
+            if (result.rows.length > 0) {
+              avatar = result.rows[0].avatar || avatar;
+              avatarBg = result.rows[0].avatar_bg || avatarBg;
+            }
+          } catch {
+          }
           removeFromQueue(ws);
           const byName = queue.findIndex(
             (q) => q.username.toLowerCase() === username.toLowerCase()
           );
           if (byName !== -1) queue.splice(byName, 1);
+          for (const [roomId, room] of rooms.entries()) {
+            const roomIdx = room.players.findIndex(
+              (p) => p.username.toLowerCase() === username.toLowerCase()
+            );
+            if (roomIdx !== -1) {
+              room.players.splice(roomIdx, 1);
+              if (room.players.length === 0) rooms.delete(roomId);
+            }
+          }
           queue.push({
             ws,
             username,
             color: color || "#3b82f6",
-            avatar: avatar || "\u{1F3C3}"
+            avatar,
+            avatarBg
           });
-          broadcastQueueUpdate();
-          if (queue.length >= 2 && !timerActive) startQueueCountdown();
+          if (queue.length >= MAX_PLAYERS) {
+            stopQueueCountdown();
+            startRace();
+            break;
+          }
+          if (queue.length >= 2) {
+            if (timerActive) {
+              resetQueueCountdown();
+            } else {
+              startQueueCountdown();
+            }
+          } else {
+            broadcastQueueUpdate();
+          }
           break;
         }
         case "QUEUE_LEAVE": {

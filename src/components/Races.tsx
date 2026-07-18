@@ -403,7 +403,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
                           }`}
                         >
                           <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm shadow-sm shrink-0 border border-white/10 ${player ? (player.avatarBg || 'bg-neutral-700') : 'bg-neutral-800'}`}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm shadow-sm shrink-0 border border-white/10 ${player ? (player.username.toLowerCase() === currentUser.username.toLowerCase() ? (currentUser.avatarBg || 'bg-rose-500') : (player.avatarBg || 'bg-neutral-700')) : 'bg-neutral-800'}`}
                           >
                             {player ? player.avatar : '?'}
                           </div>
