@@ -17,8 +17,6 @@ const AVATARS = [
   { emoji: '⚡', name: 'Volt Sprint' },
   { emoji: '🛹', name: 'Skater' },
   { emoji: '🐺', name: 'Alpha Wolf' },
-  { emoji: '🐉', name: 'Dragon Master' },
-  { emoji: '🤖', name: 'Cybernetic' },
 ];
 
 const GAME_FEATURES = [
