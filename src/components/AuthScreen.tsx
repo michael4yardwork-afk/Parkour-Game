@@ -465,7 +465,20 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
             </button>
           </form>
 
-          <div className="mt-5 text-center flex items-center justify-center gap-1.5 text-[10px] font-mono text-neutral-500">
+          {!isSignUp && (
+            <p className="mt-4 text-center text-[11px] text-neutral-500">
+              New user?{' '}
+              <button
+                type="button"
+                onClick={() => { setIsSignUp(true); clearInputs(); synths.playTick(); }}
+                className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 cursor-pointer transition"
+              >
+                Create an account!
+              </button>
+            </p>
+          )}
+
+          <div className="mt-4 text-center flex items-center justify-center gap-1.5 text-[10px] font-mono text-neutral-500">
             <Sparkles className="w-3 h-3 text-indigo-500" />
             <span>Accounts secured server-side with bcrypt.</span>
           </div>
