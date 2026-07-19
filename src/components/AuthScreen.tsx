@@ -259,7 +259,17 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
 
         const result = await api.auth.signup(trimmedUsername, password, selectedAvatar, selectedBg, selectedDevice ?? undefined);
         notifyFeedback('success', 'Account created successfully! Logging you in...');
-        setTimeout(() => onLoginSuccess(result.user), 800);
+        // Override server-returned avatar/avatarBg with the exact values the user
+        // picked in the form. The server stores what was sent, but the fallback
+        // values (|| '🚀' / || 'bg-indigo-500') can win if the field is somehow
+        // falsy — guaranteeing consistency here means the displayed icon always
+        // matches the signup picker regardless of any server-side edge case.
+        const userWithChosenIcon = {
+          ...result.user,
+          avatar: selectedAvatar,
+          avatarBg: selectedBg,
+        };
+        setTimeout(() => onLoginSuccess(userWithChosenIcon), 800);
       } else {
         const result = await api.auth.login(trimmedUsername, password);
         notifyFeedback('success', 'Logged in successfully! Loading dashboard...');
