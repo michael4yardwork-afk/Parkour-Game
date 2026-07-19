@@ -440,40 +440,37 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
               </>
             )}
 
-            <button
-              type="submit" disabled={isLoading}
-              className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition flex items-center justify-center gap-2 cursor-pointer text-sm font-mono uppercase tracking-widest leading-none"
-            >
-              {isLoading ? (
-                <span className="animate-pulse">Connecting...</span>
-              ) : isSignUp ? (
-                <><UserPlus className="w-4 h-4" />Create Account<ChevronRight className="w-4 h-4" /></>
-              ) : (
-                <><LogIn className="w-4 h-4" />Log In<ChevronRight className="w-4 h-4" /></>
+            <div className="flex gap-2 mt-4">
+              <button
+                type="submit" disabled={isLoading}
+                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition flex items-center justify-center gap-2 cursor-pointer text-sm font-mono uppercase tracking-widest leading-none"
+              >
+                {isLoading ? (
+                  <span className="animate-pulse">Connecting...</span>
+                ) : isSignUp ? (
+                  <><UserPlus className="w-4 h-4" />Create Account<ChevronRight className="w-4 h-4" /></>
+                ) : (
+                  <><LogIn className="w-4 h-4" />Log In<ChevronRight className="w-4 h-4" /></>
+                )}
+              </button>
+              {onPlayDemo && (
+                <button
+                  type="button"
+                  onClick={() => { synths.playTick(); onPlayDemo(); }}
+                  className="py-3 px-4 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer font-mono uppercase tracking-wider shrink-0"
+                  title="Play demo — no account required"
+                >
+                  <span className="text-sm leading-none">▶</span>
+                  Demo
+                </button>
               )}
-            </button>
+            </div>
           </form>
 
           <div className="mt-5 text-center flex items-center justify-center gap-1.5 text-[10px] font-mono text-neutral-500">
             <Sparkles className="w-3 h-3 text-indigo-500" />
             <span>Accounts secured server-side with bcrypt.</span>
           </div>
-
-          {onPlayDemo && (
-            <div className="mt-4 pt-4 border-t border-neutral-800/50">
-              <button
-                type="button"
-                onClick={() => { synths.playTick(); onPlayDemo(); }}
-                className="w-full py-2.5 bg-red-600 hover:bg-red-500 border border-red-500/60 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer font-mono uppercase tracking-wider"
-              >
-                <span className="text-base leading-none">▶</span>
-                Play Demo
-              </button>
-              <p className="text-[9px] text-neutral-600 text-center mt-2 font-mono">
-                No account required · leaderboard &amp; ghost locked
-              </p>
-            </div>
-          )}
         </div>
 
         <div
