@@ -289,20 +289,31 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
             <h2 className="text-lg font-bold font-mono uppercase tracking-wider text-neutral-25">
               {isSignUp ? 'Create Profile' : 'Member Portal'}
             </h2>
-            <button
-              onClick={() => { setIsSignUp(!isSignUp); clearInputs(); synths.playTick(); }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider border transition-all duration-200 cursor-pointer ${
-                isSignUp
-                  ? 'bg-neutral-800/60 border-neutral-700/50 text-neutral-300 hover:text-white hover:border-neutral-600'
-                  : 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50 hover:text-rose-300 shadow-sm shadow-rose-500/10'
-              }`}
-            >
-              {isSignUp ? (
-                <><LogIn className="w-3 h-3" />Sign In</>
-              ) : (
-                <><UserPlus className="w-3 h-3" />Sign Up</>
+            <div className="flex items-center gap-2">
+              {onPlayDemo && (
+                <button
+                  type="button"
+                  onClick={() => { synths.playTick(); onPlayDemo(); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider border transition-all duration-200 cursor-pointer bg-neutral-800/60 border-neutral-700/50 text-neutral-300 hover:text-white hover:border-neutral-600"
+                >
+                  <span className="text-[10px] leading-none">▶</span>Play Demo
+                </button>
               )}
-            </button>
+              <button
+                onClick={() => { setIsSignUp(!isSignUp); clearInputs(); synths.playTick(); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider border transition-all duration-200 cursor-pointer ${
+                  isSignUp
+                    ? 'bg-neutral-800/60 border-neutral-700/50 text-neutral-300 hover:text-white hover:border-neutral-600'
+                    : 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50 hover:text-rose-300 shadow-sm shadow-rose-500/10'
+                }`}
+              >
+                {isSignUp ? (
+                  <><LogIn className="w-3 h-3" />Sign In</>
+                ) : (
+                  <><UserPlus className="w-3 h-3" />Sign Up</>
+                )}
+              </button>
+            </div>
           </div>
 
           <form onSubmit={handleAuthSubmit} className="space-y-4">
@@ -440,31 +451,18 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
               </>
             )}
 
-            <div className="flex gap-2 mt-4">
-              <button
-                type="submit" disabled={isLoading}
-                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition flex items-center justify-center gap-2 cursor-pointer text-sm font-mono uppercase tracking-widest leading-none"
-              >
-                {isLoading ? (
-                  <span className="animate-pulse">Connecting...</span>
-                ) : isSignUp ? (
-                  <><UserPlus className="w-4 h-4" />Create Account<ChevronRight className="w-4 h-4" /></>
-                ) : (
-                  <><LogIn className="w-4 h-4" />Log In<ChevronRight className="w-4 h-4" /></>
-                )}
-              </button>
-              {onPlayDemo && (
-                <button
-                  type="button"
-                  onClick={() => { synths.playTick(); onPlayDemo(); }}
-                  className="py-3 px-4 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer font-mono uppercase tracking-wider shrink-0"
-                  title="Play demo — no account required"
-                >
-                  <span className="text-sm leading-none">▶</span>
-                  Demo
-                </button>
+            <button
+              type="submit" disabled={isLoading}
+              className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition flex items-center justify-center gap-2 cursor-pointer text-sm font-mono uppercase tracking-widest leading-none"
+            >
+              {isLoading ? (
+                <span className="animate-pulse">Connecting...</span>
+              ) : isSignUp ? (
+                <><UserPlus className="w-4 h-4" />Create Account<ChevronRight className="w-4 h-4" /></>
+              ) : (
+                <><LogIn className="w-4 h-4" />Log In<ChevronRight className="w-4 h-4" /></>
               )}
-            </div>
+            </button>
           </form>
 
           <div className="mt-5 text-center flex items-center justify-center gap-1.5 text-[10px] font-mono text-neutral-500">
