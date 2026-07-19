@@ -85,9 +85,28 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
 
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [usernameTaken, setUsernameTaken] = useState(false);
 
   const [activeTabIdx, setActiveTabIdx] = useState(0);
   const [isAutoPlay, setIsAutoPlay] = useState(true);
+
+  // Debounced username availability check (sign-up only)
+  useEffect(() => {
+    if (!isSignUp || username.trim().length < 3) {
+      setUsernameTaken(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/auth/check-username?username=${encodeURIComponent(username.trim())}`);
+        const data = await res.json();
+        setUsernameTaken(!!data.taken);
+      } catch {
+        setUsernameTaken(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [username, isSignUp]);
 
   useEffect(() => {
     if (!isAutoPlay) return;
@@ -195,7 +214,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     };
   }, []);
 
-  const clearInputs = () => { setUsername(''); setPassword(''); setConfirmPassword(''); setFeedback(null); };
+  const clearInputs = () => { setUsername(''); setPassword(''); setConfirmPassword(''); setFeedback(null); setUsernameTaken(false); };
 
   const notifyFeedback = (type: 'error' | 'success', message: string) => {
     setFeedback({ type, message });
@@ -336,6 +355,9 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
                   maxLength={18} required
                 />
               </div>
+              {isSignUp && usernameTaken && (
+                <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Username already in use.</p>
+              )}
               {isSignUp && hasVulgarLanguage(username) && (
                 <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Explicit or vulgar language is prohibited.</p>
               )}

@@ -38430,6 +38430,18 @@ var bcryptjs_default = {
 var import_jsonwebtoken = __toESM(require_jsonwebtoken(), 1);
 var router = (0, import_express.Router)();
 var JWT_SECRET = process.env.JWT_SECRET || "delta-rush-secret-key-change-in-production";
+router.get("/check-username", async (req, res) => {
+  const { username } = req.query;
+  if (!username || typeof username !== "string") {
+    return res.status(400).json({ error: "Missing username." });
+  }
+  try {
+    const result = await db_default.query("SELECT id FROM users WHERE LOWER(username) = LOWER($1)", [username]);
+    res.json({ taken: result.rows.length > 0 });
+  } catch (err) {
+    res.status(500).json({ error: "Internal server error." });
+  }
+});
 router.post("/signup", async (req, res) => {
   try {
     const { username, password, avatar, avatarBg, device } = req.body;

@@ -6,6 +6,19 @@ import pool from '../db';
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'delta-rush-secret-key-change-in-production';
 
+router.get('/check-username', async (req: Request, res: Response) => {
+  const { username } = req.query;
+  if (!username || typeof username !== 'string') {
+    return res.status(400).json({ error: 'Missing username.' });
+  }
+  try {
+    const result = await pool.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username]);
+    res.json({ taken: result.rows.length > 0 });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 router.post('/signup', async (req: Request, res: Response) => {
   try {
     const { username, password, avatar, avatarBg, device } = req.body;
