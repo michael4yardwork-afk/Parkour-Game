@@ -951,7 +951,7 @@ export default function App() {
       />
 
       {/* Minimalistic Footer */}
-      {tab !== 'play' && tab !== 'editor' && (
+      {tab !== 'play' && tab !== 'editor' && tab !== 'levels' && tab !== 'races' && (
         <footer className={`border-t border-neutral-200/60 py-6 transition-colors duration-300 ${isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-neutral-50'}`}>
           <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-neutral-400">
             <p>© 2026 Delta Rush Engine. Dedicated to physical movement and speed.</p>
