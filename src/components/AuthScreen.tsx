@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Sparkles, Check, Zap, Hammer, Users, Trophy, TrendingUp, BarChart2, Smartphone, Tablet, Monitor } from 'lucide-react';
+import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Sparkles, Hammer, Users, TrendingUp, BarChart2, Smartphone, Tablet, Monitor } from 'lucide-react';
 import { UserAccount } from '../types';
 import { synths } from '../audio';
 import { hasVulgarLanguage } from '../utils';
 import { api } from '../api';
-import { AVATAR_BGS, SIGNUP_AVATAR_BGS } from '../avatarThemes';
+import { SIGNUP_AVATAR_BGS } from '../avatarThemes';
 
 interface AuthScreenProps {
   onLoginSuccess: (user: UserAccount) => void;
@@ -76,8 +76,9 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
-  const [selectedAvatar, setSelectedAvatar] = useState('🚀');
-  const [selectedBg, setSelectedBg] = useState(SIGNUP_AVATAR_BGS[0].value);
+  // Randomly assigned at mount — user can change after signing in.
+  const [selectedAvatar] = useState(() => AVATARS[Math.floor(Math.random() * AVATARS.length)].emoji);
+  const [selectedBg] = useState(() => SIGNUP_AVATAR_BGS[Math.floor(Math.random() * SIGNUP_AVATAR_BGS.length)].value);
   const [selectedDevice, setSelectedDevice] = useState<'phone' | 'tablet' | 'computer' | null>('computer');
 
   const [showPassword, setShowPassword] = useState(false);
@@ -240,7 +241,6 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
           return;
         }
         if (password !== confirmPassword) { notifyFeedback('error', 'Passwords do not match.'); return; }
-        if (!selectedBg) { notifyFeedback('error', 'Please select an icon theme.'); return; }
         if (!selectedDevice) { notifyFeedback('error', 'Please select your device type.'); return; }
 
         // Write device-appropriate defaults so the game loads with the right controls.
@@ -409,74 +409,37 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
                   </div>
                 </div>
 
-                <div className="space-y-3.5 pt-2 border-t border-neutral-800/40">
-                  <div>
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">Select Runner Glyph</span>
-                    <div className="grid grid-cols-4 gap-2">
-                      {AVATARS.map(item => (
-                        <button key={item.emoji} type="button" onClick={() => { setSelectedAvatar(item.emoji); synths.playTick(); }}
-                          className={`py-2 rounded-xl text-lg flex items-center justify-center border transition ${
-                            selectedAvatar === item.emoji ? 'bg-indigo-600/25 border-indigo-500 text-white' : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700'
-                          }`} title={item.name}>
-                          {item.emoji}
-                        </button>
-                      ))}
-                    </div>
+                <div className="pt-2 border-t border-neutral-800/40">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-2 text-left">Your Device</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { value: 'computer', label: 'Computer', Icon: Monitor,    recommended: true  },
+                      { value: 'tablet',   label: 'Tablet',   Icon: Tablet,     recommended: false },
+                      { value: 'phone',    label: 'Phone',    Icon: Smartphone, recommended: false },
+                    ] as const).map(({ value, label, Icon, recommended }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => { setSelectedDevice(value); synths.playTick(); }}
+                        className={`relative flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                          selectedDevice === value
+                            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
+                            : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
+                        }`}
+                      >
+                        {recommended && (
+                          <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                            Recommended
+                          </span>
+                        )}
+                        <Icon className="w-5 h-5" />
+                        {label}
+                      </button>
+                    ))}
                   </div>
-
-                  <div>
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">Icon Theme</span>
-                    <div className="flex flex-wrap gap-2">
-                      {(isSignUp ? SIGNUP_AVATAR_BGS : AVATAR_BGS).map(bg => (
-                        <div key={bg.value} className="relative">
-                          <button type="button" title={bg.label} onClick={() => { setSelectedBg(bg.value); synths.playTick(); }}
-                            className={`w-8 h-8 rounded-full border relative flex items-center justify-center transition focus:outline-none ${selectedBg === bg.value ? 'border-white scale-110 shadow-md' : 'border-transparent hover:scale-105 hover:border-white/50'}`}>
-                            <span className={`absolute inset-0 rounded-full ${bg.class}`} aria-hidden="true" />
-                            {selectedBg === bg.value && <Check className={`w-3.5 h-3.5 stroke-[3] drop-shadow relative z-10 ${bg.lightBg ? 'text-neutral-800' : 'text-white'}`} />}
-                          </button>
-                          {bg.special && (
-                            <Sparkles className={`w-2.5 h-2.5 absolute -top-1 -right-1 drop-shadow pointer-events-none ${selectedBg === bg.value ? 'text-white' : 'text-yellow-300'}`} />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    {isSignUp && !selectedBg && (
-                      <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Please select an icon theme.</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-1.5 text-left">Your Device</span>
-                    <div className="grid grid-cols-3 gap-2">
-                      {([
-                        { value: 'computer', label: 'Computer', Icon: Monitor,    recommended: true  },
-                        { value: 'tablet',   label: 'Tablet',   Icon: Tablet,     recommended: false },
-                        { value: 'phone',    label: 'Phone',    Icon: Smartphone, recommended: false },
-                      ] as const).map(({ value, label, Icon, recommended }) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => { setSelectedDevice(value); synths.playTick(); }}
-                          className={`relative flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-semibold transition cursor-pointer ${
-                            selectedDevice === value
-                              ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
-                              : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
-                          }`}
-                        >
-                          {recommended && (
-                            <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                              Recommended
-                            </span>
-                          )}
-                          <Icon className="w-5 h-5" />
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                    {isSignUp && !selectedDevice && (
-                      <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Please select your device type.</p>
-                    )}
-                  </div>
+                  {isSignUp && !selectedDevice && (
+                    <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Please select your device type.</p>
+                  )}
                 </div>
               </>
             )}
