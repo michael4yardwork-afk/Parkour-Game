@@ -73,6 +73,7 @@ const GAME_FEATURES = [
 export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: AuthScreenProps) {
   const [isSignUp, setIsSignUp] = useState(initialMode === 'signup');
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
@@ -215,7 +216,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     };
   }, []);
 
-  const clearInputs = () => { setUsername(''); setPassword(''); setConfirmPassword(''); setFeedback(null); setUsernameTaken(false); };
+  const clearInputs = () => { setUsername(''); setEmail(''); setPassword(''); setConfirmPassword(''); setFeedback(null); setUsernameTaken(false); };
 
   const notifyFeedback = (type: 'error' | 'success', message: string) => {
     setFeedback({ type, message });
@@ -242,6 +243,11 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
         }
         if (password !== confirmPassword) { notifyFeedback('error', 'Passwords do not match.'); return; }
         if (!selectedDevice) { notifyFeedback('error', 'Please select your device type.'); return; }
+        const trimmedEmail = email.trim();
+        if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+          notifyFeedback('error', 'Please enter a valid email address.');
+          return;
+        }
 
         // Write device-appropriate defaults so the game loads with the right controls.
         const touchControls = selectedDevice === 'phone' || selectedDevice === 'tablet';
@@ -257,7 +263,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
         };
         localStorage.setItem('momentum_player_settings', JSON.stringify(initialSettings));
 
-        const result = await api.auth.signup(trimmedUsername, password, selectedAvatar, selectedBg, selectedDevice ?? undefined);
+        const result = await api.auth.signup(trimmedUsername, password, selectedAvatar, selectedBg, selectedDevice ?? undefined, trimmedEmail);
         notifyFeedback('success', 'Account created successfully! Logging you in...');
         // Override server-returned avatar/avatarBg with the exact values the user
         // picked in the form. The server stores what was sent, but the fallback
@@ -372,6 +378,21 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
                 <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Explicit or vulgar language is prohibited.</p>
               )}
             </div>
+
+            {isSignUp && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Email</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><Mail className="w-4 h-4" /></span>
+                  <input
+                    type="email" placeholder="you@example.com" value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-4 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
+                    required
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1.55">
               <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Password</label>

@@ -22,6 +22,8 @@ npm install && (npm run server & npm run dev)
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string (Supabase direct connection, port 5432) |
 | `JWT_SECRET` | Secret for signing auth tokens |
+| `SUPABASE_URL` | Supabase project URL (e.g. `https://xxxx.supabase.co`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key — used server-side to create/verify auth users |
 
 The database schema is auto-initialized on server startup (`server/db.ts`). No manual migrations needed — new columns are added with `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
 
