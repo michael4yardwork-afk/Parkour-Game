@@ -743,6 +743,7 @@ export default function App() {
             onSelectLevel={handleSelectLevel}
             onCreateNewCustom={handleStartBuilder}
             onEditCustom={handleEditCustomLevel}
+            currentUser={currentUser}
           />
         )}
 

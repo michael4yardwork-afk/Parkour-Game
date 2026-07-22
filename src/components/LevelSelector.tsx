@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Plus, Trash2, Upload, Award, Compass, Map, Clock, Trophy, Zap } from 'lucide-react';
-import { LevelConfig, SceneTheme } from '../types';
+import { Play, Plus, Trash2, Upload, Award, Compass, Map, Clock, Trophy, Zap, Medal } from 'lucide-react';
+import { LevelConfig, SceneTheme, UserAccount } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { api } from '../api';
 
@@ -8,6 +8,7 @@ interface LevelSelectorProps {
   onSelectLevel: (level: LevelConfig) => void;
   onCreateNewCustom: () => void;
   onEditCustom: (level: LevelConfig) => void;
+  currentUser: UserAccount;
 }
 
 const LEVEL_ACCENT: Record<string, {
@@ -101,6 +102,12 @@ const formatTime = (seconds: number): string => {
   return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${ms.toString().padStart(3, '0')}`;
 };
 
+const formatPercentile = (percentile: number): string => {
+  if (percentile < 1) return percentile.toFixed(2);
+  if (percentile < 5) return percentile.toFixed(1);
+  return Math.round(percentile).toString();
+};
+
 const formatTheme = (theme: SceneTheme) => {
   switch (theme) {
     case 'sky_islands': return 'Sky Islands';
@@ -111,9 +118,12 @@ const formatTheme = (theme: SceneTheme) => {
   }
 };
 
-export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEditCustom }: LevelSelectorProps) {
+export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEditCustom, currentUser }: LevelSelectorProps) {
   const [customLevels, setCustomLevels] = useState<LevelConfig[]>([]);
-  const [wrMap, setWrMap] = useState<Record<string, string | null>>({});
+  const [courseStats, setCourseStats] = useState<Record<string, {
+    worldRecord: string | null;
+    percentile: number | null;
+  }>>({});
 
   useEffect(() => {
     const list = localStorage.getItem('custom_parkour_levels');
@@ -127,17 +137,51 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
       DEFAULT_LEVELS.map(async (lvl) => {
         try {
           const entries = await api.leaderboard.get(lvl.id);
-          return [lvl.id, entries.length > 0 ? formatTime(entries[0].time) : null] as const;
+          const playerBests = new Map<string, number>();
+          entries.forEach(entry => {
+            if (!entry.time || entry.time <= 0.05) return;
+            const playerName = entry.playerName.toLowerCase().trim();
+            const existing = playerBests.get(playerName);
+            if (existing === undefined || entry.time < existing) {
+              playerBests.set(playerName, entry.time);
+            }
+          });
+
+          // Include a newly completed local PB while it is still waiting to sync.
+          const localPb = localStorage.getItem(`best_time_${lvl.id}`);
+          const localPbSeconds = localPb ? parseFloat(localPb) : NaN;
+          const userName = currentUser.username.toLowerCase().trim();
+          const serverPb = playerBests.get(userName);
+          if (Number.isFinite(localPbSeconds) && localPbSeconds > 0.05 &&
+              (serverPb === undefined || localPbSeconds < serverPb)) {
+            playerBests.set(userName, localPbSeconds);
+          }
+
+          const rankedTimes = [...playerBests.values()].sort((a, b) => a - b);
+          const userTime = playerBests.get(userName);
+          const userRankIndex = userTime === undefined
+            ? -1
+            : rankedTimes.findIndex(time => time === userTime);
+          const percentile = userRankIndex >= 0 && rankedTimes.length > 1
+            ? (userRankIndex / (rankedTimes.length - 1)) * 100
+            : userRankIndex >= 0
+              ? 0
+              : null;
+
+          return [lvl.id, {
+            worldRecord: rankedTimes.length > 0 ? formatTime(rankedTimes[0]) : null,
+            percentile
+          }] as const;
         } catch {
-          return [lvl.id, null] as const;
+          return [lvl.id, { worldRecord: null, percentile: null }] as const;
         }
       })
     ).then(pairs => {
-      const map: Record<string, string | null> = {};
-      pairs.forEach(([id, wr]) => { map[id] = wr; });
-      setWrMap(map);
+      const map: Record<string, { worldRecord: string | null; percentile: number | null }> = {};
+      pairs.forEach(([id, stats]) => { map[id] = stats; });
+      setCourseStats(map);
     });
-  }, []);
+  }, [currentUser.username]);
 
   const deleteCustomLevel = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -163,7 +207,9 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="relative min-h-full overflow-hidden bg-[#0b1020] px-4 py-8">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(79,70,229,0.24),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(14,165,233,0.13),transparent_30%)]" />
+      <div className="relative max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
         <div>
@@ -188,7 +234,8 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
         {DEFAULT_LEVELS.map(level => {
           const pb = getPB(level.id);
-          const wr = level.id in wrMap ? wrMap[level.id] : undefined;
+          const stats = courseStats[level.id];
+          const wr = stats?.worldRecord;
           const accent = LEVEL_ACCENT[level.id] ?? DEFAULT_ACCENT;
 
           return (
@@ -219,7 +266,7 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
                       <Trophy className={`w-3 h-3 ${accent.icon}`} />
                       <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-neutral-500">World Record</span>
                     </div>
-                    {wr === undefined ? (
+                    {stats === undefined ? (
                       <span className="text-sm font-mono font-bold text-neutral-600 animate-pulse">···</span>
                     ) : wr ? (
                       <span className={`text-lg font-black font-mono ${accent.wrText} leading-none`}>{wr}</span>
@@ -240,6 +287,21 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
                       <span className="text-sm font-mono font-bold text-neutral-600">—</span>
                     )}
                   </div>
+                </div>
+
+                {/* Community standing */}
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-3 py-2.5 mb-5">
+                  <div className="flex items-center gap-1.5">
+                    <Medal className="w-3.5 h-3.5 text-indigo-300" />
+                    <span className="text-[9px] font-mono font-bold uppercase tracking-widest text-indigo-200/70">Your Standing</span>
+                  </div>
+                  {stats === undefined ? (
+                    <span className="text-xs font-mono font-bold text-indigo-300/50 animate-pulse">···</span>
+                  ) : stats.percentile !== null ? (
+                    <span className="text-sm font-black font-mono text-indigo-200">Top {formatPercentile(stats.percentile)}%</span>
+                  ) : (
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-200/50">Not ranked</span>
+                  )}
                 </div>
 
                 {/* Run button */}
@@ -319,6 +381,7 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
