@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import type { WebSocketLikeConstructor } from '@supabase/realtime-js';
 import ws from 'ws';
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -11,9 +12,13 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 // Admin client — uses service role key, bypasses RLS.
 // autoRefreshToken / persistSession disabled since this runs server-side.
 // ws is passed explicitly as the transport because Node.js 20 lacks native WebSocket.
+// The ws and Supabase packages use equivalent runtime APIs but incompatible event
+// callback types, so keep the compatibility cast isolated at this integration boundary.
+const realtimeTransport = ws as unknown as WebSocketLikeConstructor;
+
 export const supabaseAdmin = supabaseUrl && supabaseServiceRoleKey
   ? createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
-      realtime: { transport: ws }
+      realtime: { transport: realtimeTransport }
     })
   : null;

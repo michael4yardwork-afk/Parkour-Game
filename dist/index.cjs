@@ -59712,9 +59712,10 @@ var supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!supabaseUrl || !supabaseServiceRoleKey) {
   console.warn("[supabase] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set. Supabase auth will be skipped.");
 }
+var realtimeTransport = wrapper_default;
 var supabaseAdmin = supabaseUrl && supabaseServiceRoleKey ? createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
-  realtime: { transport: wrapper_default }
+  realtime: { transport: realtimeTransport }
 }) : null;
 
 // server/routes/auth.ts
