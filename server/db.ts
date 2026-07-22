@@ -109,6 +109,14 @@ export async function initDb() {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS device TEXT;
   `);
 
+  // Email + Supabase auth fields — added when Supabase auth was integrated.
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS supabase_user_id TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_supabase_id ON users(supabase_user_id) WHERE supabase_user_id IS NOT NULL;
+  `);
+
   // Stripe billing fields — track current subscription state per user.
   // subscription_status mirrors Stripe's subscription status field
   // (active, trialing, past_due, canceled, unpaid, incomplete, etc.) or NULL

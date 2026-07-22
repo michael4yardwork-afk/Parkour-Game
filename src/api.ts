@@ -81,10 +81,10 @@ export async function flushPendingSubmissions(): Promise<void> {
 
 export const api = {
   auth: {
-    async signup(username: string, password: string, avatar: string, avatarBg: string, device?: string): Promise<AuthResult> {
+    async signup(username: string, password: string, avatar: string, avatarBg: string, device?: string, email?: string): Promise<AuthResult> {
       const result = await apiFetch<AuthResult>('/auth/signup', {
         method: 'POST',
-        body: JSON.stringify({ username, password, avatar, avatarBg, device })
+        body: JSON.stringify({ username, password, avatar, avatarBg, device, email })
       });
       localStorage.setItem('delta_rush_token', result.token);
       return result;

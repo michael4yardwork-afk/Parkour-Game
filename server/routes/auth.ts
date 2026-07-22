@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pool from '../db';
+import { supabaseAdmin } from '../supabase';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'delta-rush-secret-key-change-in-production';
@@ -21,22 +22,68 @@ router.get('/check-username', async (req: Request, res: Response) => {
 
 router.post('/signup', async (req: Request, res: Response) => {
   try {
-    const { username, password, avatar, avatarBg, device } = req.body;
+    const { username, password, avatar, avatarBg, device, email } = req.body;
 
     if (!username || !password || username.length < 3 || password.length < 6) {
       return res.status(400).json({ error: 'Invalid username or password.' });
     }
 
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'A valid email address is required.' });
+    }
+
+    // Check username uniqueness
     const existing = await pool.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Username is already taken.' });
     }
 
+    // Check email uniqueness
+    const emailCheck = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+    if (emailCheck.rows.length > 0) {
+      return res.status(409).json({ error: 'An account with that email already exists.' });
+    }
+
+    // Create Supabase auth user (email + password)
+    let supabaseUserId: string | null = null;
+    if (supabaseAdmin) {
+      try {
+        const { data: sbData, error: sbError } = await supabaseAdmin.auth.admin.createUser({
+          email: email.toLowerCase().trim(),
+          password,
+          email_confirm: true, // mark as confirmed — we handle our own verification
+          user_metadata: { username }
+        });
+        if (sbError) {
+          console.error('[supabase] createUser error:', sbError.message);
+          // If email already exists in Supabase, surface a clear error
+          if (sbError.message?.toLowerCase().includes('already')) {
+            return res.status(409).json({ error: 'An account with that email already exists.' });
+          }
+          // Other Supabase errors are non-fatal — we still create the local account
+        } else {
+          supabaseUserId = sbData.user?.id ?? null;
+        }
+      } catch (sbErr: any) {
+        console.error('[supabase] createUser exception:', sbErr?.message || sbErr);
+        // Non-fatal: continue with local account creation
+      }
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      `INSERT INTO users (username, password_hash, avatar, avatar_bg, device, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username, avatar, avatar_bg, device, created_at`,
-      [username, passwordHash, avatar || '🚀', avatarBg || 'bg-indigo-500', device || null, Date.now()]
+      `INSERT INTO users (username, password_hash, avatar, avatar_bg, device, created_at, email, supabase_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, username, avatar, avatar_bg, device, created_at`,
+      [
+        username,
+        passwordHash,
+        avatar || '🚀',
+        avatarBg || 'bg-indigo-500',
+        device || null,
+        Date.now(),
+        email.toLowerCase().trim(),
+        supabaseUserId
+      ]
     );
 
     const user = result.rows[0];
@@ -73,9 +120,26 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     const user = result.rows[0];
+
+    // Primary verification: bcrypt (always runs, works for all accounts)
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
       return res.status(401).json({ error: 'Invalid password. Please inspect your inputs and try again.' });
+    }
+
+    // Secondary: sync with Supabase auth for accounts that have an email + Supabase user
+    // This is fire-and-forget — a Supabase failure never blocks login
+    if (supabaseAdmin && user.email && user.supabase_user_id) {
+      supabaseAdmin.auth.signInWithPassword({
+        email: user.email,
+        password
+      }).then(({ error }) => {
+        if (error) {
+          console.warn('[supabase] signInWithPassword sync failed:', error.message);
+        }
+      }).catch((e: any) => {
+        console.warn('[supabase] signInWithPassword exception:', e?.message || e);
+      });
     }
 
     const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
