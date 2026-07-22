@@ -10,11 +10,14 @@ A high-speed 3D parkour racing game built for the web. Features a course builder
 
 Railway deploys automatically from GitHub on every push. The Express server serves both the API and the built React frontend from a single service.
 
-### 1. Set up a free PostgreSQL database on Neon
+### 1. Get your Supabase connection string
 
-1. Go to [neon.tech](https://neon.tech) and create a free account
-2. Create a new project — pick any name and region
-3. Copy the **Connection string** (looks like `postgresql://user:pass@host/db?sslmode=require`)
+1. Go to your [Supabase project dashboard](https://supabase.com/dashboard)
+2. Navigate to **Settings → Database → Connection string → URI**
+3. Copy the **Direct connection** string (port 5432) — it looks like:
+   `postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres`
+
+   > Use the **direct connection** (port 5432), not the transaction pooler (port 6543), since the app manages its own connection pool via `pg.Pool`.
 
 ### 2. Deploy to Railway
 
@@ -24,7 +27,7 @@ Railway deploys automatically from GitHub on every push. The Express server serv
 
    | Variable | Value |
    |---|---|
-   | `DATABASE_URL` | Paste your Neon connection string |
+   | `DATABASE_URL` | Paste your Supabase direct connection string |
    | `JWT_SECRET` | A long random string (generate at [generate-secret.vercel.app/64](https://generate-secret.vercel.app/64)) |
    | `NODE_ENV` | `production` |
 

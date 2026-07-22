@@ -6,7 +6,7 @@ A high-speed 3D parkour racing game built for the web. Features a course builder
 
 - **Frontend:** React 19 + TypeScript + Three.js (WebGL 3D), Vite dev server on port 5000
 - **Backend:** Node.js + Express API on port 3001 (proxied via Vite `/api`)
-- **Database:** PostgreSQL (external Neon instance via `DATABASE_URL` secret)
+- **Database:** PostgreSQL (external Supabase instance via `DATABASE_URL` secret)
 - **Auth:** JWT tokens (signed with `JWT_SECRET` secret), bcrypt password hashing
 - **Realtime:** WebSocket on `/ws` for multiplayer race matchmaking
 
@@ -20,7 +20,7 @@ npm install && (npm run server & npm run dev)
 **Required secrets (set in Replit Secrets):**
 | Secret | Purpose |
 |---|---|
-| `DATABASE_URL` | PostgreSQL connection string (Neon or any PostgreSQL provider) |
+| `DATABASE_URL` | PostgreSQL connection string (Supabase direct connection, port 5432) |
 | `JWT_SECRET` | Secret for signing auth tokens |
 
 The database schema is auto-initialized on server startup (`server/db.ts`). No manual migrations needed — new columns are added with `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
