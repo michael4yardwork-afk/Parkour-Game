@@ -2463,11 +2463,14 @@ export default function GameCanvas({
           return;
         }
 
-        if (level.id !== 'test_level_active') {
+        if (isNewPb && level.id !== 'test_level_active') {
           // Show a placeholder immediately so the card stays visible while the
           // submitted leaderboard is fetched for the accurate standing.
           setCompletionPercentile(0);
           setCompletionWorldRank({ rank: 1, total: 1 });
+        } else {
+          setCompletionPercentile(null);
+          setCompletionWorldRank(null);
         }
 
         if (level.id !== 'test_level_active') {
@@ -2515,9 +2518,8 @@ export default function GameCanvas({
             }
 
             // Fetch the real server leaderboard to compute accurate standing.
-            // Rankings are based on the player's best time, even when this run
-            // was not a new PB, matching the course-complete card's prior behavior.
-            if (level.id !== 'test_level_active') {
+            // The course-complete standing is only shown for a new personal best.
+            if (isNewPb && level.id !== 'test_level_active') {
               try {
                 const serverEntries = await api.leaderboard.get(level.id);
                 const currentBest = previousBest !== null && previousBest < finalTime
@@ -3090,7 +3092,7 @@ export default function GameCanvas({
                       🔒 Sign Up to Reveal Your Ranking
                     </button>
                   </div>
-                ) : completionPercentile !== null && completionWorldRank !== null && level.id !== 'test_level_active' && (
+                ) : isPb && completionPercentile !== null && completionWorldRank !== null && level.id !== 'test_level_active' && (
                   <div id="completion-percentile-card" className="w-full mt-3 bg-indigo-500/15 border border-indigo-500/30 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-inner">
                     <span className="text-[9px] font-mono text-indigo-400 uppercase tracking-wider font-bold">Community Standing</span>
                     
