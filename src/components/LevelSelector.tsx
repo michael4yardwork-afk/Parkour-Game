@@ -3,6 +3,7 @@ import { Play, Plus, Trash2, Upload, Award, Compass, Map, Clock, Trophy, Zap, Me
 import { LevelConfig, SceneTheme, UserAccount } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { api } from '../api';
+import { formatPercentile, getPlayerRanking } from '../utils/rankings';
 
 interface LevelSelectorProps {
   onSelectLevel: (level: LevelConfig) => void;
@@ -102,12 +103,6 @@ const formatTime = (seconds: number): string => {
   return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${ms.toString().padStart(3, '0')}`;
 };
 
-const formatPercentile = (percentile: number): string => {
-  if (percentile < 1) return percentile.toFixed(2);
-  if (percentile < 5) return percentile.toFixed(1);
-  return Math.round(percentile).toString();
-};
-
 const formatTheme = (theme: SceneTheme) => {
   switch (theme) {
     case 'sky_islands': return 'Sky Islands';
@@ -137,40 +132,21 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
       DEFAULT_LEVELS.map(async (lvl) => {
         try {
           const entries = await api.leaderboard.get(lvl.id);
-          const playerBests = new Map<string, number>();
-          entries.forEach(entry => {
-            if (!entry.time || entry.time <= 0.05) return;
-            const playerName = entry.playerName.toLowerCase().trim();
-            const existing = playerBests.get(playerName);
-            if (existing === undefined || entry.time < existing) {
-              playerBests.set(playerName, entry.time);
-            }
-          });
-
           // Include a newly completed local PB while it is still waiting to sync.
           const localPb = localStorage.getItem(`best_time_${lvl.id}`);
           const localPbSeconds = localPb ? parseFloat(localPb) : NaN;
-          const userName = currentUser.username.toLowerCase().trim();
-          const serverPb = playerBests.get(userName);
-          if (Number.isFinite(localPbSeconds) && localPbSeconds > 0.05 &&
-              (serverPb === undefined || localPbSeconds < serverPb)) {
-            playerBests.set(userName, localPbSeconds);
-          }
-
-          const rankedTimes = [...playerBests.values()].sort((a, b) => a - b);
-          const userTime = playerBests.get(userName);
-          const userRankIndex = userTime === undefined
-            ? -1
-            : rankedTimes.findIndex(time => time === userTime);
-          const percentile = userRankIndex >= 0 && rankedTimes.length > 1
-            ? (userRankIndex / (rankedTimes.length - 1)) * 100
-            : userRankIndex >= 0
-              ? 0
-              : null;
+          const ranking = getPlayerRanking(
+            entries,
+            currentUser.username,
+            Number.isFinite(localPbSeconds) ? localPbSeconds : null
+          );
+          const validTimes = entries
+            .map(entry => entry.time)
+            .filter(time => Number.isFinite(time) && time > 0.05);
 
           return [lvl.id, {
-            worldRecord: rankedTimes.length > 0 ? formatTime(rankedTimes[0]) : null,
-            percentile
+            worldRecord: validTimes.length > 0 ? formatTime(Math.min(...validTimes)) : null,
+            percentile: ranking?.percentile ?? null
           }] as const;
         } catch {
           return [lvl.id, { worldRecord: null, percentile: null }] as const;

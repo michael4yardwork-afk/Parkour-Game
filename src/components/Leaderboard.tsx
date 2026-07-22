@@ -137,9 +137,20 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
   } : null;
 
   const worldRealPlayers = getGroupedWorldPlayers();
-  const mergedWorldList = [...worldRealPlayers];
-  if (playerPBEntry && !mergedWorldList.some(r => r.playerName.toLowerCase().trim() === (currentUser?.username || 'Guest').toLowerCase().trim())) {
+  const activeName = (currentUser?.username || 'Guest').toLowerCase().trim();
+  const serverUserEntry = worldRealPlayers.find(
+    entry => entry.playerName.toLowerCase().trim() === activeName
+  );
+  const mergedWorldList = worldRealPlayers.filter(
+    entry => entry.playerName.toLowerCase().trim() !== activeName
+  );
+
+  // Always rank the user's fastest known time. A newly completed local PB can
+  // be ahead of the server response while the submission is still syncing.
+  if (playerPBEntry && (!serverUserEntry || playerPBEntry.time < serverUserEntry.time)) {
     mergedWorldList.push(playerPBEntry);
+  } else if (serverUserEntry) {
+    mergedWorldList.push(serverUserEntry);
   }
   mergedWorldList.sort((a, b) => a.time - b.time);
 

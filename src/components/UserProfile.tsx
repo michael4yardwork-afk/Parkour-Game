@@ -7,12 +7,7 @@ import { DEFAULT_LEVELS } from '../defaultLevels';
 import { synths } from '../audio';
 import { api } from '../api';
 import { AVATAR_BGS } from '../avatarThemes';
-
-const formatPercentile = (p: number): string => {
-  if (p < 1) return p.toFixed(2);
-  if (p < 5) return p.toFixed(1);
-  return Math.round(p).toString();
-};
+import { formatPercentile, getPlayerRanking } from '../utils/rankings';
 
 interface UserProfileProps {
   username: string;
@@ -390,18 +385,13 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
             return;
           }
 
-          const playerBests: Record<string, number> = {};
-          validEntries.forEach(r => {
-            const name = r.playerName.toLowerCase().trim();
-            if (!playerBests[name] || r.time < playerBests[name]) playerBests[name] = r.time;
-          });
-          if (!playerBests[normName] || pbTime < playerBests[normName]) playerBests[normName] = pbTime;
-
-          const sortedTimes = Object.values(playerBests).sort((a, b) => a - b);
-          const rank = sortedTimes.indexOf(pbTime) + 1;
-          const totalPlayers = sortedTimes.length;
-          const percentile = totalPlayers > 1 ? (sortedTimes.indexOf(pbTime) / (totalPlayers - 1)) * 100 : 0;
-          statsMap[level.id] = { pbTime, rank, totalPlayers, percentile };
+          const ranking = getPlayerRanking(validEntries, normName, pbTime);
+          statsMap[level.id] = {
+            pbTime,
+            rank: ranking?.rank ?? null,
+            totalPlayers: ranking?.total ?? null,
+            percentile: ranking?.percentile ?? null,
+          };
         } catch {
           statsMap[level.id] = { pbTime: null, rank: null, totalPlayers: null, percentile: null };
         }

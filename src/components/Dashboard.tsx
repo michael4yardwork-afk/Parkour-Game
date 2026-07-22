@@ -5,12 +5,7 @@ import { GameSettings, UserAccount, RaceHistoryEntry } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { synths } from '../audio';
 import { api } from '../api';
-
-const formatPercentile = (p: number): string => {
-  if (p < 1) return p.toFixed(2);
-  if (p < 5) return p.toFixed(1);
-  return Math.round(p).toString();
-};
+import { formatPercentile, getPlayerRanking, PlayerRanking } from '../utils/rankings';
 
 interface DashboardProps {
   settings: GameSettings;
@@ -38,46 +33,6 @@ const AVATARS = [
   { emoji: '🦁', name: 'Primal Spirit' },
 ];
 
-const getWorldRankAndPercentile = (levelId: string, time: number | null, username: string) => {
-  if (time === null || time <= 0.05) return { rank: null, total: 0, percentile: null };
-  try {
-    const stored = localStorage.getItem(`leaderboard_${levelId}`);
-    const entries = stored ? JSON.parse(stored) : [];
-    const activeName = username.toLowerCase().trim();
-    
-    const playerBests: { [username: string]: number } = {};
-    entries.forEach((r: any) => {
-      if (!r.time || r.time <= 0.05) return;
-      const name = r.playerName.toLowerCase().trim();
-      if (!playerBests[name] || r.time < playerBests[name]) {
-        playerBests[name] = r.time;
-      }
-    });
-    
-    const otherPlayerTimes = Object.keys(playerBests)
-      .filter(name => name !== activeName)
-      .map(name => playerBests[name]);
-      
-    otherPlayerTimes.push(time);
-    otherPlayerTimes.sort((a, b) => a - b);
-    
-    const rankIdx = otherPlayerTimes.indexOf(time);
-    const rank = rankIdx + 1;
-    const totalLen = otherPlayerTimes.length;
-    
-    let percentile = 0;
-    if (totalLen > 1) {
-      percentile = (rankIdx / (totalLen - 1)) * 100;
-    } else {
-      percentile = 0;
-    }
-    
-    return { rank, total: totalLen, percentile };
-  } catch (e) {
-    return { rank: null, total: 0, percentile: null };
-  }
-};
-
 export default function Dashboard({ settings, onChangeSettings, onNavigate, currentUser, onLogout, onUpdateCurrentUser, isPlatinum, onUpgrade }: DashboardProps) {
   const [gate, setGate] = useState<{ feature: string; description?: string } | null>(null);
   // Security Panel State
@@ -95,6 +50,7 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
   // Activity stats
   const [raceHistory, setRaceHistory] = useState<RaceHistoryEntry[]>([]);
   const [mostLikedCourse, setMostLikedCourse] = useState<{ name: string; likes: number } | null>(null);
+  const [courseStandings, setCourseStandings] = useState<Record<string, PlayerRanking | null>>({});
 
   useEffect(() => {
     api.users.getProfile(currentUser.username).then(data => {
@@ -119,6 +75,31 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
     }).catch(() => {});
   }, [currentUser.username]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all(DEFAULT_LEVELS.map(async level => {
+      const localBestRaw = localStorage.getItem(`best_time_${level.id}`);
+      const localBest = localBestRaw ? parseFloat(localBestRaw) : null;
+      const entries = await api.leaderboard.get(level.id);
+      return [
+        level.id,
+        getPlayerRanking(entries, currentUser.username, localBest),
+      ] as const;
+    })).then(results => {
+      if (cancelled) return;
+      const standings: Record<string, PlayerRanking | null> = {};
+      results.forEach(([levelId, ranking]) => {
+        standings[levelId] = ranking;
+      });
+      setCourseStandings(standings);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser.username]);
+
   // Derived stats from local data
   const totalCompletions = parseInt(localStorage.getItem('delta_rush_total_completions') ?? '0', 10);
 
@@ -133,7 +114,7 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
   const bestRank = (() => {
     let best: number | null = null;
     for (const lvl of DEFAULT_LEVELS) {
-      const { rank } = getWorldRankAndPercentile(lvl.id, parseFloat(localStorage.getItem(`best_time_${lvl.id}`) ?? '0'), currentUser.username);
+      const rank = courseStandings[lvl.id]?.rank ?? null;
       if (rank !== null && (best === null || rank < best)) best = rank;
     }
     return best;
@@ -497,16 +478,16 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
                 {time !== null && (
                   <div id={`standing-percentile-lvl-${lvl.id}`} className="mt-3 text-[10px] font-mono flex items-center justify-between text-neutral-500 border-t border-neutral-100/60 pt-2.5">
                     {(() => {
-                      const { rank, total, percentile } = getWorldRankAndPercentile(lvl.id, time, currentUser?.username || 'Guest');
+                      const ranking = courseStandings[lvl.id];
                       return (
                         <>
                           <span className="uppercase tracking-wider">
-                            World Rank: <span className="font-bold text-neutral-700">#{rank ?? 'N/A'}</span>
-                            {rank !== null && <span className="text-neutral-400 font-normal font-sans"> / {total}</span>}
+                            World Rank: <span className="font-bold text-neutral-700">#{ranking?.rank ?? 'N/A'}</span>
+                            {ranking && <span className="text-neutral-400 font-normal font-sans"> / {ranking.total}</span>}
                           </span>
-                          {percentile !== null && (
+                          {ranking && (
                             <span className="font-bold font-sans text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px]">
-                              Top {formatPercentile(percentile)}%
+                              Top {formatPercentile(ranking.percentile)}%
                             </span>
                           )}
                         </>

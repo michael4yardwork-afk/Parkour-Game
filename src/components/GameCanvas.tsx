@@ -24,6 +24,7 @@ import { LevelConfig, GhostFrame, RunReplay, GameSettings, UserAccount, RacePart
 import { synths } from '../audio';
 import { motion, AnimatePresence } from 'motion/react';
 import { resampleSpeedsToUniformTime } from '../utils/resampleSpeeds';
+import { getPlayerRanking } from '../utils/rankings';
 
 interface GameCanvasProps {
   level: LevelConfig;
@@ -2462,14 +2463,11 @@ export default function GameCanvas({
           return;
         }
 
-        if (isNewPb && level.id !== 'test_level_active') {
-          // Show a placeholder from localStorage immediately so the card appears
-          // at once, then replace it with accurate server data after the submit.
+        if (level.id !== 'test_level_active') {
+          // Show a placeholder immediately so the card stays visible while the
+          // submitted leaderboard is fetched for the accurate standing.
           setCompletionPercentile(0);
           setCompletionWorldRank({ rank: 1, total: 1 });
-        } else {
-          setCompletionPercentile(null);
-          setCompletionWorldRank(null);
         }
 
         if (level.id !== 'test_level_active') {
@@ -2516,58 +2514,32 @@ export default function GameCanvas({
               queuePendingSubmission(level.id, submitPayload);
             }
 
-            // Fetch the real server leaderboard to compute accurate standing
-            if (isNewPb) {
+            // Fetch the real server leaderboard to compute accurate standing.
+            // Rankings are based on the player's best time, even when this run
+            // was not a new PB, matching the course-complete card's prior behavior.
+            if (level.id !== 'test_level_active') {
               try {
                 const serverEntries = await api.leaderboard.get(level.id);
-
-                // Deduplicate to best time per player
-                const serverBests: { [name: string]: number } = {};
-                serverEntries.forEach((e: any) => {
-                  if (!e.time || e.time <= 0.05) return;
-                  const name = (e.playerName || '').toLowerCase().trim();
-                  if (!serverBests[name] || e.time < serverBests[name]) {
-                    serverBests[name] = e.time;
-                  }
-                });
-                // Guarantee our run is counted even if submit lost a race condition
-                serverBests[activeName] = Math.min(
-                  finalTime,
-                  serverBests[activeName] ?? finalTime
-                );
-
-                const sorted = Object.values(serverBests).sort((a, b) => a - b);
-                const myBest = serverBests[activeName];
-                const serverRankIdx = sorted.findIndex(
-                  t => Math.abs(t - myBest) < 0.001
-                );
-                const serverTotal = sorted.length;
-                const serverRank = serverRankIdx + 1;
-                const serverPercentile =
-                  serverTotal > 1
-                    ? (serverRankIdx / (serverTotal - 1)) * 100
-                    : 0;
-
-                setCompletionPercentile(serverPercentile);
-                setCompletionWorldRank({ rank: serverRank, total: serverTotal });
+                const currentBest = previousBest !== null && previousBest < finalTime
+                  ? previousBest
+                  : finalTime;
+                const ranking = getPlayerRanking(serverEntries, activeName, currentBest);
+                if (ranking) {
+                  setCompletionPercentile(ranking.percentile);
+                  setCompletionWorldRank({ rank: ranking.rank, total: ranking.total });
+                }
               } catch {
                 // Server fetch failed — fall back to localStorage estimate
                 const stored = localStorage.getItem(`leaderboard_${level.id}`);
                 const entries = stored ? JSON.parse(stored) : [];
-                const localBests: { [name: string]: number } = {};
-                entries.forEach((r: any) => {
-                  if (!r.time || r.time <= 0.05) return;
-                  const name = (r.playerName || '').toLowerCase().trim();
-                  if (!localBests[name] || r.time < localBests[name]) localBests[name] = r.time;
-                });
-                localBests[activeName] = finalTime;
-                const sorted = Object.values(localBests).sort((a, b) => a - b);
-                const rankIdx = sorted.findIndex(t => Math.abs(t - finalTime) < 0.001);
-                const total = sorted.length;
-                setCompletionPercentile(
-                  total > 1 ? (rankIdx / (total - 1)) * 100 : 0
-                );
-                setCompletionWorldRank({ rank: rankIdx + 1, total });
+                const currentBest = previousBest !== null && previousBest < finalTime
+                  ? previousBest
+                  : finalTime;
+                const ranking = getPlayerRanking(entries, activeName, currentBest);
+                if (ranking) {
+                  setCompletionPercentile(ranking.percentile);
+                  setCompletionWorldRank({ rank: ranking.rank, total: ranking.total });
+                }
               }
             }
           });
