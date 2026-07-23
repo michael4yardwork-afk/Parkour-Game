@@ -44,6 +44,41 @@ Railway deploys automatically from GitHub on every push. The Express server serv
    - **Value:** the Railway domain shown (e.g. `xyz.up.railway.app`)
 3. DNS propagates within a few minutes. Your domain will now serve the app.
 
+### Hostinger Node.js deployment
+
+If running the app directly on Hostinger instead of pointing DNS to Railway:
+
+1. Upload the complete project, including `dist/` and the generated `server.cjs`.
+2. Run `npm install` and `npm run build` after every code update.
+3. Start the app with `npm start` (the current server is `dist/index.cjs`).
+4. Configure these environment variables in Hostinger's Node.js application settings
+   or in a server-side `.env` file:
+
+   | Variable | Purpose |
+   |---|---|
+   | `DATABASE_URL` | PostgreSQL connection string |
+   | `JWT_SECRET` | Long random JWT signing secret |
+   | `STRIPE_SECRET_KEY` | Stripe secret API key |
+   | `STRIPE_WEBHOOK_SECRET` | Signing secret for the webhook endpoint |
+   | `STRIPE_PRICE_MONTHLY` | Monthly Platinum Price ID |
+   | `STRIPE_PRICE_YEARLY` | Yearly Platinum Price ID |
+   | `APP_URL` | Public HTTPS app URL, for example `https://deltarush.win` |
+   | `NODE_ENV` | `production` |
+
+5. In Stripe, configure the webhook URL as:
+   `https://your-domain.example/api/billing/webhook`
+   and enable `checkout.session.completed`, `customer.subscription.created`,
+   `customer.subscription.updated`, `customer.subscription.deleted`, and
+   `invoice.payment_succeeded`.
+
+The server loads `.env` when present, but Hostinger environment variables are
+preferred. Do not expose Stripe secret values in frontend code.
+
+Verify the Hostinger runtime before testing a purchase by opening
+`https://your-domain.example/api/health`. The response must show all four
+`billing` configuration values as `true`. If either Stripe secret is `false`,
+Platinum cannot activate.
+
 ---
 
 ## Run locally

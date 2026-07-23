@@ -28,3 +28,15 @@ features even though Stripe has an active subscription.
 **How to apply:** Include Stripe's checkout session ID in the success redirect,
 validate its customer against the authenticated account, sync the subscription,
 then keep webhook processing for renewals, cancellations, and later changes.
+
+Direct Hostinger deployments must rebuild and run the current generated bundle,
+and must provide both Stripe secrets at runtime; price IDs alone do not enable
+checkout or entitlement activation.
+
+**Why:** The Hostinger startup artifact can lag behind `dist/index.cjs`, and a
+missing `STRIPE_SECRET_KEY` disables all payment operations even when price IDs
+are present.
+
+**How to apply:** Run `npm run build` (which refreshes both production
+entrypoints), use `npm start`, and verify `/api/health` reports all billing
+configuration flags as true.
