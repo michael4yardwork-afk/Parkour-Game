@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, HelpCircle, ChevronDown, ChevronUp, Gamepad2, Zap, Trophy, Play, Edit3, Heart, Users, Keyboard, Layers } from 'lucide-react';
+import { X, HelpCircle, ChevronDown, ChevronUp, Gamepad2, Zap, Trophy, Play, Edit3, Heart, Users, Keyboard, Layers, Sparkles } from 'lucide-react';
 import { synths } from '../audio';
 
 interface HelpModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenSpotlight: () => void;
 }
 
 interface HelpSection {
@@ -15,7 +16,7 @@ interface HelpSection {
   content: React.ReactNode;
 }
 
-export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
+export default function HelpModal({ isOpen, onClose, onOpenSpotlight }: HelpModalProps) {
   const [openSection, setOpenSection] = useState<string | null>('controls'); // Default to open the new controls first so users see it immediately
 
   const toggleSection = (id: string) => {
@@ -361,6 +362,24 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
 
             {/* Scrollable Content (the Accordion) */}
             <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              <button
+                type="button"
+                onClick={() => {
+                  synths.playTick();
+                  onClose();
+                  onOpenSpotlight();
+                }}
+                className="w-full flex items-center justify-between gap-3 rounded-2xl border border-indigo-200/70 bg-indigo-50/60 px-4 py-3 text-left transition hover:border-indigo-300 hover:bg-indigo-50 cursor-pointer"
+              >
+                <span className="flex items-center gap-3">
+                  <Sparkles className="w-5 h-5 text-indigo-600" />
+                  <span>
+                    <span className="block text-sm font-bold text-indigo-900">Replay Spotlight Tutorial</span>
+                    <span className="block mt-0.5 text-[11px] text-indigo-700/70">Take the guided tour of movement, blocks, tabs, and more.</span>
+                  </span>
+                </span>
+                <ChevronDown className="w-4 h-4 shrink-0 -rotate-90 text-indigo-400" />
+              </button>
               {sections.map((section) => {
                 const isSectionOpen = openSection === section.id;
                 return (

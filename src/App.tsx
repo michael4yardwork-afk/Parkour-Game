@@ -14,6 +14,7 @@ import NotificationsTab from './components/NotificationsTab';
 import SettingsModal from './components/SettingsModal';
 import Upgrade from './components/Upgrade';
 import HelpModal from './components/HelpModal';
+import SpotlightTutorial from './components/SpotlightTutorial';
 import PrivacyModal from './components/PrivacyModal';
 import { LevelConfig, GameSettings, UserAccount, RaceParticipant, CourseNotification, GhostFrame } from './types';
 import { synths } from './audio';
@@ -121,6 +122,7 @@ export default function App() {
   // System settings modal state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isSpotlightOpen, setIsSpotlightOpen] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
 
   // Initialize volume settings from LocalStorage
@@ -367,9 +369,16 @@ export default function App() {
     return val;
   };
 
-  const handleLoginSuccess = (user: UserAccount) => {
+  const handleLoginSuccess = (user: UserAccount, isNewAccount = false) => {
     setCurrentUser(user);
     localStorage.setItem('momentum_current_user', JSON.stringify(user));
+    if (isNewAccount) {
+      const tutorialKey = `delta_rush_spotlight_seen_${user.username.toLowerCase().trim()}`;
+      if (!localStorage.getItem(tutorialKey)) {
+        localStorage.setItem(tutorialKey, 'true');
+        window.setTimeout(() => setIsSpotlightOpen(true), 350);
+      }
+    }
     // Re-read settings — signup may have written device-specific defaults just before this call.
     const saved = localStorage.getItem('momentum_player_settings');
     if (saved) {
@@ -606,6 +615,7 @@ export default function App() {
             {/* Nav Tabs */}
             <nav className="flex gap-1 md:gap-2">
               <button
+                id="dashboard-tab-trigger"
                 onClick={() => { setTab('home'); synths.playTick(); }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition duration-200 cursor-pointer ${
                   tab === 'home' 
@@ -616,6 +626,7 @@ export default function App() {
                 Dashboard
               </button>
               <button
+                id="rush-tab-trigger"
                 onClick={() => { setTab('levels'); synths.playTick(); }}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition duration-200 cursor-pointer ${
                   tab === 'levels' 
@@ -662,6 +673,7 @@ export default function App() {
                 Races
               </button>
               <button
+                id="course-builder-tab-trigger"
                 onClick={handleStartBuilder}
                 className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 rounded-xl text-xs font-bold transition duration-200 cursor-pointer flex items-center gap-1.5"
               >
@@ -964,6 +976,12 @@ export default function App() {
       <HelpModal
         isOpen={isHelpOpen}
         onClose={() => setIsHelpOpen(false)}
+        onOpenSpotlight={() => setIsSpotlightOpen(true)}
+      />
+
+      <SpotlightTutorial
+        isOpen={isSpotlightOpen}
+        onClose={() => setIsSpotlightOpen(false)}
       />
 
       {/* Privacy Policy Modal Portal */}

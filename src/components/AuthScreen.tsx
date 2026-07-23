@@ -7,7 +7,7 @@ import { api } from '../api';
 import { SIGNUP_AVATAR_BGS } from '../avatarThemes';
 
 interface AuthScreenProps {
-  onLoginSuccess: (user: UserAccount) => void;
+  onLoginSuccess: (user: UserAccount, isNewAccount?: boolean) => void;
   onPlayDemo?: () => void;
   initialMode?: 'login' | 'signup';
 }
@@ -275,7 +275,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
           avatar: selectedAvatar,
           avatarBg: selectedBg,
         };
-        setTimeout(() => onLoginSuccess(userWithChosenIcon), 800);
+          setTimeout(() => onLoginSuccess(userWithChosenIcon, true), 800);
       } else {
         const result = await api.auth.login(trimmedUsername, password);
         notifyFeedback('success', 'Logged in successfully! Loading dashboard...');
