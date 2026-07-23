@@ -6,6 +6,7 @@ import { DEFAULT_LEVELS } from '../defaultLevels';
 import { synths } from '../audio';
 import { api } from '../api';
 import { formatPercentile, getPlayerRanking, PlayerRanking } from '../utils/rankings';
+import { isChampionRace } from '../utils/raceStats';
 
 interface DashboardProps {
   settings: GameSettings;
@@ -109,7 +110,7 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
   const coursesBuilt = customLevels.length;
 
   const totalRaces = raceHistory.length;
-  const raceWins = raceHistory.filter(r => r.place === 1).length;
+  const raceWins = raceHistory.filter(isChampionRace).length;
 
   const bestRank = (() => {
     let best: number | null = null;

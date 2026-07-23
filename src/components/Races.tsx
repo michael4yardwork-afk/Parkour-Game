@@ -5,6 +5,7 @@ import { LevelConfig, UserAccount, RaceParticipant, RaceHistoryEntry } from '../
 import { synths } from '../audio';
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { api } from '../api';
+import { isChampionRace } from '../utils/raceStats';
 
 interface RacesProps {
   currentUser: UserAccount;
@@ -100,7 +101,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
 
   // Statistics summaries
   const totalRaces = history.length;
-  const firstPlaces = history.filter(h => h.place === 1).length;
+  const firstPlaces = history.filter(isChampionRace).length;
   const podiums = history.filter(h => h.place <= 3).length;
   const winRatio = totalRaces > 0 ? Math.round((firstPlaces / totalRaces) * 100) : 0;
 

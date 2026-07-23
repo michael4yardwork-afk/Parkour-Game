@@ -189,8 +189,12 @@ export default function App() {
   ) => {
     if (!currentUser) return;
 
-    const ourEntry = rankings.find(r => r.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim());
-    const ourRankIndex = rankings.findIndex(r => r.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim());
+    const orderedRankings = [...rankings].sort((a, b) => {
+      if (a.finished !== b.finished) return a.finished ? -1 : 1;
+      return (a.time ?? Number.POSITIVE_INFINITY) - (b.time ?? Number.POSITIVE_INFINITY);
+    });
+    const ourEntry = orderedRankings.find(r => r.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim());
+    const ourRankIndex = orderedRankings.findIndex(r => r.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim());
     const ourPlace = ourRankIndex !== -1 ? ourRankIndex + 1 : 6;
     const playerColor = ourEntry?.color || '#3b82f6';
 
@@ -221,7 +225,7 @@ export default function App() {
       playerColor,
       place: ourPlace,
       time: finalTime,
-      opponents: rankings.filter(r => r.username.toLowerCase().trim() !== currentUser.username.toLowerCase().trim()),
+      opponents: orderedRankings.filter(r => r.username.toLowerCase().trim() !== currentUser.username.toLowerCase().trim()),
       ratingChange: actualRatingChange,
       newRating,
       date: Date.now()
