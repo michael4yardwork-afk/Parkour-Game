@@ -183,6 +183,9 @@ export default function GameCanvas({
   const splineCheckpointsRef = useRef<{ distance: number; position: THREE.Vector3 }[]>([]);
   const bcRef = useRef<BroadcastChannel | null>(null);
   const commitRaceResultsRef = useRef<() => void>(() => {});
+  // High-water-mark for the local player's spline progress: only ever increases
+  // during a race so the live standings distance never jumps backwards.
+  const playerProgressHWMRef = useRef<number>(0);
 
   const [liveRankings, setLiveRankings] = useState<{
     username: string;
@@ -614,6 +617,7 @@ export default function GameCanvas({
     currentMaxSpeedRef.current = 12.0;
     movementStartedRef.current = false;
     raceStartWallTimeRef.current = null;
+    playerProgressHWMRef.current = 0;
     setElapsedTime(0.00);
     setIsCompleted(false);
     isCompletedRef.current = false;
@@ -701,23 +705,35 @@ export default function GameCanvas({
     opp.mesh.scale.set(1, 1, 1);
   };
 
-  const getPlayerSplineProgress = () => {
+  // Accurate spline progress for any 3D world position.
+  // Finds the closest spline segment and projects onto it for sub-segment
+  // precision, then returns the cumulative arc-length distance along the spline.
+  const getSplineProgressForPos = (pos: THREE.Vector3): number => {
     const pts = splinePointsRef.current;
     const dists = cumulativeSplineDistancesRef.current;
-    if (pts.length === 0) return 0;
+    if (pts.length < 2) return 0;
 
-    let closestIdx = 0;
-    let minSqDist = Infinity;
-    for (let i = 0; i < pts.length; i++) {
-      const sqDist = pts[i].distanceToSquared(playerPos.current);
-      if (sqDist < minSqDist) {
-        minSqDist = sqDist;
-        closestIdx = i;
+    let bestDist = Infinity;
+    let bestProgress = 0;
+
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1];
+      const b = pts[i];
+      const ab = b.clone().sub(a);
+      const lenSq = ab.lengthSq();
+      const t = lenSq > 0 ? Math.max(0, Math.min(1, pos.clone().sub(a).dot(ab) / lenSq)) : 0;
+      const projected = a.clone().addScaledVector(ab, t);
+      const sqDist = pos.distanceToSquared(projected);
+      if (sqDist < bestDist) {
+        bestDist = sqDist;
+        bestProgress = dists[i - 1] + t * (dists[i] - dists[i - 1]);
       }
     }
 
-    return dists[closestIdx] || 0;
+    return bestProgress;
   };
+
+  const getPlayerSplineProgress = () => getSplineProgressForPos(playerPos.current);
 
   // Timer for countdown — anchored to a shared server timestamp (raceStartTime)
   // rather than each client running its own independent 3-second setTimeout
@@ -788,7 +804,9 @@ export default function GameCanvas({
           opp.targetPosition.set(x, y + 0.8, z);
           opp.targetYaw = ry;
           opp.lastUpdateMs = Date.now();
-          opp.progressDistance = Math.max(0, -z);
+          // Project position onto spline for accurate distance; only allow forward progress
+          const splineProgress = getSplineProgressForPos(new THREE.Vector3(x, y, z));
+          opp.progressDistance = Math.max(opp.progressDistance, splineProgress);
         }
       } else if (type === 'GAME_FINISHED') {
         const opp = opponentMeshesRef.current.find(
@@ -831,7 +849,9 @@ export default function GameCanvas({
           opp.targetPosition.set(x, y + 0.8, z);
           opp.targetYaw = ry;
           opp.lastUpdateMs = Date.now();
-          opp.progressDistance = Math.max(0, -z);
+          // Project position onto spline for accurate distance; only allow forward progress
+          const splineProgress = getSplineProgressForPos(new THREE.Vector3(x, y, z));
+          opp.progressDistance = Math.max(opp.progressDistance, splineProgress);
         }
       } else if (type === 'GAME_FINISHED') {
         const opp = opponentMeshesRef.current.find(o => o.username.toLowerCase().trim() === username.toLowerCase().trim());
@@ -1389,7 +1409,15 @@ export default function GameCanvas({
         if (raceMode) {
           liveUpdateFrameCountRef.current++;
           if (liveUpdateFrameCountRef.current % 12 === 0) {
-            const ourProgress = getPlayerSplineProgress();
+            // Only allow progress to advance — prevents snapping backwards on
+            // curved sections where two spline points are close together.
+            const rawProgress = getPlayerSplineProgress();
+            if (!isCompletedRef.current) {
+              playerProgressHWMRef.current = Math.max(playerProgressHWMRef.current, rawProgress);
+            }
+            const ourProgress = isCompletedRef.current
+              ? totalSplineLengthRef.current
+              : playerProgressHWMRef.current;
             const selfEntry = {
               username: currentUser?.username || 'You',
               color: localStorage.getItem(`racer_color_${currentUser?.username}`) || '#3b82f6',
@@ -2632,7 +2660,7 @@ export default function GameCanvas({
 
           {/* Live Racing Standings list */}
           {raceMode && liveRankings.length > 0 && (
-            <div className="absolute top-24 left-6 bg-neutral-900/95 border border-neutral-800 p-4 rounded-2xl shadow-lg backdrop-blur w-56 flex flex-col gap-2 z-20 pointer-events-auto">
+            <div className="absolute top-36 left-6 bg-neutral-900/95 border border-neutral-800 p-4 rounded-2xl shadow-lg backdrop-blur w-56 flex flex-col gap-2 z-20 pointer-events-auto">
               <div className="text-[9px] font-mono font-bold tracking-widest text-amber-500 uppercase">
                 Live Standings
               </div>
