@@ -229,6 +229,22 @@ router.post('/courses/:id/bookmark', async (req: Request, res: Response) => {
     if (courseRes.rows.length === 0) return res.status(404).json({ error: 'Course not found.' });
 
     const isOwner = courseRes.rows[0].creator.toLowerCase() === username.toLowerCase();
+
+    // Free plan users can only have their own published courses in their saved list.
+    if (!isOwner) {
+      const subRes = await pool.query(
+        'SELECT subscription_status FROM users WHERE LOWER(username) = LOWER($1)',
+        [username]
+      );
+      const isPlatinum = ['active', 'trialing'].includes(subRes.rows[0]?.subscription_status ?? '');
+      if (!isPlatinum) {
+        return res.status(403).json({
+          error: 'platinum_required',
+          message: 'Saving courses from the workshop is a Platinum feature. Upgrade to bookmark any course.',
+        });
+      }
+    }
+
     const existing = await pool.query(
       'SELECT 1 FROM course_bookmarks WHERE course_id = $1 AND username = $2',
       [courseId, username]

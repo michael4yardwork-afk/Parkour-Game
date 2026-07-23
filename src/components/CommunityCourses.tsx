@@ -8,6 +8,8 @@ interface CommunityCoursesProps {
   onSelectLevel: (level: LevelConfig) => void;
   currentUser: UserAccount;
   onViewProfile: (username: string) => void;
+  isPlatinum: boolean;
+  onUpgrade?: () => void;
 }
 
 const formatWR = (seconds: number): string => {
@@ -18,7 +20,7 @@ const formatWR = (seconds: number): string => {
   return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${ms.toString().padStart(3, '0')}s`;
 };
 
-export default function CommunityCourses({ onSelectLevel, currentUser, onViewProfile }: CommunityCoursesProps) {
+export default function CommunityCourses({ onSelectLevel, currentUser, onViewProfile, isPlatinum, onUpgrade }: CommunityCoursesProps) {
   const [courses, setCourses] = useState<LevelConfig[]>([]);
   const [likedIds, setLikedIds] = useState<string[]>([]);
   const [savedLevelIds, setSavedLevelIds] = useState<string[]>([]);
@@ -103,6 +105,13 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
       return;
     }
 
+    // Free plan users cannot save others' courses.
+    if (!isOwner && !isPlatinum) {
+      if (onUpgrade) onUpgrade();
+      else alert('Saving workshop courses is a Platinum feature. Upgrade to bookmark any course.');
+      return;
+    }
+
     try {
       const { bookmarked } = await api.community.toggleBookmark(level.id);
       if (bookmarked) {
@@ -116,7 +125,12 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
       }
     } catch (e: any) {
       console.error('Failed to toggle bookmark:', e);
-      alert(e.message || 'Failed to update bookmark.');
+      if (e.message === 'platinum_required') {
+        if (onUpgrade) onUpgrade();
+        else alert('Saving workshop courses is a Platinum feature. Upgrade to bookmark any course.');
+      } else {
+        alert(e.message || 'Failed to update bookmark.');
+      }
     }
   };
 
@@ -238,15 +252,25 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
                   </span>
                   
                   <div className="flex items-center gap-1.5 select-none">
-                    <button
-                      onClick={(e) => handleSaveCourse(course, e)}
-                      className={`p-2 rounded-xl border transition cursor-pointer flex items-center justify-center ${
-                        isBookmarked ? 'bg-amber-50 text-amber-600 border-amber-200/50' : 'bg-neutral-50 border-neutral-150 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100'
-                      }`}
-                      title={isBookmarked ? 'Remove course from saved list' : 'Bookmark to My Saved Courses'}
-                    >
-                      {isBookmarked ? <BookmarkCheck className="w-4 h-4 fill-current" /> : <Bookmark className="w-4 h-4" />}
-                    </button>
+                    {(isOurOwn || isPlatinum) ? (
+                      <button
+                        onClick={(e) => handleSaveCourse(course, e)}
+                        className={`p-2 rounded-xl border transition cursor-pointer flex items-center justify-center ${
+                          isBookmarked ? 'bg-amber-50 text-amber-600 border-amber-200/50' : 'bg-neutral-50 border-neutral-150 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100'
+                        }`}
+                        title={isBookmarked ? 'Remove course from saved list' : 'Bookmark to My Saved Courses'}
+                      >
+                        {isBookmarked ? <BookmarkCheck className="w-4 h-4 fill-current" /> : <Bookmark className="w-4 h-4" />}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); if (onUpgrade) onUpgrade(); else alert('Saving workshop courses is a Platinum feature.'); }}
+                        className="p-2 rounded-xl border border-neutral-150 bg-neutral-50 text-neutral-300 cursor-pointer flex items-center justify-center"
+                        title="Platinum feature — upgrade to save courses"
+                      >
+                        <Bookmark className="w-4 h-4" />
+                      </button>
+                    )}
 
                     <button
                       onClick={(e) => handleLike(course, e)}

@@ -834,6 +834,8 @@ export default function App() {
             onSelectLevel={handleSelectLevel}
             currentUser={currentUser}
             onViewProfile={handleViewProfile}
+            isPlatinum={isPlatinum}
+            onUpgrade={() => setTab('account')}
           />
         )}
 
