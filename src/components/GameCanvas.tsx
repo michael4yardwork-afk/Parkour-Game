@@ -2085,23 +2085,24 @@ export default function GameCanvas({
         const overlapY = Math.min(py + playerHeight - minY, maxY - py);
         const overlapZ = Math.min(pz + playerRadius - minZ, maxZ - (pz - playerRadius));
 
-        // "Ridge" fix: when the player's feet are within playerRadius of the block's
-        // top surface this is a floor or landing contact. Bias the Y overlap so it
-        // wins over any thin X/Z edge sliver, preventing a false wall collision that
-        // would kill horizontal velocity mid-run near a block edge.
+        // Floor-priority bias: when the player's feet are within one player-radius
+        // of the block's top surface, subtract that radius from the effective Y
+        // overlap used in axis comparisons.  The result (biasedOverlapY) is zero or
+        // negative, which is always ≤ any positive X/Z overlap — guaranteeing the
+        // floor branch fires instead of a false wall collision.
+        //
+        // The previous implementation added floorBias to overlapY (making it larger),
+        // which had the opposite effect: a larger Y value is *harder* to win the
+        // minimum-overlap test, so thin edge slivers still beat it and triggered the
+        // momentum-killing wall branches.  Subtracting instead fixes the direction.
         const distToBlockTop = maxY - py;
         const floorBias = (distToBlockTop >= 0 && distToBlockTop < playerRadius) ? playerRadius : 0;
+        const biasedOverlapY = overlapY - floorBias;
 
         // Push player outside of block on the shallowest intersection axis.
-        //
-        // Branch selection uses overlapY + floorBias so that a floor/landing collision
-        // beats a thin horizontal sliver (the classic "ridge snag" fix).  However, the
-        // floorBias inflates overlapY, which can make NEITHER Y nor X/Z win the first
-        // two checks — that ambiguous case is the "walking off the edge" bug: the old
-        // unconditional else defaulted to Z resolution, snapping position and zeroing
-        // Z velocity mid-run.  The fourth `else` branch below catches that case and
-        // resolves it as a floor contact, preserving horizontal momentum.
-        if (overlapY + floorBias <= overlapX && overlapY + floorBias <= overlapZ) {
+        // All comparisons use biasedOverlapY so near-floor contacts always beat
+        // thin horizontal slivers (the "invisible ridge" fix).
+        if (biasedOverlapY <= overlapX && biasedOverlapY <= overlapZ) {
           // ── Floor / ceiling collision ────────────────────────────────────────
           const isFallingOrDescending = playerVel.current.y <= 0.05;
           if (isFallingOrDescending || py + playerRadius > (minY + maxY) / 2) {
@@ -2121,7 +2122,7 @@ export default function GameCanvas({
             playerPos.current.y = minY - playerHeight;
             playerVel.current.y = Math.min(0, playerVel.current.y);
           }
-        } else if (overlapX < overlapY && overlapX < overlapZ) {
+        } else if (overlapX < biasedOverlapY && overlapX < overlapZ) {
           // ── Lateral X wall collision ─────────────────────────────────────────
           if (px < (minX + maxX) / 2) {
             playerPos.current.x = minX - playerRadius;
@@ -2140,8 +2141,8 @@ export default function GameCanvas({
               blockId: block.id
             };
           }
-        } else if (overlapZ < overlapY) {
-          // ── Longitudinal Z wall collision (only when Z is the genuine minimum) ─
+        } else if (overlapZ < biasedOverlapY && overlapZ < overlapX) {
+          // ── Longitudinal Z wall collision ─────────────────────────────────────
           if (pz < (minZ + maxZ) / 2) {
             playerPos.current.z = minZ - playerRadius;
           } else {
@@ -2159,13 +2160,10 @@ export default function GameCanvas({
             };
           }
         } else {
-          // ── Edge-walk fallback ───────────────────────────────────────────────
-          // Reaches here when floorBias inflated overlapY past the horizontal
-          // slivers (overlapY + floorBias > overlapX/Z) AND neither X nor Z is
-          // the raw minimum (overlapX >= overlapY, overlapZ >= overlapY).
-          // Concretely: player feet are at maxY (overlapY ≈ 0) with a thin
-          // capsule-edge sliver hanging over the block corner.  Treat this as a
-          // floor contact — don't touch horizontal velocity.
+          // ── Corner / edge-walk fallback ──────────────────────────────────────
+          // Neither wall axis is a genuine minimum over the biased Y (e.g. the
+          // player is at a block corner with equal X/Z slivers, or floorBias drove
+          // biasedOverlapY negative).  Resolve as floor to preserve momentum.
           const isFallingOrDescending = playerVel.current.y <= 0.05;
           if (isFallingOrDescending || py + playerRadius > (minY + maxY) / 2) {
             playerPos.current.y = maxY;
