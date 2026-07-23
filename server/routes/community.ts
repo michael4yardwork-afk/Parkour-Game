@@ -1,19 +1,10 @@
 import { Router, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import pool from '../db';
+import { getVerifiedToken } from '../authIdentity';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'delta-rush-secret-key-change-in-production';
-
 function getAuth(req: Request): string | null {
-  const auth = req.headers.authorization;
-  if (!auth) return null;
-  try {
-    const decoded: any = jwt.verify(auth.replace('Bearer ', ''), JWT_SECRET);
-    return decoded.username;
-  } catch {
-    return null;
-  }
+  return getVerifiedToken(req)?.username ?? null;
 }
 
 router.get('/courses', async (req: Request, res: Response) => {

@@ -1,32 +1,18 @@
 import { Router, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import pool from '../db';
 import { getStripeClient, isStripeConfigured, getPriceId } from '../stripe';
+import { getAuthenticatedAccount } from '../authIdentity';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'delta-rush-secret-key-change-in-production';
-
-function getAuth(req: Request): string | null {
-  const auth = req.headers.authorization;
-  if (!auth) return null;
-  try {
-    const decoded: any = jwt.verify(auth.replace('Bearer ', ''), JWT_SECRET);
-    return decoded.username;
-  } catch {
-    return null;
-  }
-}
-
-// Where to send the browser back to after Stripe Checkout. In development
-// this is the Vite dev server origin; in production it's the app's own
-// origin, so we just use the request's own Origin/Referer header.
+// Where to send the browser back to after Stripe Checkout. Never trust
+// browser-supplied Origin/Referer values for payment redirects.
 function appOrigin(req: Request): string {
-  const origin = req.headers.origin || req.headers.referer;
-  if (typeof origin === 'string' && origin) {
+  const configured = process.env.APP_URL;
+  if (configured) {
     try {
-      return new URL(origin).origin;
+      return new URL(configured).origin;
     } catch {
-      // fall through
+      // Ignore an invalid configured URL and use the current request host.
     }
   }
   return `${req.protocol}://${req.get('host')}`;
@@ -45,8 +31,8 @@ router.post('/checkout', async (req: Request, res: Response) => {
       return res.status(503).json({ error: 'Payments are not configured yet.' });
     }
 
-    const username = getAuth(req);
-    if (!username) return res.status(401).json({ error: 'Unauthorized.' });
+    const account = await getAuthenticatedAccount(req);
+    if (!account) return res.status(401).json({ error: 'Unauthorized.' });
 
     const { cycle } = req.body as { cycle?: 'monthly' | 'yearly' };
     if (cycle !== 'monthly' && cycle !== 'yearly') {
@@ -56,21 +42,50 @@ router.post('/checkout', async (req: Request, res: Response) => {
     const stripe = getStripeClient();
 
     const userRes = await pool.query(
-      'SELECT id, username, stripe_customer_id FROM users WHERE LOWER(username) = LOWER($1)',
-      [username]
+      `SELECT id, username, email, stripe_customer_id
+              , subscription_status
+       FROM users
+       WHERE id = $1`,
+      [account.id]
     );
     if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found.' });
     const user = userRes.rows[0];
+
+    if (['active', 'trialing', 'past_due', 'incomplete'].includes(user.subscription_status)) {
+      return res.status(409).json({ error: 'This account already has a billing subscription.' });
+    }
 
     let customerId = user.stripe_customer_id as string | null;
     if (!customerId) {
       const customer = await stripe.customers.create({
         name: user.username,
-        metadata: { username: user.username },
+        email: user.email || undefined,
+        metadata: { userId: String(user.id), username: user.username },
       });
       customerId = customer.id;
-      await pool.query('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [customerId, user.id]);
+      try {
+        const saved = await pool.query(
+          `UPDATE users
+           SET stripe_customer_id = $1
+           WHERE id = $2 AND stripe_customer_id IS NULL
+           RETURNING stripe_customer_id`,
+          [customerId, user.id]
+        );
+        if (saved.rows.length === 0) {
+          customerId = user.stripe_customer_id;
+        }
+      } catch (saveError: any) {
+        // A concurrent checkout may have won the unique customer claim.
+        if (saveError?.code !== '23505') throw saveError;
+        const current = await pool.query(
+          'SELECT stripe_customer_id FROM users WHERE id = $1',
+          [user.id]
+        );
+        customerId = current.rows[0]?.stripe_customer_id;
+      }
     }
+
+    if (!customerId) return res.status(409).json({ error: 'Could not assign a payment account. Please try again.' });
 
     const origin = appOrigin(req);
     const session = await stripe.checkout.sessions.create({
@@ -79,9 +94,9 @@ router.post('/checkout', async (req: Request, res: Response) => {
       line_items: [{ price: getPriceId(cycle), quantity: 1 }],
       success_url: `${origin}/?checkout=success`,
       cancel_url: `${origin}/?checkout=cancelled`,
-      client_reference_id: user.username,
-      metadata: { username: user.username, cycle },
-      subscription_data: { metadata: { username: user.username, cycle } },
+      client_reference_id: String(user.id),
+      metadata: { userId: String(user.id), username: user.username, cycle },
+      subscription_data: { metadata: { userId: String(user.id), username: user.username, cycle } },
     });
 
     res.json({ url: session.url });
@@ -98,13 +113,13 @@ router.post('/checkout', async (req: Request, res: Response) => {
  */
 router.get('/status', async (req: Request, res: Response) => {
   try {
-    const username = getAuth(req);
-    if (!username) return res.status(401).json({ error: 'Unauthorized.' });
+    const account = await getAuthenticatedAccount(req);
+    if (!account) return res.status(401).json({ error: 'Unauthorized.' });
 
     const result = await pool.query(
       `SELECT subscription_status, subscription_plan, subscription_current_period_end
-       FROM users WHERE LOWER(username) = LOWER($1)`,
-      [username]
+       FROM users WHERE id = $1`,
+      [account.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found.' });
 
@@ -118,6 +133,44 @@ router.get('/status', async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+/**
+ * GET /api/billing/history
+ * Returns only lifecycle/payment records owned by the authenticated account.
+ */
+router.get('/history', async (req: Request, res: Response) => {
+  try {
+    const account = await getAuthenticatedAccount(req);
+    if (!account) return res.status(401).json({ error: 'Unauthorized.' });
+
+    const result = await pool.query(
+      `SELECT id, plan, amount_cents, currency, event_type,
+              subscription_status, period_start, period_end, recorded_at
+       FROM platinum_purchases
+       WHERE user_id = $1
+       ORDER BY recorded_at DESC
+       LIMIT 100`,
+      [account.id]
+    );
+
+    res.json({
+      history: result.rows.map(row => ({
+        id: row.id,
+        plan: row.plan,
+        amountCents: row.amount_cents,
+        currency: row.currency,
+        eventType: row.event_type,
+        subscriptionStatus: row.subscription_status,
+        periodStart: row.period_start ? Number(row.period_start) : null,
+        periodEnd: row.period_end ? Number(row.period_end) : null,
+        recordedAt: Number(row.recorded_at),
+      })),
+    });
+  } catch (err) {
+    console.error('Billing history error:', err);
     res.status(500).json({ error: 'Server error.' });
   }
 });

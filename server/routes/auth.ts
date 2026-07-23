@@ -1,11 +1,10 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import pool from '../db';
 import { supabaseAdmin } from '../supabase';
+import { getAuthenticatedAccount, signAuthToken } from '../authIdentity';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'delta-rush-secret-key-change-in-production';
 
 router.get('/check-username', async (req: Request, res: Response) => {
   const { username } = req.query;
@@ -87,7 +86,7 @@ router.post('/signup', async (req: Request, res: Response) => {
     );
 
     const user = result.rows[0];
-    const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+    const token = signAuthToken({ id: user.id, username: user.username });
 
     res.json({
       token,
@@ -142,7 +141,7 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
-    const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+    const token = signAuthToken({ id: user.id, username: user.username });
 
     res.json({
       token,
@@ -202,17 +201,10 @@ router.get('/users', async (_req: Request, res: Response) => {
 
 router.patch('/user/:username', async (req: Request, res: Response) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'Unauthorized.' });
-    const token = authHeader.replace('Bearer ', '');
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, JWT_SECRET);
-    } catch {
-      return res.status(401).json({ error: 'Invalid token.' });
-    }
+    const account = await getAuthenticatedAccount(req);
+    if (!account) return res.status(401).json({ error: 'Invalid token.' });
 
-    if (decoded.username.toLowerCase() !== req.params.username.toLowerCase()) {
+    if (account.username.toLowerCase() !== req.params.username.toLowerCase()) {
       return res.status(403).json({ error: 'Forbidden.' });
     }
 

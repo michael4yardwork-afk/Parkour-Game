@@ -8,9 +8,9 @@ const router = Router();
 /**
  * Applies a subscription's current status/plan/period-end to the user it
  * belongs to (matched by Stripe customer id).
- * Returns the username so callers can record purchase history.
+ * Returns the immutable account identity so purchase history stays account-scoped.
  */
-async function syncSubscription(subscription: Stripe.Subscription): Promise<string | null> {
+async function syncSubscription(subscription: Stripe.Subscription): Promise<{ id: number; username: string } | null> {
   const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
   const plan = (subscription.metadata?.cycle as string) || null;
   const periodEndItem = subscription.items.data[0];
@@ -25,11 +25,11 @@ async function syncSubscription(subscription: Stripe.Subscription): Promise<stri
          subscription_plan = COALESCE($3, subscription_plan),
          subscription_current_period_end = $4
      WHERE stripe_customer_id = $5
-     RETURNING username`,
+     RETURNING id, username`,
     [subscription.id, subscription.status, plan, currentPeriodEnd, customerId]
   );
 
-  return result.rows[0]?.username ?? null;
+  return result.rows[0] ?? null;
 }
 
 /**
@@ -38,6 +38,7 @@ async function syncSubscription(subscription: Stripe.Subscription): Promise<stri
  */
 async function recordPurchaseEvent(opts: {
   id: string;
+  userId: number;
   username: string;
   subscription: Stripe.Subscription;
   eventType: string;
@@ -45,7 +46,7 @@ async function recordPurchaseEvent(opts: {
   amountCents?: number | null;
   currency?: string | null;
 }) {
-  const { id, username, subscription, eventType, invoiceId, amountCents, currency } = opts;
+  const { id, userId, username, subscription, eventType, invoiceId, amountCents, currency } = opts;
   const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
   const plan = (subscription.metadata?.cycle as string) || null;
   const periodEndItem = subscription.items.data[0];
@@ -59,13 +60,14 @@ async function recordPurchaseEvent(opts: {
 
   await pool.query(
     `INSERT INTO platinum_purchases
-       (id, username, stripe_subscription_id, stripe_customer_id, stripe_invoice_id,
+       (id, user_id, username, stripe_subscription_id, stripe_customer_id, stripe_invoice_id,
         plan, amount_cents, currency, event_type, subscription_status,
         period_start, period_end, recorded_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      ON CONFLICT (id) DO NOTHING`,
     [
       id,
+      userId,
       username,
       subscription.id,
       customerId,
@@ -114,11 +116,12 @@ router.post('/', async (req: Request, res: Response) => {
           const subscriptionId =
             typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const username = await syncSubscription(subscription);
-          if (username) {
+          const account = await syncSubscription(subscription);
+          if (account) {
             await recordPurchaseEvent({
               id: `checkout_${event.id}`,
-              username,
+              userId: account.id,
+              username: account.username,
               subscription,
               eventType: 'checkout_completed',
               invoiceId: typeof session.invoice === 'string' ? session.invoice : session.invoice?.id ?? null,
@@ -132,11 +135,12 @@ router.post('/', async (req: Request, res: Response) => {
 
       case 'customer.subscription.created': {
         const subscription = event.data.object as Stripe.Subscription;
-        const username = await syncSubscription(subscription);
-        if (username) {
+        const account = await syncSubscription(subscription);
+        if (account) {
           await recordPurchaseEvent({
             id: `sub_created_${event.id}`,
-            username,
+            userId: account.id,
+            username: account.username,
             subscription,
             eventType: 'subscription_created',
           });
@@ -146,11 +150,12 @@ router.post('/', async (req: Request, res: Response) => {
 
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
-        const username = await syncSubscription(subscription);
-        if (username) {
+        const account = await syncSubscription(subscription);
+        if (account) {
           await recordPurchaseEvent({
             id: `sub_updated_${event.id}`,
-            username,
+            userId: account.id,
+            username: account.username,
             subscription,
             eventType: 'subscription_updated',
           });
@@ -160,11 +165,12 @@ router.post('/', async (req: Request, res: Response) => {
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
-        const username = await syncSubscription(subscription);
-        if (username) {
+        const account = await syncSubscription(subscription);
+        if (account) {
           await recordPurchaseEvent({
             id: `sub_deleted_${event.id}`,
-            username,
+            userId: account.id,
+            username: account.username,
             subscription,
             eventType: 'subscription_cancelled',
           });
@@ -180,11 +186,12 @@ router.post('/', async (req: Request, res: Response) => {
           const subscriptionId =
             typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription.id;
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const username = await syncSubscription(subscription);
-          if (username) {
+          const account = await syncSubscription(subscription);
+          if (account) {
             await recordPurchaseEvent({
               id: `renewal_${event.id}`,
-              username,
+              userId: account.id,
+              username: account.username,
               subscription,
               eventType: 'subscription_renewed',
               invoiceId: invoice.id,

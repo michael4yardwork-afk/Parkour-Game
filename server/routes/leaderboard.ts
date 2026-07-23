@@ -1,19 +1,10 @@
 import { Router, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import pool from '../db';
+import { getVerifiedToken } from '../authIdentity';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'delta-rush-secret-key-change-in-production';
-
 function getAuth(req: Request): string | null {
-  const auth = req.headers.authorization;
-  if (!auth) return null;
-  try {
-    const decoded: any = jwt.verify(auth.replace('Bearer ', ''), JWT_SECRET);
-    return decoded.username;
-  } catch {
-    return null;
-  }
+  return getVerifiedToken(req)?.username ?? null;
 }
 
 router.get('/:levelId', async (req: Request, res: Response) => {
@@ -66,12 +57,10 @@ router.post('/:levelId', async (req: Request, res: Response) => {
     const { time, date, device, speeds, frames, isNewPb } = req.body;
 
     if (!username) {
-      console.warn(`[leaderboard] Rejected submit for level="${levelId}": missing/invalid auth token. hasAuthHeader=${!!req.headers.authorization}`);
       return res.status(401).json({ error: 'Unauthorized.' });
     }
 
     if (!time || time <= 0.05) {
-      console.warn(`[leaderboard] Rejected submit for level="${levelId}" user="${username}": invalid time value=${JSON.stringify(time)}`);
       return res.status(400).json({ error: 'Invalid run time.' });
     }
 

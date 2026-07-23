@@ -135,6 +135,7 @@ export async function initDb() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS platinum_purchases (
       id                    TEXT PRIMARY KEY,
+      user_id               INTEGER REFERENCES users(id),
       username              TEXT NOT NULL,
       stripe_subscription_id TEXT,
       stripe_customer_id    TEXT,
@@ -152,6 +153,27 @@ export async function initDb() {
       ON platinum_purchases(username);
     CREATE INDEX IF NOT EXISTS idx_platinum_purchases_subscription
       ON platinum_purchases(stripe_subscription_id);
+  `);
+
+  // Bind legacy billing records to immutable account IDs. Rows whose old
+  // username no longer maps to an account remain unexposed rather than being
+  // guessed or assigned to another account.
+  await pool.query(`
+    ALTER TABLE platinum_purchases
+      ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id);
+
+    UPDATE platinum_purchases p
+    SET user_id = u.id
+    FROM users u
+    WHERE p.user_id IS NULL
+      AND LOWER(p.username) = LOWER(u.username);
+
+    CREATE INDEX IF NOT EXISTS idx_platinum_purchases_user_id
+      ON platinum_purchases(user_id);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_stripe_customer_id_unique
+      ON users(stripe_customer_id)
+      WHERE stripe_customer_id IS NOT NULL;
   `);
 
   // Retroactively enforce the 1-course publish limit for non-platinum users.

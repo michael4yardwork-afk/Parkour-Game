@@ -107,7 +107,7 @@ try {
       originalSet.call(this, finalKey, value);
     } catch (e: any) {
       if (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-        console.warn(`Storage quota exceeded for key: ${finalKey}. Attempting to free space...`);
+        console.warn('Storage quota exceeded. Attempting to free space...');
         
         // Try to clear some old ghost replays
         const freedSome = freeStorageSpace(value.length, finalKey);
@@ -145,7 +145,7 @@ try {
         }
 
         // Handle case where we still exceed quota (swallow error gracefully to prevent crash)
-        console.error(`Failed to execute 'setItem' on 'Storage': ${finalKey} could not be saved due to quota limit.`);
+        console.error("Failed to save storage item due to quota limit.");
       } else {
         throw e;
       }

@@ -282,6 +282,22 @@ export const api = {
 
     async getStatus(): Promise<{ isPlatinum: boolean; status: string | null; plan: string | null; currentPeriodEnd: number | null }> {
       return apiFetch('/billing/status');
+    },
+
+    async getHistory(): Promise<{
+      history: Array<{
+        id: string;
+        plan: string | null;
+        amountCents: number | null;
+        currency: string | null;
+        eventType: string;
+        subscriptionStatus: string | null;
+        periodStart: number | null;
+        periodEnd: number | null;
+        recordedAt: number;
+      }>;
+    }> {
+      return apiFetch('/billing/history');
     }
   }
 };
