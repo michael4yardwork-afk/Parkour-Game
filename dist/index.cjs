@@ -78042,6 +78042,25 @@ function getPriceId(cycle) {
   return id;
 }
 
+// server/billingEntitlements.ts
+async function syncSubscriptionEntitlement(subscription) {
+  const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
+  const plan = subscription.metadata?.cycle || null;
+  const periodEndItem = subscription.items.data[0];
+  const currentPeriodEnd = periodEndItem?.current_period_end ? periodEndItem.current_period_end * 1e3 : null;
+  const result = await db_default.query(
+    `UPDATE users
+     SET stripe_subscription_id = $1,
+         subscription_status = $2,
+         subscription_plan = COALESCE($3, subscription_plan),
+         subscription_current_period_end = $4
+     WHERE stripe_customer_id = $5
+     RETURNING id, username`,
+    [subscription.id, subscription.status, plan, currentPeriodEnd, customerId]
+  );
+  return result.rows[0] ?? null;
+}
+
 // server/routes/billing.ts
 var router5 = (0, import_express5.Router)();
 function appOrigin(req) {
@@ -78112,7 +78131,7 @@ router5.post("/checkout", async (req, res) => {
       mode: "subscription",
       customer: customerId,
       line_items: [{ price: getPriceId(cycle), quantity: 1 }],
-      success_url: `${origin}/?checkout=success`,
+      success_url: `${origin}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/?checkout=cancelled`,
       client_reference_id: String(user.id),
       metadata: { userId: String(user.id), username: user.username, cycle },
@@ -78124,10 +78143,77 @@ router5.post("/checkout", async (req, res) => {
     res.status(500).json({ error: err.message || "Server error." });
   }
 });
+router5.get("/checkout/confirm", async (req, res) => {
+  try {
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ error: "Payments are not configured yet." });
+    }
+    const account = await getAuthenticatedAccount(req);
+    if (!account) return res.status(401).json({ error: "Unauthorized." });
+    const sessionId = typeof req.query.session_id === "string" ? req.query.session_id : "";
+    if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId)) {
+      return res.status(400).json({ error: "Invalid checkout session." });
+    }
+    const stripe = getStripeClient();
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const sessionCustomerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+    const owner = await db_default.query(
+      "SELECT id, stripe_customer_id FROM users WHERE id = $1",
+      [account.id]
+    );
+    if (owner.rows.length === 0 || !owner.rows[0].stripe_customer_id || owner.rows[0].stripe_customer_id !== sessionCustomerId) {
+      return res.status(403).json({ error: "Checkout session does not belong to this account." });
+    }
+    if (session.mode !== "subscription" || session.status !== "complete" || !session.subscription) {
+      return res.status(409).json({ error: "Checkout has not completed." });
+    }
+    const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const syncedAccount = await syncSubscriptionEntitlement(subscription);
+    if (!syncedAccount || syncedAccount.id !== account.id) {
+      return res.status(409).json({ error: "Subscription ownership could not be confirmed." });
+    }
+    res.json({
+      confirmed: true,
+      isPlatinum: subscription.status === "active" || subscription.status === "trialing",
+      status: subscription.status,
+      plan: subscription.metadata?.cycle || null,
+      currentPeriodEnd: subscription.items.data[0]?.current_period_end ? subscription.items.data[0].current_period_end * 1e3 : null
+    });
+  } catch (err) {
+    console.error("Checkout confirmation error:", err);
+    res.status(500).json({ error: "Could not confirm checkout." });
+  }
+});
 router5.get("/status", async (req, res) => {
   try {
     const account = await getAuthenticatedAccount(req);
     if (!account) return res.status(401).json({ error: "Unauthorized." });
+    const billingIdentity = await db_default.query(
+      `SELECT stripe_customer_id
+       FROM users
+       WHERE id = $1`,
+      [account.id]
+    );
+    const customerId = billingIdentity.rows[0]?.stripe_customer_id;
+    if (customerId && isStripeConfigured()) {
+      try {
+        const stripe = getStripeClient();
+        const subscriptions = await stripe.subscriptions.list({
+          customer: customerId,
+          status: "all",
+          limit: 10
+        });
+        const currentSubscription = subscriptions.data.find(
+          (subscription) => subscription.status === "active" || subscription.status === "trialing"
+        ) ?? subscriptions.data[0];
+        if (currentSubscription) {
+          await syncSubscriptionEntitlement(currentSubscription);
+        }
+      } catch (reconcileError) {
+        console.error("Billing reconciliation error:", reconcileError);
+      }
+    }
     const result = await db_default.query(
       `SELECT subscription_status, subscription_plan, subscription_current_period_end
        FROM users WHERE id = $1`,
@@ -78183,23 +78269,6 @@ var billing_default = router5;
 // server/routes/stripeWebhook.ts
 var import_express6 = __toESM(require_express2(), 1);
 var router6 = (0, import_express6.Router)();
-async function syncSubscription(subscription) {
-  const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
-  const plan = subscription.metadata?.cycle || null;
-  const periodEndItem = subscription.items.data[0];
-  const currentPeriodEnd = periodEndItem?.current_period_end ? periodEndItem.current_period_end * 1e3 : null;
-  const result = await db_default.query(
-    `UPDATE users
-     SET stripe_subscription_id = $1,
-         subscription_status = $2,
-         subscription_plan = COALESCE($3, subscription_plan),
-         subscription_current_period_end = $4
-     WHERE stripe_customer_id = $5
-     RETURNING id, username`,
-    [subscription.id, subscription.status, plan, currentPeriodEnd, customerId]
-  );
-  return result.rows[0] ?? null;
-}
 async function recordPurchaseEvent(opts) {
   const { id, userId, username, subscription, eventType, invoiceId, amountCents, currency } = opts;
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
@@ -78256,7 +78325,7 @@ router6.post("/", async (req, res) => {
           const stripe = getStripeClient();
           const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const account = await syncSubscription(subscription);
+          const account = await syncSubscriptionEntitlement(subscription);
           if (account) {
             await recordPurchaseEvent({
               id: `checkout_${event.id}`,
@@ -78274,7 +78343,7 @@ router6.post("/", async (req, res) => {
       }
       case "customer.subscription.created": {
         const subscription = event.data.object;
-        const account = await syncSubscription(subscription);
+        const account = await syncSubscriptionEntitlement(subscription);
         if (account) {
           await recordPurchaseEvent({
             id: `sub_created_${event.id}`,
@@ -78288,7 +78357,7 @@ router6.post("/", async (req, res) => {
       }
       case "customer.subscription.updated": {
         const subscription = event.data.object;
-        const account = await syncSubscription(subscription);
+        const account = await syncSubscriptionEntitlement(subscription);
         if (account) {
           await recordPurchaseEvent({
             id: `sub_updated_${event.id}`,
@@ -78302,7 +78371,7 @@ router6.post("/", async (req, res) => {
       }
       case "customer.subscription.deleted": {
         const subscription = event.data.object;
-        const account = await syncSubscription(subscription);
+        const account = await syncSubscriptionEntitlement(subscription);
         if (account) {
           await recordPurchaseEvent({
             id: `sub_deleted_${event.id}`,
@@ -78320,7 +78389,7 @@ router6.post("/", async (req, res) => {
           const stripe = getStripeClient();
           const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription.id;
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const account = await syncSubscription(subscription);
+          const account = await syncSubscriptionEntitlement(subscription);
           if (account) {
             await recordPurchaseEvent({
               id: `renewal_${event.id}`,

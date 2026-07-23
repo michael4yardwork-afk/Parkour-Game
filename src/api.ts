@@ -280,6 +280,16 @@ export const api = {
       });
     },
 
+    async confirmCheckout(sessionId: string): Promise<{
+      confirmed: boolean;
+      isPlatinum: boolean;
+      status: string;
+      plan: string | null;
+      currentPeriodEnd: number | null;
+    }> {
+      return apiFetch(`/billing/checkout/confirm?session_id=${encodeURIComponent(sessionId)}`);
+    },
+
     async getStatus(): Promise<{ isPlatinum: boolean; status: string | null; plan: string | null; currentPeriodEnd: number | null }> {
       return apiFetch('/billing/status');
     },

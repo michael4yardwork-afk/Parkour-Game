@@ -434,20 +434,42 @@ export default function App() {
     // a brief notice, then clean the URL so refreshing doesn't repeat it.
     const params = new URLSearchParams(window.location.search);
     const checkout = params.get('checkout');
+    const checkoutSessionId = params.get('session_id');
     if (checkout === 'success' || checkout === 'cancelled') {
       setCheckoutNotice(checkout);
       setTab('upgrade');
       params.delete('checkout');
+      params.delete('session_id');
       const newSearch = params.toString();
       window.history.replaceState({}, '', window.location.pathname + (newSearch ? `?${newSearch}` : ''));
       const timer = setTimeout(() => setCheckoutNotice(null), 8000);
       if (checkout === 'success') {
-        // Stripe webhooks can take a few seconds — poll billing status at 2 s,
-        // 5 s, and 10 s so the UI reliably reflects platinum once the webhook lands.
+        let cancelled = false;
+        const confirmAndRefresh = async () => {
+          if (checkoutSessionId) {
+            try {
+              await api.billing.confirmCheckout(checkoutSessionId);
+            } catch {
+              // The webhook may still be processing; status polling below
+              // remains the fallback and never trusts the redirect by itself.
+            }
+          }
+          if (!cancelled) setBillingRefreshKey(k => k + 1);
+        };
+        void confirmAndRefresh();
+
+        // Stripe webhooks can take a few seconds. Keep polling status after
+        // the server-side session confirmation attempt.
         const t1 = setTimeout(() => setBillingRefreshKey(k => k + 1), 2000);
         const t2 = setTimeout(() => setBillingRefreshKey(k => k + 1), 5000);
         const t3 = setTimeout(() => setBillingRefreshKey(k => k + 1), 10000);
-        return () => { clearTimeout(timer); clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+        return () => {
+          cancelled = true;
+          clearTimeout(timer);
+          clearTimeout(t1);
+          clearTimeout(t2);
+          clearTimeout(t3);
+        };
       }
       return () => clearTimeout(timer);
     }

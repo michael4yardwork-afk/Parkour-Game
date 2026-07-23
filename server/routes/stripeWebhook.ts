@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
 import pool from '../db';
 import { getStripeClient, isStripeConfigured } from '../stripe';
+import { syncSubscriptionEntitlement } from '../billingEntitlements';
 
 const router = Router();
 
@@ -10,28 +11,6 @@ const router = Router();
  * belongs to (matched by Stripe customer id).
  * Returns the immutable account identity so purchase history stays account-scoped.
  */
-async function syncSubscription(subscription: Stripe.Subscription): Promise<{ id: number; username: string } | null> {
-  const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
-  const plan = (subscription.metadata?.cycle as string) || null;
-  const periodEndItem = subscription.items.data[0];
-  const currentPeriodEnd = periodEndItem?.current_period_end
-    ? periodEndItem.current_period_end * 1000
-    : null;
-
-  const result = await pool.query(
-    `UPDATE users
-     SET stripe_subscription_id = $1,
-         subscription_status = $2,
-         subscription_plan = COALESCE($3, subscription_plan),
-         subscription_current_period_end = $4
-     WHERE stripe_customer_id = $5
-     RETURNING id, username`,
-    [subscription.id, subscription.status, plan, currentPeriodEnd, customerId]
-  );
-
-  return result.rows[0] ?? null;
-}
-
 /**
  * Records a single lifecycle event into platinum_purchases.
  * Uses ON CONFLICT DO NOTHING so replayed webhooks are idempotent.
@@ -116,7 +95,7 @@ router.post('/', async (req: Request, res: Response) => {
           const subscriptionId =
             typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const account = await syncSubscription(subscription);
+          const account = await syncSubscriptionEntitlement(subscription);
           if (account) {
             await recordPurchaseEvent({
               id: `checkout_${event.id}`,
@@ -135,7 +114,7 @@ router.post('/', async (req: Request, res: Response) => {
 
       case 'customer.subscription.created': {
         const subscription = event.data.object as Stripe.Subscription;
-        const account = await syncSubscription(subscription);
+        const account = await syncSubscriptionEntitlement(subscription);
         if (account) {
           await recordPurchaseEvent({
             id: `sub_created_${event.id}`,
@@ -150,7 +129,7 @@ router.post('/', async (req: Request, res: Response) => {
 
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
-        const account = await syncSubscription(subscription);
+        const account = await syncSubscriptionEntitlement(subscription);
         if (account) {
           await recordPurchaseEvent({
             id: `sub_updated_${event.id}`,
@@ -165,7 +144,7 @@ router.post('/', async (req: Request, res: Response) => {
 
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
-        const account = await syncSubscription(subscription);
+        const account = await syncSubscriptionEntitlement(subscription);
         if (account) {
           await recordPurchaseEvent({
             id: `sub_deleted_${event.id}`,
@@ -186,7 +165,7 @@ router.post('/', async (req: Request, res: Response) => {
           const subscriptionId =
             typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription.id;
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const account = await syncSubscription(subscription);
+          const account = await syncSubscriptionEntitlement(subscription);
           if (account) {
             await recordPurchaseEvent({
               id: `renewal_${event.id}`,
