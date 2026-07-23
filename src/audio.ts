@@ -32,7 +32,7 @@ class AudioSynth {
       osc.frequency.setValueAtTime(120, t);
       osc.frequency.exponentialRampToValueAtTime(320, t + 0.12);
 
-      gain.gain.setValueAtTime(0.2 * this.settings.sfxVolume, t);
+      gain.gain.setValueAtTime(0.1 * this.settings.sfxVolume, t);
       gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
 
       osc.connect(gain);
@@ -189,7 +189,7 @@ class AudioSynth {
       osc.frequency.setValueAtTime(150, t);
       osc.frequency.exponentialRampToValueAtTime(50, t + 0.3);
 
-      gain.gain.setValueAtTime(0.25 * this.settings.sfxVolume, t);
+      gain.gain.setValueAtTime(0.125 * this.settings.sfxVolume, t);
       gain.gain.exponentialRampToValueAtTime(0.01, t + 0.32);
 
       osc.connect(gain);
