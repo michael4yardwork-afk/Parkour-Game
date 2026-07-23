@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { RotateCcw, Award, CheckCircle, Flame, Compass, Clock, LogOut } from 'lucide-react';
+import { RotateCcw, Award, CheckCircle, Flame, Clock, LogOut } from 'lucide-react';
 
 const formatPercentile = (p: number): string => {
   if (p < 1) return p.toFixed(2);
@@ -119,9 +119,6 @@ export default function GameCanvas({
   // timestamp is anchored to a server-broadcast value so every racer's clock
   // reads the same elapsed time regardless of individual network latency.
   const raceStartWallTimeRef = useRef<number | null>(null);
-
-  // Pointer Lock details
-  const [isLocked, setIsLocked] = useState(false);
 
   // Race Countdown details
   const [raceCountdown, setRaceCountdown] = useState<number | null>(null);
@@ -1738,16 +1735,6 @@ export default function GameCanvas({
     }
   };
 
-  useEffect(() => {
-    const handleLockChange = () => {
-      setIsLocked(document.pointerLockElement === canvasRef.current);
-    };
-    document.addEventListener('pointerlockchange', handleLockChange);
-    return () => {
-      document.removeEventListener('pointerlockchange', handleLockChange);
-    };
-  }, []);
-
   // When a new ghost override is injected (user clicked "Race Ghost" from leaderboard),
   // restart the run from the top so they race the ghost from the start.
   const ghostOverrideRef = useRef(ghostOverride);
@@ -2624,51 +2611,6 @@ export default function GameCanvas({
               )}
             </motion.div>
           </AnimatePresence>
-        </div>
-      )}
-
-      {/* Pointer Lock Help Overlay for desktops (time trial only — races start immediately) */}
-      {!isLocked && !isCompleted && !isMobileRef.current && !raceMode && (
-        <div className="absolute inset-0 bg-neutral-950/75 backdrop-blur-sm flex flex-col justify-center items-center p-6 text-center z-25">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-sm shadow-2xl flex flex-col items-center">
-            <Compass className="w-12 h-12 text-indigo-500 mb-4 animate-pulse" />
-            <h2 className="text-xl font-extrabold text-neutral-50 tracking-tight">Time Trial Simulation</h2>
-            <p className="text-xs text-neutral-400 mt-2 leading-relaxed">
-              Click anywhere on screen to lock your cursor and steer the camera with your mouse. Use <b>WASD</b> to move.
-            </p>
-            
-            <div className="grid grid-cols-2 gap-2 w-full mt-6 text-[10px] font-mono text-neutral-400">
-              <div className="p-2.5 bg-neutral-950 border border-neutral-800 rounded-xl">
-                <span className="text-neutral-500 font-bold block mb-1">WASD</span>
-                Movement
-              </div>
-              <div className="p-2.5 bg-neutral-950 border border-neutral-800 rounded-xl">
-                <span className="text-neutral-500 font-bold block mb-1">SPACE</span>
-                Leap Jump
-              </div>
-              <div className="p-2.5 bg-neutral-950 border border-neutral-800 rounded-xl">
-                <span className="text-neutral-500 font-bold block mb-1">MOUSE</span>
-                Look Camera
-              </div>
-              <div className="p-2.5 bg-neutral-950 border border-neutral-800 rounded-xl">
-                <span className="text-neutral-500 font-bold block mb-1">R KEY</span>
-                Restart Run
-              </div>
-            </div>
-
-            <button 
-              onClick={() => canvasRef.current?.requestPointerLock()}
-              className="mt-6 w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-lg cursor-pointer"
-            >
-              Lock Cursor &amp; Play
-            </button>
-            <button
-              onClick={handleExitAttempt}
-              className="mt-3 text-xs text-neutral-500 hover:text-neutral-300 font-medium hover:underline"
-            >
-              Exit Course
-            </button>
-          </div>
         </div>
       )}
 
