@@ -966,18 +966,18 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
 
                   {/* Body — identical to CommunityCourses */}
                   <div>
-                    <h3 className="text-base font-black text-neutral-850 group-hover:text-indigo-650 transition-colors duration-150 leading-tight">
+                    <h3 className="text-base font-black text-neutral-850 group-hover:text-indigo-650 transition-colors duration-150 leading-tight break-words">
                       {course.name}
                     </h3>
 
-                    <div className="flex items-center gap-3 mt-4 text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-4 text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider min-w-0">
                       <div
                         onClick={(e) => { e.stopPropagation(); synths.playTick(); onViewProfile?.(isOurOwn ? currentUser.username : (course.creator || 'Runner')); }}
-                        className="flex items-center gap-1 text-teal-600 hover:text-indigo-600 hover:scale-[1.02] transition cursor-pointer underline decoration-dotted underline-offset-2"
+                        className="flex items-center gap-1 min-w-0 max-w-full text-teal-600 hover:text-indigo-600 hover:scale-[1.02] transition cursor-pointer underline decoration-dotted underline-offset-2"
                         title="View Athlete Profile"
                       >
                         <User className="w-3.5 h-3.5 shrink-0" />
-                        <span>{isOurOwn ? 'You' : course.creator || 'Runner'}</span>
+                        <span className="break-words">{isOurOwn ? 'You' : course.creator || 'Runner'}</span>
                       </div>
                       <span>•</span>
                       <div className="flex items-center gap-1.5">
