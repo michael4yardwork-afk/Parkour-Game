@@ -18,7 +18,7 @@ import SpotlightTutorial from './components/SpotlightTutorial';
 import PrivacyModal from './components/PrivacyModal';
 import { LevelConfig, GameSettings, UserAccount, RaceParticipant, CourseNotification, GhostFrame } from './types';
 import { synths } from './audio';
-import { api, flushPendingSubmissions } from './api';
+import { api, flushPendingSubmissions, queuePendingSubmission } from './api';
 import { DEFAULT_LEVELS } from './defaultLevels';
 
 
@@ -528,16 +528,49 @@ export default function App() {
 
   const DEMO_LEVEL = DEFAULT_LEVELS.find(l => l.id === 'tutorial_skyway') ?? DEFAULT_LEVELS[0];
 
-  const handleDemoLoginSuccess = async (user: UserAccount) => {
-    handleLoginSuccess(user);
-    // Submit the last demo run (if any) to the leaderboard
+  const handleDemoLoginSuccess = async (user: UserAccount, isNewAccount = false) => {
+    // Forward isNewAccount so new accounts created via the demo still see the
+    // tutorial spotlight, just like accounts created through the normal flow.
+    handleLoginSuccess(user, isNewAccount);
+
+    // Submit the demo run (if any) to the leaderboard now that we have a token.
     if (pendingDemoRunRef.current) {
       const { levelId, payload } = pendingDemoRunRef.current;
       pendingDemoRunRef.current = null;
       try {
-        await api.leaderboard.submit(levelId, { ...payload, isNewPb: true });
+        // Check whether this account already has server entries for this level.
+        // This matters when an existing user logs in via the demo screen rather
+        // than creating a new account — we must not force isNewPb:true and wipe
+        // better ghost frames from their existing record.
+        let isActuallyNewPb = true;
+        try {
+          const existingEntries = await api.leaderboard.get(levelId);
+          const myEntries = existingEntries.filter(
+            e => e.playerName?.toLowerCase().trim() === user.username.toLowerCase().trim()
+          );
+          if (myEntries.length > 0) {
+            const serverBest = Math.min(...myEntries.map(e => e.time));
+            isActuallyNewPb = payload.time < serverBest;
+
+            // Sync localStorage to the real PB so the in-game display and the
+            // isNewPb comparison on future runs both use the correct baseline.
+            const trueBest = isActuallyNewPb ? payload.time : serverBest;
+            const localStored = parseFloat(localStorage.getItem(`best_time_${levelId}`) || 'Infinity');
+            if (!isFinite(localStored) || trueBest < localStored) {
+              localStorage.setItem(`best_time_${levelId}`, trueBest.toString());
+            }
+          }
+          // New accounts have no entries → isActuallyNewPb stays true.
+        } catch {
+          // Couldn't fetch existing entries — assume PB (safe for new accounts).
+        }
+
+        await api.leaderboard.submit(levelId, { ...payload, isNewPb: isActuallyNewPb });
       } catch (e) {
         console.warn('[demo] Failed to submit demo run on login:', e);
+        // Queue for retry (same as the normal game path) so the run isn't lost
+        // if there's a transient network error at the moment of login.
+        queuePendingSubmission(levelId, payload);
       }
     }
     setDemoMode(false);
