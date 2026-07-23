@@ -47,6 +47,25 @@ const BOT_NAMES = [
   'MomentumMaster'
 ];
 
+interface League {
+  name: string;
+  color: string;   // Tailwind text colour
+  bg: string;      // Tailwind bg colour
+  icon: string;
+}
+
+function getLeague(rating: number): League {
+  if (rating <= 250)  return { name: 'Amateur',     color: 'text-neutral-400',  bg: 'bg-neutral-500/10',  icon: '🎮' };
+  if (rating <= 500)  return { name: 'Rookie',       color: 'text-sky-400',      bg: 'bg-sky-500/10',      icon: '🌀' };
+  if (rating <= 1000) return { name: 'Racer',        color: 'text-teal-400',     bg: 'bg-teal-500/10',     icon: '🏃' };
+  if (rating <= 2500) return { name: 'Expert',       color: 'text-emerald-400',  bg: 'bg-emerald-500/10',  icon: '⚡' };
+  if (rating <= 5000) return { name: 'Elite',        color: 'text-amber-400',    bg: 'bg-amber-500/10',    icon: '🔥' };
+  if (rating <= 10000) return { name: 'Pro',         color: 'text-orange-400',   bg: 'bg-orange-500/10',   icon: '🎯' };
+  if (rating <= 25000) return { name: 'Master',      color: 'text-violet-400',   bg: 'bg-violet-500/10',   icon: '👑' };
+  if (rating <= 50000) return { name: 'Champion',    color: 'text-rose-400',     bg: 'bg-rose-500/10',     icon: '🏆' };
+  return                      { name: 'Delta',       color: 'text-red-400',      bg: 'bg-red-500/15',      icon: '⚡🔺' };
+}
+
 export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatinum, onUpgrade }: RacesProps) {
   const [gate, setGate] = useState<{ feature: string; description?: string } | null>(null);
   // Stats
@@ -329,20 +348,25 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
           </div>
 
           {/* Profile rating board */}
-          <div className="flex items-center gap-4 bg-neutral-900 border border-neutral-800 p-4 rounded-2xl shadow-xl">
-            <div className="w-12 h-12 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl flex items-center justify-center text-2xl">
-              🏆
-            </div>
-            <div>
-              <div className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest font-bold">Racer Elo Rating</div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-black font-mono text-amber-500 tracking-tight">{rating}</span>
-                <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                  Elite League
-                </span>
+          {(() => {
+            const league = getLeague(rating);
+            return (
+              <div className="flex items-center gap-4 bg-neutral-900 border border-neutral-800 p-4 rounded-2xl shadow-xl">
+                <div className="w-12 h-12 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl flex items-center justify-center text-2xl">
+                  {league.icon}
+                </div>
+                <div>
+                  <div className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest font-bold">Racer Elo Rating</div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-black font-mono text-amber-500 tracking-tight">{rating}</span>
+                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${league.color} ${league.bg}`}>
+                      {league.name} League
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            );
+          })()}
         </div>
 
         {!isSearching ? (
