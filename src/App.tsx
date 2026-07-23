@@ -724,7 +724,7 @@ export default function App() {
       )}
 
       {/* Screen Routing Outlet */}
-      <main className={`${isPlaying ? 'flex-1 overflow-hidden' : 'flex-1'} transition-colors duration-300 ${isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-white'}`}>
+      <main className={`${isPlaying ? 'flex-1 overflow-hidden' : 'flex-1'} transition-colors duration-300 ${tab === 'levels' ? 'bg-[#0b1020]' : isCoolBlueTab ? 'bg-[#e3ebf2]' : 'bg-white'}`}>
         {tab === 'home' && (
           <Dashboard
             settings={settings}
