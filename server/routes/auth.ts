@@ -290,7 +290,27 @@ router.post('/reset-password', async (req: Request, res: Response) => {
       console.warn('[supabase] updateUserById password sync failed:', updateError.message);
     }
 
-    res.json({ message: 'Password updated successfully. You can now log in with your new password.' });
+    // Fetch the full user row so we can return a complete UserAccount + JWT
+    // (same shape as the login response), enabling the frontend to auto-login.
+    const fullUserResult = await pool.query(
+      'SELECT username, avatar, avatar_bg, device, created_at FROM users WHERE id = $1',
+      [localUser.id]
+    );
+    const fullUser = fullUserResult.rows[0];
+    const token = signAuthToken({ id: localUser.id, username: localUser.username });
+
+    res.json({
+      message: 'Password updated successfully.',
+      token,
+      user: {
+        username: fullUser.username,
+        avatar: fullUser.avatar,
+        avatarBg: fullUser.avatar_bg,
+        device: fullUser.device ?? null,
+        createdAt: parseInt(fullUser.created_at),
+        passwordHash: '',
+      },
+    });
   } catch (err) {
     console.error('Reset-password error:', err);
     res.status(500).json({ error: 'Internal server error.' });

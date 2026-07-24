@@ -133,11 +133,14 @@ export const api = {
       });
     },
 
-    async resetPassword(accessToken: string, newPassword: string): Promise<{ message: string }> {
-      return apiFetch<{ message: string }>('/auth/reset-password', {
+    async resetPassword(accessToken: string, newPassword: string): Promise<AuthResult & { message: string }> {
+      const result = await apiFetch<AuthResult & { message: string }>('/auth/reset-password', {
         method: 'POST',
         body: JSON.stringify({ accessToken, newPassword })
       });
+      // Store the token so subsequent API calls are authenticated immediately
+      localStorage.setItem('delta_rush_token', result.token);
+      return result;
     }
   },
 

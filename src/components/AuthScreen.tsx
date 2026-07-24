@@ -297,8 +297,9 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     setIsLoading(true);
     try {
       const result = await api.auth.resetPassword(recoveryToken, newPassword);
-      notifyFeedback('success', result.message + ' Redirecting to login…');
-      setTimeout(() => { setRecoveryToken(null); switchToLogin(); }, 2000);
+      notifyFeedback('success', 'Password updated. Logging you in…');
+      setRecoveryToken(null);
+      setTimeout(() => onLoginSuccess(result.user), 800);
     } catch (err: any) {
       notifyFeedback('error', err.message || 'Failed to reset password. The link may have expired — request a new one.');
     } finally {
