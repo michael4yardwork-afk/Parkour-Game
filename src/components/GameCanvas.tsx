@@ -1810,443 +1810,375 @@ export default function GameCanvas({
     // Perspective is always locked; mouse-look is disabled.
   }, []);
 
-  // Main custom bounding-box collision checker and physics step solver
+  // ─── Physics: split-axis AABB collision ──────────────────────────────────────
+  // Movement is split into three independent axis passes (X → Z → Y).  Each pass
+  // moves the player on that axis and resolves overlaps for that axis only.  This
+  // eliminates the "shallowest-overlap" heuristic that caused edge-sucking,
+  // ridge-stops, and the leavingTopEdge / centerInsideXZ hacks.
   const updatePhysics = (dt: number) => {
-    // Apply gravity
-    let gravity = 23.5; // athletic arcade gravity feel
+    const PLAYER_RADIUS = 0.65;
+    const PLAYER_HEIGHT = slidingRef.current ? 0.9 : 1.8;
 
-    if (climbingRef.current) {
-      gravity = 0; // suspend falling
-    } else if (wallRunDirectionRef.current) {
-      gravity = 6.0; // low slow gravity sliding along wall
-    }
+    // ── Input ──────────────────────────────────────────────────────────────────
+    const yaw = playerYaw.current;
+    const forwardVec = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+    const rightVec   = new THREE.Vector3(-Math.cos(yaw), 0, Math.sin(yaw));
 
-    // Apply gravity velocity
-    playerVel.current.y -= gravity * dt;
-
-    const keysPressed = keysRef.current['w'] || keysRef.current['arrowup'] || keysRef.current['up'] ||
-                        keysRef.current['s'] || keysRef.current['arrowdown'] || keysRef.current['down'] ||
-                        keysRef.current['a'] || keysRef.current['d'] ||
-                        keysRef.current['arrowleft'] || keysRef.current['left'] ||
-                        keysRef.current['arrowright'] || keysRef.current['right'] ||
-                        (isMobileRef.current && touchJoystickActiveRef.current && (Math.abs(touchJoystickOffsetRef.current.x) > 5 || Math.abs(touchJoystickOffsetRef.current.y) > 5));
-
-    // Air drag dampeners - lower when actively accelerating so we can reach max speed limits (equivalent to previous sprint)
-    const activeDrag = 2.5;
-    const dragX = groundedRef.current ? (keysPressed ? activeDrag : 8.5) : 1.5;
-    const dragZ = groundedRef.current ? (keysPressed ? activeDrag : 8.5) : 1.5;
-    playerVel.current.x -= playerVel.current.x * dragX * dt;
-    playerVel.current.z -= playerVel.current.z * dragZ * dt;
-
-    // Translate keypad WASD or touch-joystick vector inputs
     let moveForward = 0;
-    let moveRight = 0;
-
+    let moveRight   = 0;
     if (isMobileRef.current && touchJoystickActiveRef.current) {
-      // Scale coordinates relative to touch joysticks offsets
-      moveForward = -touchJoystickOffsetRef.current.y / 45; // forward is negative Y
-      moveRight = touchJoystickOffsetRef.current.x / 45;
+      moveForward = -touchJoystickOffsetRef.current.y / 45;
+      moveRight   =  touchJoystickOffsetRef.current.x / 45;
     } else {
-      if (keysRef.current['w'] || keysRef.current['arrowup'] || keysRef.current['up']) moveForward += 1.0;
-      if (keysRef.current['s'] || keysRef.current['arrowdown'] || keysRef.current['down']) moveForward -= 1.0;
-      if (keysRef.current['a']) moveRight -= 1.0;
-      if (keysRef.current['d']) moveRight += 1.0;
-      if (keysRef.current['arrowleft'] || keysRef.current['left']) moveRight -= 1.0; // left arrow moves player left
-      if (keysRef.current['arrowright'] || keysRef.current['right']) moveRight += 1.0; // right arrow moves player right
+      if (keysRef.current['w'] || keysRef.current['arrowup']    || keysRef.current['up'])    moveForward += 1;
+      if (keysRef.current['s'] || keysRef.current['arrowdown']  || keysRef.current['down'])  moveForward -= 1;
+      if (keysRef.current['a'] || keysRef.current['arrowleft']  || keysRef.current['left'])  moveRight   -= 1;
+      if (keysRef.current['d'] || keysRef.current['arrowright'] || keysRef.current['right']) moveRight   += 1;
     }
-
-    // Calculate motion vector relative to player facing camera Yaw direction
-    const forwardVec = new THREE.Vector3(Math.sin(playerYaw.current), 0, Math.cos(playerYaw.current)).normalize();
-    const rightVec = new THREE.Vector3(-Math.cos(playerYaw.current), 0, Math.sin(playerYaw.current)).normalize();
 
     const inputVec = new THREE.Vector3();
     inputVec.addScaledVector(forwardVec, moveForward);
-    inputVec.addScaledVector(rightVec, moveRight);
-    
-    // Clamp joystick input magnitude to unit vectors
-    if (inputVec.length() > 1.0) {
-      inputVec.normalize();
-    }
+    inputVec.addScaledVector(rightVec,   moveRight);
+    if (inputVec.length() > 1) inputVec.normalize();
 
+    const hasDirectionalInput = inputVec.length() > 0.01;
+    const keysPressed = hasDirectionalInput;
+
+    // Track the moment any movement input is first detected (starts the timer / ghost)
     if (!movementStartedRef.current) {
-      const hasInput = (Math.abs(moveForward) > 0.01) || (Math.abs(moveRight) > 0.01) || 
-                       keysRef.current[' '] || keysRef.current['space'];
-      if (hasInput) {
-        movementStartedRef.current = true;
-      }
+      const hasAnyInput = hasDirectionalInput || keysRef.current[' '] || keysRef.current['space'];
+      if (hasAnyInput) movementStartedRef.current = true;
     }
 
-    // Dynamic running speed limits (equivalent to previous sprint parameters)
-    let accelRate = groundedRef.current ? 50.0 : 18.0; // Air steering rate is lowered to 18.0 to make jumps less floaty and far
+    // ── Gravity ────────────────────────────────────────────────────────────────
+    let gravity = 23.5;
+    if (climbingRef.current)           gravity = 0;   // suspended on ladder
+    else if (wallRunDirectionRef.current) gravity = 6.0; // slow wall-slide
+    playerVel.current.y -= gravity * dt;
 
+    // ── Horizontal drag ────────────────────────────────────────────────────────
+    const drag = groundedRef.current ? (keysPressed ? 2.5 : 8.5) : 1.5;
+    playerVel.current.x -= playerVel.current.x * drag * dt;
+    playerVel.current.z -= playerVel.current.z * drag * dt;
+
+    // ── Ground speed ramp (12 → 18 m/s while running) ──────────────────────────
     if (groundedRef.current) {
-      if (inputVec.length() > 0.1) {
-        // Gradually accelerate max speed on the ground up to 18.0 (previously sprinting speed).
+      if (hasDirectionalInput) {
         currentMaxSpeedRef.current = Math.min(18.0, currentMaxSpeedRef.current + 2.0 * dt);
-
-        // Apply exactly 2 m/s^2 linear acceleration towards currentMaxSpeedRef
-        const horizVel = new THREE.Vector2(playerVel.current.x, playerVel.current.z);
-        const horizSpeed = horizVel.length();
-        if (horizSpeed < currentMaxSpeedRef.current) {
-          const targetSpeed = Math.min(currentMaxSpeedRef.current, horizSpeed + 2.0 * dt);
-          if (horizSpeed > 0.05) {
-            playerVel.current.x = (playerVel.current.x / horizSpeed) * targetSpeed;
-            playerVel.current.z = (playerVel.current.z / horizSpeed) * targetSpeed;
-          } else {
-            playerVel.current.x += inputVec.x * 2.0 * dt;
-            playerVel.current.z += inputVec.z * 2.0 * dt;
-          }
-        }
       } else {
-        // Gradually decay back to base speed when not actively running on the ground
         currentMaxSpeedRef.current = Math.max(12.0, currentMaxSpeedRef.current - 12.0 * dt);
       }
-    } else {
-      // In the air, max speed limit is locked at whatever it was when taking off.
     }
 
-    const currentMaxSpeed = currentMaxSpeedRef.current;
-
-    // Accelerating the player's core velocity
+    // ── Acceleration ───────────────────────────────────────────────────────────
+    const accelRate = groundedRef.current ? 50.0 : 18.0;
     playerVel.current.addScaledVector(inputVec, accelRate * speedBoostRef.current * dt);
 
-    // Apply speed limits (unless launched)
-    const horizSpeed = Math.hypot(playerVel.current.x, playerVel.current.z);
-    const maxSpeedLimit = currentMaxSpeed * speedBoostRef.current;
-    if (horizSpeed > maxSpeedLimit) {
+    // ── Speed cap ──────────────────────────────────────────────────────────────
+    const horizSpeedNow = Math.hypot(playerVel.current.x, playerVel.current.z);
+    const maxSpeed = currentMaxSpeedRef.current * speedBoostRef.current;
+    if (horizSpeedNow > maxSpeed) {
       if (speedBoostRef.current === 1.0) {
-        // Smoothly and gradually decay excess speed back to maxSpeedLimit (rather than locking/snapping instantly)
-        const decayRate = groundedRef.current ? 4.5 : 1.2; // 1.2 in air makes it very soft, natural, and gradual
-        const newSpeed = Math.max(maxSpeedLimit, horizSpeed - (horizSpeed - maxSpeedLimit) * decayRate * dt);
-        playerVel.current.x = (playerVel.current.x / horizSpeed) * newSpeed;
-        playerVel.current.z = (playerVel.current.z / horizSpeed) * newSpeed;
+        // Soft decay — feels natural rather than a hard wall
+        const decayRate = groundedRef.current ? 4.5 : 1.2;
+        const capped = Math.max(maxSpeed, horizSpeedNow - (horizSpeedNow - maxSpeed) * decayRate * dt);
+        playerVel.current.x = (playerVel.current.x / horizSpeedNow) * capped;
+        playerVel.current.z = (playerVel.current.z / horizSpeedNow) * capped;
       } else {
-        // When speed boost is active, hard cap at the boosted max limit to prevent out-of-control speeds
-        playerVel.current.x = (playerVel.current.x / horizSpeed) * maxSpeedLimit;
-        playerVel.current.z = (playerVel.current.z / horizSpeed) * maxSpeedLimit;
+        // Hard cap during boosts so speed never escapes control
+        playerVel.current.x = (playerVel.current.x / horizSpeedNow) * maxSpeed;
+        playerVel.current.z = (playerVel.current.z / horizSpeedNow) * maxSpeed;
       }
     }
 
-    // Handle climbing motion input
+    // ── Climbing input ─────────────────────────────────────────────────────────
     if (climbingRef.current) {
       playerVel.current.y = 0;
-      if (keysRef.current['w'] || keysRef.current['arrowup'] || (isMobileRef.current && touchJoystickActiveRef.current && touchJoystickOffsetRef.current.y < -15)) {
-        playerVel.current.y = 6.0;
-      } else if (keysRef.current['s'] || keysRef.current['arrowdown'] || (isMobileRef.current && touchJoystickActiveRef.current && touchJoystickOffsetRef.current.y > 15)) {
-        playerVel.current.y = -6.0;
-      }
+      const climbUp   = keysRef.current['w'] || keysRef.current['arrowup']
+                        || (isMobileRef.current && touchJoystickActiveRef.current && touchJoystickOffsetRef.current.y < -15);
+      const climbDown = keysRef.current['s'] || keysRef.current['arrowdown']
+                        || (isMobileRef.current && touchJoystickActiveRef.current && touchJoystickOffsetRef.current.y > 15);
+      if (climbUp)   playerVel.current.y =  6.0;
+      if (climbDown) playerVel.current.y = -6.0;
     }
 
-    // JUMPING ACTION!
+    // ── Jump ───────────────────────────────────────────────────────────────────
     const wantsJump = keysRef.current[' '] || keysRef.current['space'];
     if (wantsJump) {
-      // Clear flag to avoid continuous jumps
-      keysRef.current[' '] = false;
+      keysRef.current[' ']     = false;
       keysRef.current['space'] = false;
 
-      // Check if player is on or recently touched a jump block
       const now = Date.now();
-      const recentlyTouchedJump = (now - lastJumpBlockCollisionTimeRef.current) < 250;
-      const recentlyTouchedWall = lastWallTouchRef.current && (now - lastWallTouchRef.current.time < 350) && !groundedRef.current;
+      const recentJumpPad  = (now - lastJumpBlockCollisionTimeRef.current) < 250;
+      const recentWallTouch = lastWallTouchRef.current !== null
+                              && (now - lastWallTouchRef.current.time < 350)
+                              && !groundedRef.current;
+      const coyoteOk = groundedRef.current || (now - lastTimeGroundedRef.current < 160);
 
-      if (recentlyTouchedJump) {
-        // Super massive jump leap boost!
-        playerVel.current.y = 26.0; // standard jump is 14.5, automatic is 18.0. Manual active jump on jump block gives 26.0!
-        groundedRef.current = false;
-        lastJumpBlockCollisionTimeRef.current = 0; // Consume jump pad collision so it can only be triggered once
-        synths.playBoost();
-        // Give a little forward push as well!
+      if (recentJumpPad) {
+        // Manual boost on a jump pad — huge launch
+        playerVel.current.y = 26.0;
         playerVel.current.addScaledVector(forwardVec, 5.5);
-      } else if (groundedRef.current || (Date.now() - lastTimeGroundedRef.current < 160)) {
-        // Normal jump (balanced height) with Coyote Time (e.g. 160ms leeway window)
-        playerVel.current.y = 14.5; // standard jump velocity (was 17.0)
         groundedRef.current = false;
-        lastTimeGroundedRef.current = 0; // Prevent repetitive coyote jumping mid-air
+        lastJumpBlockCollisionTimeRef.current = 0;
+        synths.playBoost();
+      } else if (coyoteOk) {
+        // Normal jump with coyote-time grace window
+        playerVel.current.y = 14.5;
+        groundedRef.current = false;
+        lastTimeGroundedRef.current = 0;
         synths.playJump();
-      } else if (recentlyTouchedWall && lastWallTouchRef.current) {
-        // WALL JUMP off any wall block (uses physical contact normal!)
+      } else if (recentWallTouch && lastWallTouchRef.current) {
+        // Wall jump using stored contact normal
         const wallNormal = lastWallTouchRef.current.normal.clone();
-        
-        playerVel.current.y = 14.5; // wall jump height (was 17.0)
-        // Set/Add velocity away from wall normal and forward
+        playerVel.current.y = 14.5;
         playerVel.current.x = wallNormal.x * 8.5 + forwardVec.x * 5.5;
         playerVel.current.z = wallNormal.z * 8.5 + forwardVec.z * 5.5;
-
-        wallRunDirectionRef.current = null;
-        wallRunCooldownRef.current = 0.35; // delay subsequent stickings
-        lastWallTouchRef.current = null; // consume touch
-
+        wallRunDirectionRef.current  = null;
+        wallRunCooldownRef.current   = 0.35;
+        lastWallTouchRef.current     = null;
         synths.playJump();
       } else if (wallRunDirectionRef.current) {
-        // WALL JUMP! Kick players AWAY from wall + forward speed boost!
-        const wallNormal = new THREE.Vector3(-Math.cos(playerYaw.current), 0, Math.sin(playerYaw.current)).normalize();
-        if (wallRunDirectionRef.current === 'right') {
-          wallNormal.negate(); // push left
-         }
-        
-        playerVel.current.y = 14.5; 
+        // Wall-run jump — kick away from the wall
+        const wallNormal = new THREE.Vector3(-Math.cos(yaw), 0, Math.sin(yaw)).normalize();
+        if (wallRunDirectionRef.current === 'right') wallNormal.negate();
+        playerVel.current.y = 14.5;
         playerVel.current.x = wallNormal.x * 8.5 + forwardVec.x * 5.5;
         playerVel.current.z = wallNormal.z * 8.5 + forwardVec.z * 5.5;
-
         wallRunDirectionRef.current = null;
-        wallRunCooldownRef.current = 0.35; // delay subsequent stickings
-
+        wallRunCooldownRef.current  = 0.35;
         synths.playJump();
       } else if (climbingRef.current) {
-        // Dismount ladder kick
+        // Dismount from ladder
         playerVel.current.y = 10.5;
-        playerVel.current.addScaledVector(forwardVec, -4.0); // leap backwards
+        playerVel.current.addScaledVector(forwardVec, -4.0);
         climbingRef.current = false;
         synths.playJump();
       }
     }
 
-    // Wall run Cooldown decr
-    if (wallRunCooldownRef.current > 0) {
-      wallRunCooldownRef.current -= dt;
+    if (wallRunCooldownRef.current > 0) wallRunCooldownRef.current -= dt;
+
+    // ── Helper: is a block solid (participates in physical collision)? ──────────
+    // Hazard, end, and climb blocks are "pass-through" trigger zones;
+    // checkpoint / jump / speed are solid AND trigger events.
+    const isSolid = (type: string) =>
+      type !== 'hazard' && type !== 'end' && type !== 'climb';
+
+    // Shared wall-contact state accumulated across both X and Z passes.
+    // adjacentWallContact is set whenever the player is pushed off a wall-run
+    // or normal block in either axis while airborne, so X-facing and Z-facing
+    // walls both activate wall-run consistently.
+    let adjacentWallContact: 'left' | 'right' | null = null;
+
+    // ── Pass 1: Move X, resolve X collisions ───────────────────────────────────
+    playerPos.current.x += playerVel.current.x * dt;
+    {
+      const r = PLAYER_RADIUS, h = PLAYER_HEIGHT;
+      for (const block of level.blocks) {
+        if (!isSolid(block.type)) continue;
+        const minX = block.x - block.w / 2, maxX = block.x + block.w / 2;
+        const minY = block.y,                maxY = block.y + block.h;
+        const minZ = block.z - block.d / 2,  maxZ = block.z + block.d / 2;
+        const px = playerPos.current.x, py = playerPos.current.y, pz = playerPos.current.z;
+
+        if (!(px + r > minX && px - r < maxX &&
+              py + h > minY && py   < maxY   &&
+              pz + r > minZ && pz - r < maxZ)) continue;
+
+        // Determine push side before modifying position
+        const pushLeft = px < (minX + maxX) * 0.5;
+
+        // Push out on X
+        if (pushLeft) {
+          playerPos.current.x = minX - r;
+        } else {
+          playerPos.current.x = maxX + r;
+        }
+        playerVel.current.x = 0;
+
+        // Record wall contact for wall-jump and (for wallrun/normal) wall-run
+        if (!groundedRef.current && wallRunCooldownRef.current <= 0) {
+          const normX = pushLeft ? -1 : 1;
+          lastWallTouchRef.current = {
+            normal:  new THREE.Vector3(normX, 0, 0),
+            time:    Date.now(),
+            blockId: block.id,
+          };
+          // X-axis wall contact: treat as "right" if wall is to our right, "left" if to our left
+          if (block.type === 'wallrun' || block.type === 'normal') {
+            adjacentWallContact = pushLeft ? 'right' : 'left';
+          }
+        }
+      }
     }
 
-    // Update coordinates step prospectively. Keep the pre-step height so
-    // collision resolution can distinguish a real landing from a side
-    // approach at the height of a block top.
-    const previousPlayerY = playerPos.current.y;
-    const stepX = playerVel.current.x * dt;
-    const stepY = playerVel.current.y * dt;
-    const stepZ = playerVel.current.z * dt;
+    // ── Pass 2: Move Z, resolve Z collisions ───────────────────────────────────
+    playerPos.current.z += playerVel.current.z * dt;
+    {
+      const r = PLAYER_RADIUS, h = PLAYER_HEIGHT;
 
-    playerPos.current.x += stepX;
-    playerPos.current.y += stepY;
-    playerPos.current.z += stepZ;
+      for (const block of level.blocks) {
+        if (!isSolid(block.type)) continue;
+        const minX = block.x - block.w / 2, maxX = block.x + block.w / 2;
+        const minY = block.y,                maxY = block.y + block.h;
+        const minZ = block.z - block.d / 2,  maxZ = block.z + block.d / 2;
+        const px = playerPos.current.x, py = playerPos.current.y, pz = playerPos.current.z;
 
-    // Check collision boundaries with and solve kinematics
-    const playerRadius = 0.65;
-    const playerHeight = slidingRef.current ? 0.9 : 1.8;
-    
-    // Bounds check
-    let nextGrounded = false;
-    let nextClimbing = false;
-    let adjacentWallrunWall: 'left' | 'right' | null = null;
+        if (!(px + r > minX && px - r < maxX &&
+              py + h > minY && py   < maxY   &&
+              pz + r > minZ && pz - r < maxZ)) continue;
 
-    for (const block of level.blocks) {
-      // Define block AABB bounding limits
-      const minX = block.x - block.w / 2;
-      const maxX = block.x + block.w / 2;
-      const minY = block.y;
-      const maxY = block.y + block.h;
-      const minZ = block.z - block.d / 2;
-      const maxZ = block.z + block.d / 2;
+        const pushNeg = pz < (minZ + maxZ) * 0.5;
 
-      // Define player bounding offset
-      const px = playerPos.current.x;
-      const py = playerPos.current.y;
-      const pz = playerPos.current.z;
-
-      // Check spatial coordinate overlaps
-      const isOverlapping = 
-        (px + playerRadius > minX && px - playerRadius < maxX) &&
-        (py + playerHeight > minY && py < maxY) &&
-        (pz + playerRadius > minZ && pz - playerRadius < maxZ);
-
-      if (isOverlapping) {
-        // Collision actions on interactive elements
-        if (block.type === 'hazard') {
-          handlePlayerDeath();
-          break; // Stop processing all other collisions immediately on death
+        // Push out on Z
+        if (pushNeg) {
+          playerPos.current.z = minZ - r;
+        } else {
+          playerPos.current.z = maxZ + r;
         }
+        playerVel.current.z = 0;
 
-        if (block.type === 'end') {
-          handleLevelCompleted();
-          break; // Stop processing other collisions on level completion
+        // Record wall contact for wall-jump and wall-run
+        if (!groundedRef.current && wallRunCooldownRef.current <= 0) {
+          const normZ = pushNeg ? -1 : 1;
+          lastWallTouchRef.current = {
+            normal:  new THREE.Vector3(0, 0, normZ),
+            time:    Date.now(),
+            blockId: block.id,
+          };
+          if (block.type === 'wallrun' || block.type === 'normal') {
+            adjacentWallContact = pushNeg ? 'right' : 'left';
+          }
+        }
+      }
+    }
+
+    // ── Wall-run activation (unified from X and Z contacts) ────────────────────
+    {
+      const movingForward = keysRef.current['w']
+        || (isMobileRef.current && touchJoystickActiveRef.current && touchJoystickOffsetRef.current.y < -15);
+      if (adjacentWallContact && movingForward) {
+        if (!wallRunDirectionRef.current) synths.playWallrun();
+        wallRunDirectionRef.current = adjacentWallContact;
+      } else {
+        wallRunDirectionRef.current = null;
+      }
+    }
+
+    // ── Pass 3: Move Y, resolve Y collisions, fire block triggers ─────────────
+    // Snapshot vertical velocity BEFORE any block triggers fire.  Jump-pad
+    // and speed triggers modify playerVel.y; we need the arrival velocity to
+    // correctly decide floor (coming down) vs ceiling (going up) contact.
+    const arrivalVelY = playerVel.current.y;
+    playerPos.current.y += arrivalVelY * dt;
+    {
+      const r = PLAYER_RADIUS, h = PLAYER_HEIGHT;
+      let nextGrounded = false;
+      let nextClimbing = false;
+      let died = false;
+      let finished = false;
+
+      for (const block of level.blocks) {
+        const minX = block.x - block.w / 2, maxX = block.x + block.w / 2;
+        const minY = block.y,                maxY = block.y + block.h;
+        const minZ = block.z - block.d / 2,  maxZ = block.z + block.d / 2;
+        const px = playerPos.current.x, py = playerPos.current.y, pz = playerPos.current.z;
+
+        if (!(px + r > minX && px - r < maxX &&
+              py + h > minY && py   < maxY   &&
+              pz + r > minZ && pz - r < maxZ)) continue;
+
+        // ── Trigger-only blocks ────────────────────────────────────────────────
+        if (block.type === 'hazard') { died = true; break; }
+        if (block.type === 'end')    { finished = true; break; }
+
+        if (block.type === 'climb') {
+          nextClimbing = true;
+          continue; // no physical resolution — player can overlap ladders
         }
 
         if (block.type === 'checkpoint') {
-          const checkpointId = `ch_${block.id}`;
-          if (!activeCheckpointRef.current || !activeCheckpointRef.current.equals(new THREE.Vector3(block.x, block.y + 1, block.z))) {
-            activeCheckpointRef.current = new THREE.Vector3(block.x, block.y + 1.2, block.z);
-            
-            // Limit coordinate trigger sound spamming
+          const chId = `ch_${block.id}`;
+          const cpPos = new THREE.Vector3(block.x, block.y + 1.2, block.z);
+          if (!activeCheckpointRef.current || !activeCheckpointRef.current.equals(cpPos)) {
+            activeCheckpointRef.current = cpPos;
             const now = Date.now();
-            const lastTriggered = checkpointSoundCoolRef.current[checkpointId] || 0;
-            if (now - lastTriggered > 4000) {
+            if (now - (checkpointSoundCoolRef.current[chId] || 0) > 4000) {
               synths.playCheckpoint();
-              checkpointSoundCoolRef.current[checkpointId] = now;
+              checkpointSoundCoolRef.current[chId] = now;
             }
           }
-          // Do not return! Proceed to physical resolution so standard collision check keeps player from falling through checkpoint blocks.
+          // Checkpoint blocks are physical — fall through to Y resolution below
         }
 
         if (block.type === 'jump') {
           const now = Date.now();
           lastJumpBlockCollisionTimeRef.current = now;
-          const lastLaunch = jumpCoolRef.current[block.id] || 0;
-          if (now - lastLaunch > 500) {
-            playerVel.current.y = 22.5; // dynamic solid upward launch (made higher from 18.0)
-            
-            // Boost player in their horizontal looking direction to easily clear horizontal gaps
+          if (now - (jumpCoolRef.current[block.id] || 0) > 500) {
+            // Automatic launch — fires after Y resolution so it takes effect next frame
+            playerVel.current.y = 22.5;
             playerVel.current.x = forwardVec.x * 8.5;
             playerVel.current.z = forwardVec.z * 8.5;
-
             synths.playBoost();
             jumpCoolRef.current[block.id] = now;
           }
-          // Do not return! Proceed to physical resolution so player doesn't fall through.
+          // Jump blocks are physical — fall through to Y resolution, but don't
+          // ground the player (they should be launched, not stick to the pad)
         }
 
         if (block.type === 'speed') {
           const now = Date.now();
-          const lastBoost = speedCoolRef.current[block.id] || 0;
-          if (now - lastBoost > 800) {
+          if (now - (speedCoolRef.current[block.id] || 0) > 800) {
             speedBoostRef.current = 1.6;
-            // Add a substantial direct velocity push along player facing forwardVec
             playerVel.current.add(forwardVec.clone().multiplyScalar(6.5));
             synths.playBoost();
             speedCoolRef.current[block.id] = now;
-            setTimeout(() => {
-              speedBoostRef.current = 1.0;
-            }, 800);
+            setTimeout(() => { speedBoostRef.current = 1.0; }, 800);
           }
-          // Do not return! Let player stand on speed pads.
+          // Speed pads are physical — fall through to Y resolution below
         }
 
-        if (block.type === 'climb') {
-          nextClimbing = true;
-          continue; // ladders allow overlaps, continue checking remaining blocks
-        }
-
-        // Kinematic physical box displacement solving (calculate minimum separation penetration vectors)
-        const overlapX = Math.min(px + playerRadius - minX, maxX - (px - playerRadius));
-        const overlapY = Math.min(py + playerHeight - minY, maxY - py);
-        const overlapZ = Math.min(pz + playerRadius - minZ, maxZ - (pz - playerRadius));
-
-        // Whether the player's XZ center is within this block's footprint.
-        // This is the key guard against edge-sucking: floor resolution is only
-        // valid when the player's center is actually above the block.  When the
-        // center has crossed the edge horizontally the floor branch must be
-        // skipped so the player falls off naturally instead of being snapped back
-        // onto the surface.
-        const centerInBlockX = px >= minX && px <= maxX;
-        const centerInBlockZ = pz >= minZ && pz <= maxZ;
-        const centerInsideXZ = centerInBlockX && centerInBlockZ;
-
-        // A player leaving the top of a block can still overlap its side for
-        // one or two frames because the collision radius is wider than the
-        // player's center. Do not resolve that shallow edge overlap as a wall:
-        // wall resolution zeros one horizontal velocity component and creates
-        // the visible ridge stop. The player should simply continue off the
-        // block and let gravity take over.
-        const leavingTopEdge =
-          previousPlayerY >= maxY - playerRadius &&
-          py > maxY - playerRadius &&
-          !centerInsideXZ &&
-          playerVel.current.y <= 0;
-        if (leavingTopEdge) {
-          continue;
-        }
-
-        // A genuine top contact is a downward crossing while the player's
-        // center is still over the block. This prevents side approaches from
-        // being pulled up onto the block surface.
-        const topContact =
-          centerInsideXZ &&
-          previousPlayerY >= maxY &&
-          py <= maxY &&
-          playerVel.current.y <= 0;
-        const ceilingContact =
-          centerInsideXZ &&
-          previousPlayerY + playerHeight <= minY &&
-          py + playerHeight >= minY &&
-          playerVel.current.y > 0;
-
-        // Push player outside of block on the shallowest intersection axis.
-        if (topContact || ceilingContact) {
-          // ── Floor / ceiling collision ────────────────────────────────────────
-          if (ceilingContact) {
-            // Underneath roof collision (bump head)
-            playerPos.current.y = minY - playerHeight;
-            playerVel.current.y = Math.min(0, playerVel.current.y);
-          } else {
-            // Standing coordinates floor collision (grounded)
-            playerPos.current.y = maxY;
-            if (block.type !== 'jump') {
-              playerVel.current.y = 0;
-              nextGrounded = true;
-
-              // Simple micro land feedback audio
-              if (!groundedRef.current) {
-                synths.playLand();
-              }
-            }
-          }
-        } else if (overlapX <= overlapZ) {
-          // ── Lateral X wall collision ─────────────────────────────────────────
-          if (px < (minX + maxX) / 2) {
-            playerPos.current.x = minX - playerRadius;
-          } else {
-            playerPos.current.x = maxX + playerRadius;
-          }
-          playerVel.current.x = 0;
-
-          // Check if this block was wallrun compatible (now supporting normal blocks so player can wall-jump off normal wall blocks as well!)
-          if ((block.type === 'wallrun' || block.type === 'normal') && !groundedRef.current && wallRunCooldownRef.current <= 0) {
-            adjacentWallrunWall = px < (minX + maxX) / 2 ? 'right' : 'left';
-            const normX = px < (minX + maxX) / 2 ? -1 : 1;
-            lastWallTouchRef.current = {
-              normal: new THREE.Vector3(normX, 0, 0),
-              time: Date.now(),
-              blockId: block.id
-            };
+        // ── Y-axis resolution ──────────────────────────────────────────────────
+        // Use arrivalVelY (pre-trigger) to determine contact direction so that
+        // a jump-pad's post-trigger upward velocity doesn't flip floor→ceiling.
+        if (arrivalVelY <= 0) {
+          // Player was falling — landed on top of block
+          playerPos.current.y = maxY;
+          if (block.type !== 'jump') {
+            // Jump blocks launch; don't zero vel or mark grounded
+            playerVel.current.y = 0;
+            nextGrounded = true;
+            if (!groundedRef.current) synths.playLand();
           }
         } else {
-          // ── Longitudinal Z wall collision ─────────────────────────────────────
-          if (pz < (minZ + maxZ) / 2) {
-            playerPos.current.z = minZ - playerRadius;
-          } else {
-            playerPos.current.z = maxZ + playerRadius;
-          }
-          playerVel.current.z = 0;
-
-          if ((block.type === 'wallrun' || block.type === 'normal') && !groundedRef.current && wallRunCooldownRef.current <= 0) {
-            adjacentWallrunWall = pz < (minZ + maxZ) / 2 ? 'right' : 'left';
-            const normZ = pz < (minZ + maxZ) / 2 ? -1 : 1;
-            lastWallTouchRef.current = {
-              normal: new THREE.Vector3(0, 0, normZ),
-              time: Date.now(),
-              blockId: block.id
-            };
-          }
+          // Player was rising — bumped head on ceiling
+          playerPos.current.y = minY - h;
+          playerVel.current.y = 0;
         }
       }
+
+      // Commit grounded / climbing state
+      groundedRef.current = nextGrounded;
+      if (nextGrounded) lastTimeGroundedRef.current = Date.now();
+      climbingRef.current = nextClimbing;
+
+      // Process death / finish after full resolution so position is final
+      if (died)     { handlePlayerDeath();    return; }
+      if (finished) { handleLevelCompleted(); return; }
     }
 
-    groundedRef.current = nextGrounded;
-    if (nextGrounded) {
-      lastTimeGroundedRef.current = Date.now();
-    }
-    climbingRef.current = nextClimbing;
-
-    // Trigger active wallrunning mechanics
-    if (adjacentWallrunWall && (keysRef.current['w'] || (isMobileRef.current && touchJoystickActiveRef.current && touchJoystickOffsetRef.current.y < -15))) {
-      if (!wallRunDirectionRef.current) {
-        // Trigger start sound
-        synths.playWallrun();
-      }
-      wallRunDirectionRef.current = adjacentWallrunWall;
-    } else {
-      wallRunDirectionRef.current = null;
-    }
-
-    // Fall out of level bounds checking
+    // ── Fall out of bounds ─────────────────────────────────────────────────────
     if (playerPos.current.y < -35) {
       handlePlayerDeath();
+      return;
     }
 
-    // Set interactive speed HUD displays
+    // ── HUD updates ────────────────────────────────────────────────────────────
     setSpeed(Math.round(playerVel.current.length()));
-
-    // Dynamic HUD modifiers indicators lists
     const mods: string[] = [];
     if (wallRunDirectionRef.current) mods.push('WALL-RUN');
-    if (climbingRef.current) mods.push('CLIMBING');
+    if (climbingRef.current)         mods.push('CLIMBING');
     if (speedBoostRef.current > 1.0) mods.push('BOOST');
     setActiveModifiers(mods);
   };
