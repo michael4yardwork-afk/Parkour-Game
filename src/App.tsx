@@ -380,7 +380,7 @@ export default function App() {
       const tutorialKey = `delta_rush_spotlight_seen_${user.username.toLowerCase().trim()}`;
       if (!localStorage.getItem(tutorialKey)) {
         localStorage.setItem(tutorialKey, 'true');
-        window.setTimeout(() => setIsSpotlightOpen(true), 350);
+        window.setTimeout(() => setIsSpotlightOpen(true), 600);
       }
     }
     // Re-read settings — signup may have written device-specific defaults just before this call.
