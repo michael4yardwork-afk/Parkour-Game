@@ -2006,7 +2006,10 @@ export default function GameCanvas({
       wallRunCooldownRef.current -= dt;
     }
 
-    // Update coordinates step prospectively
+    // Update coordinates step prospectively. Keep the pre-step height so
+    // collision resolution can distinguish a real landing from a side
+    // approach at the height of a block top.
+    const previousPlayerY = playerPos.current.y;
     const stepX = playerVel.current.x * dt;
     const stepY = playerVel.current.y * dt;
     const stepZ = playerVel.current.z * dt;
@@ -2125,52 +2128,56 @@ export default function GameCanvas({
         const centerInBlockZ = pz >= minZ && pz <= maxZ;
         const centerInsideXZ = centerInBlockX && centerInBlockZ;
 
-        // Ridge fix: when the player runs near a block edge, gravity settles them
-        // into the surface by only a tiny amount each substep (~0.001–0.03 units).
-        // If an equally-tiny X/Z sliver overlap wins the minimum test, a wall branch
-        // fires and zeroes horizontal velocity ("invisible ridge" momentum loss).
-        //
-        // Fix: if overlapY is very small AND the player's feet are within one
-        // player-radius of the block top, force the floor branch — but ONLY when
-        // the player center is still horizontally inside the block (centerInsideXZ).
-        // Without that guard, a player approaching an edge from the side at
-        // block-top height would also get this override and be snapped up onto the
-        // surface ("edge-sucking" bug).
-        const distToBlockTop = maxY - py;
-        const ridgeOverride = centerInsideXZ && distToBlockTop >= 0 && distToBlockTop < playerRadius && overlapY < 0.05;
+        // A player leaving the top of a block can still overlap its side for
+        // one or two frames because the collision radius is wider than the
+        // player's center. Do not resolve that shallow edge overlap as a wall:
+        // wall resolution zeros one horizontal velocity component and creates
+        // the visible ridge stop. The player should simply continue off the
+        // block and let gravity take over.
+        const leavingTopEdge =
+          previousPlayerY >= maxY - playerRadius &&
+          py > maxY - playerRadius &&
+          !centerInsideXZ &&
+          playerVel.current.y <= 0;
+        if (leavingTopEdge) {
+          continue;
+        }
+
+        // A genuine top contact is a downward crossing while the player's
+        // center is still over the block. This prevents side approaches from
+        // being pulled up onto the block surface.
+        const topContact =
+          centerInsideXZ &&
+          previousPlayerY >= maxY &&
+          py <= maxY &&
+          playerVel.current.y <= 0;
+        const ceilingContact =
+          centerInsideXZ &&
+          previousPlayerY + playerHeight <= minY &&
+          py + playerHeight >= minY &&
+          playerVel.current.y > 0;
 
         // Push player outside of block on the shallowest intersection axis.
-        if (ridgeOverride || (overlapY <= overlapX && overlapY <= overlapZ)) {
+        if (topContact || ceilingContact) {
           // ── Floor / ceiling collision ────────────────────────────────────────
-          //
-          // Guard: only apply floor resolution when the player center is within
-          // the block's XZ footprint.  When the center is past the edge the tiny
-          // overlapY from gravity settling can still win the comparison above, but
-          // snapping py = maxY would "suck" the player back onto the surface.
-          // Skipping here lets gravity take over and the player falls naturally.
-          if (!centerInsideXZ) {
-            // Center is past the block edge — no floor resolution; player falls.
+          if (ceilingContact) {
+            // Underneath roof collision (bump head)
+            playerPos.current.y = minY - playerHeight;
+            playerVel.current.y = Math.min(0, playerVel.current.y);
           } else {
-            const isFallingOrDescending = playerVel.current.y <= 0.05;
-            if (isFallingOrDescending || py + playerRadius > (minY + maxY) / 2) {
-              // Standing coordinates floor collision (grounded)
-              playerPos.current.y = maxY;
-              if (block.type !== 'jump') {
-                playerVel.current.y = 0;
-                nextGrounded = true;
+            // Standing coordinates floor collision (grounded)
+            playerPos.current.y = maxY;
+            if (block.type !== 'jump') {
+              playerVel.current.y = 0;
+              nextGrounded = true;
 
-                // Simple micro land feedback audio
-                if (!groundedRef.current) {
-                  synths.playLand();
-                }
+              // Simple micro land feedback audio
+              if (!groundedRef.current) {
+                synths.playLand();
               }
-            } else {
-              // Underneath roof collision (bump head)
-              playerPos.current.y = minY - playerHeight;
-              playerVel.current.y = Math.min(0, playerVel.current.y);
             }
           }
-        } else if (overlapX < overlapY && overlapX < overlapZ) {
+        } else if (overlapX <= overlapZ) {
           // ── Lateral X wall collision ─────────────────────────────────────────
           if (px < (minX + maxX) / 2) {
             playerPos.current.x = minX - playerRadius;
@@ -2189,7 +2196,7 @@ export default function GameCanvas({
               blockId: block.id
             };
           }
-        } else if (overlapZ < overlapY && overlapZ < overlapX) {
+        } else {
           // ── Longitudinal Z wall collision ─────────────────────────────────────
           if (pz < (minZ + maxZ) / 2) {
             playerPos.current.z = minZ - playerRadius;
@@ -2206,29 +2213,6 @@ export default function GameCanvas({
               time: Date.now(),
               blockId: block.id
             };
-          }
-        } else {
-          // ── Corner fallback ──────────────────────────────────────────────────
-          // Reached when overlapX === overlapZ (exact X/Z tie). Resolve as floor
-          // only when the center is inside the block's XZ footprint, for the same
-          // reason as the main floor branch above.
-          if (!centerInsideXZ) {
-            // Center past the edge — skip; player falls naturally.
-          } else {
-            const isFallingOrDescending = playerVel.current.y <= 0.05;
-            if (isFallingOrDescending || py + playerRadius > (minY + maxY) / 2) {
-              playerPos.current.y = maxY;
-              if (block.type !== 'jump') {
-                playerVel.current.y = 0;
-                nextGrounded = true;
-                if (!groundedRef.current) {
-                  synths.playLand();
-                }
-              }
-            } else {
-              playerPos.current.y = minY - playerHeight;
-              playerVel.current.y = Math.min(0, playerVel.current.y);
-            }
           }
         }
       }

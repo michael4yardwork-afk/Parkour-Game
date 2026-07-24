@@ -4,3 +4,4 @@
 - [PB ghost mesh sync](pb-ghost-sync.md) — GameCanvas ghost mesh creation must track scene readiness via state, not just read sceneRef.current inline; two effects both touched it.
 - [npm registry breaks external deploys](npm-registry-external-deploy.md) — a lockfile regenerated inside Replit can bake in the internal npm proxy host, breaking installs on Railway/Hostinger/CI.
 - [Billing account isolation](billing-account-isolation.md) — payment ownership must resolve through verified immutable account IDs and stored Stripe customer IDs.
+- [Collision contact resolution](collision-contact-resolution.md) — separate vertical plane crossings from shallow lateral block-edge overlaps to preserve natural momentum.
