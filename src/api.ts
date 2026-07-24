@@ -124,6 +124,20 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(updates)
       });
+    },
+
+    async forgotPassword(email: string): Promise<{ message: string }> {
+      return apiFetch<{ message: string }>('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email })
+      });
+    },
+
+    async resetPassword(accessToken: string, newPassword: string): Promise<{ message: string }> {
+      return apiFetch<{ message: string }>('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ accessToken, newPassword })
+      });
     }
   },
 

@@ -182,6 +182,121 @@ router.get('/user/:username', async (req: Request, res: Response) => {
   }
 });
 
+// ── Account Recovery ─────────────────────────────────────────────────────────
+
+// POST /api/auth/forgot-password
+// Accepts { email } and triggers a Supabase password-reset email.
+// Always returns 200 with a generic message so we don't leak account existence.
+router.post('/forgot-password', async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return res.status(400).json({ error: 'Please provide a valid email address.' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Look up user — if not found, still return success to avoid email enumeration
+    const userResult = await pool.query(
+      'SELECT id, email, supabase_user_id FROM users WHERE LOWER(email) = $1',
+      [normalizedEmail]
+    );
+
+    if (userResult.rows.length > 0 && supabaseAdmin) {
+      // Determine the app's public URL for the redirect after the user clicks the email link
+      const appUrl =
+        process.env.APP_URL ||
+        (req.headers.origin as string | undefined) ||
+        `${req.protocol}://${req.headers.host}`;
+
+      const { error } = await supabaseAdmin.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: appUrl,
+      });
+
+      if (error) {
+        console.error('[supabase] resetPasswordForEmail error:', error.message);
+        // Surface a user-friendly error only for clear configuration issues
+        if (error.message?.toLowerCase().includes('not found') || error.message?.toLowerCase().includes('invalid')) {
+          // Still generic — don't leak
+        } else {
+          console.error('[supabase] recovery email failed:', error.message);
+        }
+      }
+    } else if (!supabaseAdmin) {
+      console.warn('[auth] forgot-password: Supabase is not configured — cannot send recovery email.');
+    }
+
+    // Generic response regardless of outcome
+    res.json({ message: 'If an account with that email exists, a recovery link has been sent.' });
+  } catch (err) {
+    console.error('Forgot-password error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// POST /api/auth/reset-password
+// Accepts { accessToken, newPassword } — the accessToken comes from the Supabase
+// recovery redirect URL hash fragment (type=recovery).
+router.post('/reset-password', async (req: Request, res: Response) => {
+  try {
+    const { accessToken, newPassword } = req.body;
+
+    if (!accessToken || typeof accessToken !== 'string') {
+      return res.status(400).json({ error: 'Missing recovery token.' });
+    }
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters.' });
+    }
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: 'Account recovery is not available (Supabase not configured).' });
+    }
+
+    // Verify the recovery access token and retrieve the Supabase user
+    const { data: { user: sbUser }, error: getUserError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (getUserError || !sbUser) {
+      console.error('[supabase] getUser for reset failed:', getUserError?.message);
+      return res.status(401).json({ error: 'Recovery link is invalid or has expired. Please request a new one.' });
+    }
+
+    const supabaseUserId = sbUser.id;
+    const supabaseEmail = sbUser.email?.toLowerCase().trim();
+
+    if (!supabaseEmail) {
+      return res.status(400).json({ error: 'No email address found on this account.' });
+    }
+
+    // Find the local user record
+    const localResult = await pool.query(
+      'SELECT id, username FROM users WHERE LOWER(email) = $1 OR supabase_user_id = $2',
+      [supabaseEmail, supabaseUserId]
+    );
+
+    if (localResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Account not found in local database.' });
+    }
+
+    const localUser = localResult.rows[0];
+
+    // Hash the new password and update the local record
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, localUser.id]);
+
+    // Update the password in Supabase so login-sync stays consistent
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(supabaseUserId, {
+      password: newPassword,
+    });
+    if (updateError) {
+      // Non-fatal: local DB is the source of truth for login
+      console.warn('[supabase] updateUserById password sync failed:', updateError.message);
+    }
+
+    res.json({ message: 'Password updated successfully. You can now log in with your new password.' });
+  } catch (err) {
+    console.error('Reset-password error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 router.get('/users', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(

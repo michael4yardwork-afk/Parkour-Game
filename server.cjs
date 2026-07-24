@@ -60305,6 +60305,82 @@ router.get("/user/:username", async (req, res) => {
     res.status(500).json({ error: "Server error." });
   }
 });
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return res.status(400).json({ error: "Please provide a valid email address." });
+    }
+    const normalizedEmail = email.trim().toLowerCase();
+    const userResult = await db_default.query(
+      "SELECT id, email, supabase_user_id FROM users WHERE LOWER(email) = $1",
+      [normalizedEmail]
+    );
+    if (userResult.rows.length > 0 && supabaseAdmin) {
+      const appUrl = process.env.APP_URL || req.headers.origin || `${req.protocol}://${req.headers.host}`;
+      const { error } = await supabaseAdmin.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: appUrl
+      });
+      if (error) {
+        console.error("[supabase] resetPasswordForEmail error:", error.message);
+        if (error.message?.toLowerCase().includes("not found") || error.message?.toLowerCase().includes("invalid")) {
+        } else {
+          console.error("[supabase] recovery email failed:", error.message);
+        }
+      }
+    } else if (!supabaseAdmin) {
+      console.warn("[auth] forgot-password: Supabase is not configured \u2014 cannot send recovery email.");
+    }
+    res.json({ message: "If an account with that email exists, a recovery link has been sent." });
+  } catch (err) {
+    console.error("Forgot-password error:", err);
+    res.status(500).json({ error: "Internal server error." });
+  }
+});
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { accessToken, newPassword } = req.body;
+    if (!accessToken || typeof accessToken !== "string") {
+      return res.status(400).json({ error: "Missing recovery token." });
+    }
+    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+      return res.status(400).json({ error: "New password must be at least 6 characters." });
+    }
+    if (!supabaseAdmin) {
+      return res.status(503).json({ error: "Account recovery is not available (Supabase not configured)." });
+    }
+    const { data: { user: sbUser }, error: getUserError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (getUserError || !sbUser) {
+      console.error("[supabase] getUser for reset failed:", getUserError?.message);
+      return res.status(401).json({ error: "Recovery link is invalid or has expired. Please request a new one." });
+    }
+    const supabaseUserId = sbUser.id;
+    const supabaseEmail = sbUser.email?.toLowerCase().trim();
+    if (!supabaseEmail) {
+      return res.status(400).json({ error: "No email address found on this account." });
+    }
+    const localResult = await db_default.query(
+      "SELECT id, username FROM users WHERE LOWER(email) = $1 OR supabase_user_id = $2",
+      [supabaseEmail, supabaseUserId]
+    );
+    if (localResult.rows.length === 0) {
+      return res.status(404).json({ error: "Account not found in local database." });
+    }
+    const localUser = localResult.rows[0];
+    const newHash = await bcryptjs_default.hash(newPassword, 10);
+    await db_default.query("UPDATE users SET password_hash = $1 WHERE id = $2", [newHash, localUser.id]);
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(supabaseUserId, {
+      password: newPassword
+    });
+    if (updateError) {
+      console.warn("[supabase] updateUserById password sync failed:", updateError.message);
+    }
+    res.json({ message: "Password updated successfully. You can now log in with your new password." });
+  } catch (err) {
+    console.error("Reset-password error:", err);
+    res.status(500).json({ error: "Internal server error." });
+  }
+});
 router.get("/users", async (_req, res) => {
   try {
     const result = await db_default.query(
@@ -60645,6 +60721,19 @@ router3.post("/courses/:id/bookmark", async (req, res) => {
     const courseRes = await db_default.query("SELECT creator FROM community_courses WHERE id = $1", [courseId]);
     if (courseRes.rows.length === 0) return res.status(404).json({ error: "Course not found." });
     const isOwner = courseRes.rows[0].creator.toLowerCase() === username.toLowerCase();
+    if (!isOwner) {
+      const subRes = await db_default.query(
+        "SELECT subscription_status FROM users WHERE LOWER(username) = LOWER($1)",
+        [username]
+      );
+      const isPlatinum = ["active", "trialing"].includes(subRes.rows[0]?.subscription_status ?? "");
+      if (!isPlatinum) {
+        return res.status(403).json({
+          error: "platinum_required",
+          message: "Saving courses from the workshop is a Platinum feature. Upgrade to bookmark any course."
+        });
+      }
+    }
     const existing = await db_default.query(
       "SELECT 1 FROM course_bookmarks WHERE course_id = $1 AND username = $2",
       [courseId, username]

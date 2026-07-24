@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Sparkles, Hammer, Users, TrendingUp, BarChart2, Smartphone, Tablet, Monitor, Mail } from 'lucide-react';
+import { User, Lock, KeyRound, Eye, EyeOff, UserPlus, LogIn, ChevronRight, Sparkles, Hammer, Users, TrendingUp, BarChart2, Smartphone, Tablet, Monitor, Mail, ArrowLeft, RotateCcw } from 'lucide-react';
 import { UserAccount } from '../types';
 import { synths } from '../audio';
 import { hasVulgarLanguage } from '../utils';
@@ -70,13 +70,23 @@ const GAME_FEATURES = [
   },
 ];
 
+type AuthMode = 'login' | 'signup' | 'forgot' | 'reset';
+
 export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: AuthScreenProps) {
   const [isSignUp, setIsSignUp] = useState(initialMode === 'signup');
+  // 'forgot' = request recovery email; 'reset' = set new password after clicking email link
+  const [authMode, setAuthMode] = useState<AuthMode>(initialMode === 'signup' ? 'signup' : 'login');
+  const [recoveryToken, setRecoveryToken] = useState<string | null>(null);
+
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showNewPasswordConfirm, setShowNewPasswordConfirm] = useState(false);
+
   // Randomly assigned at mount — user can change after signing in.
   const [selectedAvatar] = useState(() => AVATARS[Math.floor(Math.random() * AVATARS.length)].emoji);
   const [selectedBg] = useState(() => SIGNUP_AVATAR_BGS[Math.floor(Math.random() * SIGNUP_AVATAR_BGS.length)].value);
@@ -88,6 +98,22 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [usernameTaken, setUsernameTaken] = useState(false);
+
+  // Detect Supabase recovery redirect: URL hash contains access_token + type=recovery
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash) return;
+    const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
+    const type = params.get('type');
+    const accessToken = params.get('access_token');
+    if (type === 'recovery' && accessToken) {
+      setRecoveryToken(accessToken);
+      setAuthMode('reset');
+      setIsSignUp(false);
+      // Remove the sensitive token from the URL bar
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    }
+  }, []);
 
   const [activeTabIdx, setActiveTabIdx] = useState(0);
   const [isAutoPlay, setIsAutoPlay] = useState(true);
@@ -216,12 +242,68 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     };
   }, []);
 
-  const clearInputs = () => { setUsername(''); setEmail(''); setPassword(''); setConfirmPassword(''); setFeedback(null); setUsernameTaken(false); };
+  const clearInputs = () => {
+    setUsername(''); setEmail(''); setPassword(''); setConfirmPassword('');
+    setNewPassword(''); setNewPasswordConfirm('');
+    setFeedback(null); setUsernameTaken(false);
+  };
+
+  const switchToLogin = () => { setAuthMode('login'); setIsSignUp(false); clearInputs(); synths.playTick(); };
+  const switchToSignup = () => { setAuthMode('signup'); setIsSignUp(true); clearInputs(); synths.playTick(); };
+  const switchToForgot = () => { setAuthMode('forgot'); clearInputs(); synths.playTick(); };
 
   const notifyFeedback = (type: 'error' | 'success', message: string) => {
     setFeedback({ type, message });
     if (type === 'error') synths.playDeath();
     else synths.playFinish();
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedback(null);
+    synths.playTick();
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      notifyFeedback('error', 'Please enter a valid email address.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await api.auth.forgotPassword(trimmedEmail);
+      notifyFeedback('success', result.message);
+    } catch (err: any) {
+      notifyFeedback('error', err.message || 'Failed to send recovery email. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedback(null);
+    synths.playTick();
+    if (newPassword.length < 6) {
+      notifyFeedback('error', 'Password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      notifyFeedback('error', 'Passwords do not match.');
+      return;
+    }
+    if (!recoveryToken) {
+      notifyFeedback('error', 'Recovery token missing. Please request a new recovery email.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await api.auth.resetPassword(recoveryToken, newPassword);
+      notifyFeedback('success', result.message + ' Redirecting to login…');
+      setTimeout(() => { setRecoveryToken(null); switchToLogin(); }, 2000);
+    } catch (err: any) {
+      notifyFeedback('error', err.message || 'Failed to reset password. The link may have expired — request a new one.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -318,184 +400,347 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
         </div>
 
         <div className="bg-neutral-900/80 border border-neutral-800 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-bold font-mono uppercase tracking-wider text-neutral-25">
-              {isSignUp ? 'Create Profile' : 'Member Portal'}
-            </h2>
-            <div className="flex items-center gap-2">
-              {onPlayDemo && (
+
+          {/* ── Forgot Password ─────────────────────────────────────── */}
+          {authMode === 'forgot' && (
+            <>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-bold font-mono uppercase tracking-wider text-neutral-100">Recover Account</h2>
                 <button
                   type="button"
-                  onClick={() => { synths.playTick(); onPlayDemo(); }}
+                  onClick={switchToLogin}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider border transition-all duration-200 cursor-pointer bg-neutral-800/60 border-neutral-700/50 text-neutral-300 hover:text-white hover:border-neutral-600"
                 >
-                  <span className="text-[10px] leading-none">▶</span>Play Demo
+                  <ArrowLeft className="w-3 h-3" />Back
                 </button>
-              )}
-              <button
-                onClick={() => { setIsSignUp(!isSignUp); clearInputs(); synths.playTick(); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider border transition-all duration-200 cursor-pointer ${
-                  isSignUp
-                    ? 'bg-neutral-800/60 border-neutral-700/50 text-neutral-300 hover:text-white hover:border-neutral-600'
-                    : 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50 hover:text-rose-300 shadow-sm shadow-rose-500/10'
-                }`}
-              >
-                {isSignUp ? (
-                  <><LogIn className="w-3 h-3" />Sign In</>
-                ) : (
-                  <><UserPlus className="w-3 h-3" />Sign Up</>
+              </div>
+
+              <p className="text-xs text-neutral-400 leading-relaxed mb-5">
+                Enter the email address linked to your account. We'll send you a recovery link so you can set a new password.
+              </p>
+
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                {feedback && (
+                  <div className={`p-3.5 rounded-xl border text-xs font-medium leading-relaxed ${
+                    feedback.type === 'error'
+                      ? 'bg-rose-950/25 border-rose-800/40 text-rose-300'
+                      : 'bg-green-950/25 border-green-800/40 text-green-300'
+                  }`}>
+                    {feedback.message}
+                  </div>
                 )}
-              </button>
-            </div>
-          </div>
 
-          <form onSubmit={handleAuthSubmit} className="space-y-4">
-            {feedback && (
-              <div className={`p-3.5 rounded-xl border text-xs font-medium leading-relaxed ${
-                feedback.type === 'error'
-                  ? 'bg-rose-950/25 border-rose-800/40 text-rose-300'
-                  : 'bg-green-950/25 border-green-800/40 text-green-300'
-              }`}>
-                {feedback.message}
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Username</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><User className="w-4 h-4" /></span>
-                <input
-                  type="text" placeholder="e.g. SpeedLeaper9" value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-4 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
-                  maxLength={18} required
-                />
-              </div>
-              {isSignUp && usernameTaken && (
-                <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Username already in use.</p>
-              )}
-              {isSignUp && hasVulgarLanguage(username) && (
-                <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Explicit or vulgar language is prohibited.</p>
-              )}
-            </div>
-
-            {isSignUp && (
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Email</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><Mail className="w-4 h-4" /></span>
-                  <input
-                    type="email" placeholder="you@example.com" value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-4 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
-                    required
-                  />
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Email Address</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><Mail className="w-4 h-4" /></span>
+                    <input
+                      type="email" placeholder="you@example.com" value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-4 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
+                      autoFocus required
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
 
-            <div className="space-y-1.55">
-              <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Password</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><Lock className="w-4 h-4" /></span>
-                <input
-                  type={showPassword ? 'text' : 'password'} placeholder="Min. 6 alphanumeric" value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-10 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
-                  minLength={6} required
-                />
-                <button type="button" onClick={() => { setShowPassword(!showPassword); synths.playTick(); }}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition">
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <button
+                  type="submit" disabled={isLoading}
+                  className="w-full mt-2 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition flex items-center justify-center gap-2 cursor-pointer text-sm font-mono uppercase tracking-widest leading-none"
+                >
+                  {isLoading ? (
+                    <span className="animate-pulse">Sending…</span>
+                  ) : (
+                    <><Mail className="w-4 h-4" />Send Recovery Email<ChevronRight className="w-4 h-4" /></>
+                  )}
+                </button>
+              </form>
+
+              <div className="mt-4 text-center flex items-center justify-center gap-1.5 text-[10px] font-mono text-neutral-500">
+                <Sparkles className="w-3 h-3 text-indigo-500" />
+                <span>Recovery link expires after one use.</span>
+              </div>
+            </>
+          )}
+
+          {/* ── Reset Password ───────────────────────────────────────── */}
+          {authMode === 'reset' && (
+            <>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-bold font-mono uppercase tracking-wider text-neutral-100">Set New Password</h2>
+                <button
+                  type="button"
+                  onClick={switchToLogin}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider border transition-all duration-200 cursor-pointer bg-neutral-800/60 border-neutral-700/50 text-neutral-300 hover:text-white hover:border-neutral-600"
+                >
+                  <ArrowLeft className="w-3 h-3" />Cancel
                 </button>
               </div>
-            </div>
 
-            {isSignUp && (
-              <>
+              <p className="text-xs text-neutral-400 leading-relaxed mb-5">
+                Choose a new password for your account. You'll be logged in automatically after resetting.
+              </p>
+
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                {feedback && (
+                  <div className={`p-3.5 rounded-xl border text-xs font-medium leading-relaxed ${
+                    feedback.type === 'error'
+                      ? 'bg-rose-950/25 border-rose-800/40 text-rose-300'
+                      : 'bg-green-950/25 border-green-800/40 text-green-300'
+                  }`}>
+                    {feedback.message}
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Confirm Password</label>
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">New Password</label>
                   <div className="relative">
-                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><KeyRound className="w-4 h-4" /></span>
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><Lock className="w-4 h-4" /></span>
                     <input
-                      type={showConfirmPassword ? 'text' : 'password'} placeholder="Repeat password" value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      type={showNewPassword ? 'text' : 'password'} placeholder="Min. 6 characters" value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
                       className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-10 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
-                      minLength={6} required
+                      minLength={6} autoFocus required
                     />
-                    <button type="button" onClick={() => { setShowConfirmPassword(!showConfirmPassword); synths.playTick(); }}
+                    <button type="button" onClick={() => { setShowNewPassword(!showNewPassword); synths.playTick(); }}
                       className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition">
-                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-neutral-800/40">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-2 text-left">Your Device</span>
-                  <div className="grid grid-cols-3 gap-2">
-                    {([
-                      { value: 'computer', label: 'Computer', Icon: Monitor,    recommended: true  },
-                      { value: 'tablet',   label: 'Tablet',   Icon: Tablet,     recommended: false },
-                      { value: 'phone',    label: 'Phone',    Icon: Smartphone, recommended: false },
-                    ] as const).map(({ value, label, Icon, recommended }) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => { setSelectedDevice(value); synths.playTick(); }}
-                        className={`relative flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-semibold transition cursor-pointer ${
-                          selectedDevice === value
-                            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
-                            : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
-                        }`}
-                      >
-                        {recommended && (
-                          <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                            Recommended
-                          </span>
-                        )}
-                        <Icon className="w-5 h-5" />
-                        {label}
-                      </button>
-                    ))}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Confirm New Password</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><KeyRound className="w-4 h-4" /></span>
+                    <input
+                      type={showNewPasswordConfirm ? 'text' : 'password'} placeholder="Repeat new password" value={newPasswordConfirm}
+                      onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                      className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-10 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
+                      minLength={6} required
+                    />
+                    <button type="button" onClick={() => { setShowNewPasswordConfirm(!showNewPasswordConfirm); synths.playTick(); }}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition">
+                      {showNewPasswordConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
-                  {isSignUp && !selectedDevice && (
-                    <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Please select your device type.</p>
+                  {newPassword && newPasswordConfirm && newPassword !== newPasswordConfirm && (
+                    <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Passwords do not match.</p>
                   )}
                 </div>
-              </>
-            )}
 
-            <button
-              type="submit" disabled={isLoading}
-              className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition flex items-center justify-center gap-2 cursor-pointer text-sm font-mono uppercase tracking-widest leading-none"
-            >
-              {isLoading ? (
-                <span className="animate-pulse">Connecting...</span>
-              ) : isSignUp ? (
-                <><UserPlus className="w-4 h-4" />Create Account<ChevronRight className="w-4 h-4" /></>
-              ) : (
-                <><LogIn className="w-4 h-4" />Log In<ChevronRight className="w-4 h-4" /></>
-              )}
-            </button>
-          </form>
+                <button
+                  type="submit" disabled={isLoading}
+                  className="w-full mt-2 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition flex items-center justify-center gap-2 cursor-pointer text-sm font-mono uppercase tracking-widest leading-none"
+                >
+                  {isLoading ? (
+                    <span className="animate-pulse">Updating…</span>
+                  ) : (
+                    <><RotateCcw className="w-4 h-4" />Reset Password<ChevronRight className="w-4 h-4" /></>
+                  )}
+                </button>
+              </form>
 
-          {!isSignUp && (
-            <p className="mt-4 text-center text-[11px] text-neutral-500">
-              New user?{' '}
-              <button
-                type="button"
-                onClick={() => { setIsSignUp(true); clearInputs(); synths.playTick(); }}
-                className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 cursor-pointer transition"
-              >
-                Create an account!
-              </button>
-            </p>
+              <div className="mt-4 text-center flex items-center justify-center gap-1.5 text-[10px] font-mono text-neutral-500">
+                <Sparkles className="w-3 h-3 text-indigo-500" />
+                <span>Secured with bcrypt. Link expires after one use.</span>
+              </div>
+            </>
           )}
 
-          <div className="mt-4 text-center flex items-center justify-center gap-1.5 text-[10px] font-mono text-neutral-500">
-            <Sparkles className="w-3 h-3 text-indigo-500" />
-            <span>Accounts secured server-side with bcrypt.</span>
-          </div>
+          {/* ── Login / Signup ───────────────────────────────────────── */}
+          {(authMode === 'login' || authMode === 'signup') && (
+            <>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-bold font-mono uppercase tracking-wider text-neutral-100">
+                  {isSignUp ? 'Create Profile' : 'Member Portal'}
+                </h2>
+                <div className="flex items-center gap-2">
+                  {onPlayDemo && (
+                    <button
+                      type="button"
+                      onClick={() => { synths.playTick(); onPlayDemo(); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider border transition-all duration-200 cursor-pointer bg-neutral-800/60 border-neutral-700/50 text-neutral-300 hover:text-white hover:border-neutral-600"
+                    >
+                      <span className="text-[10px] leading-none">▶</span>Play Demo
+                    </button>
+                  )}
+                  <button
+                    onClick={() => isSignUp ? switchToLogin() : switchToSignup()}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider border transition-all duration-200 cursor-pointer ${
+                      isSignUp
+                        ? 'bg-neutral-800/60 border-neutral-700/50 text-neutral-300 hover:text-white hover:border-neutral-600'
+                        : 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50 hover:text-rose-300 shadow-sm shadow-rose-500/10'
+                    }`}
+                  >
+                    {isSignUp ? (
+                      <><LogIn className="w-3 h-3" />Sign In</>
+                    ) : (
+                      <><UserPlus className="w-3 h-3" />Sign Up</>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleAuthSubmit} className="space-y-4">
+                {feedback && (
+                  <div className={`p-3.5 rounded-xl border text-xs font-medium leading-relaxed ${
+                    feedback.type === 'error'
+                      ? 'bg-rose-950/25 border-rose-800/40 text-rose-300'
+                      : 'bg-green-950/25 border-green-800/40 text-green-300'
+                  }`}>
+                    {feedback.message}
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Username</label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><User className="w-4 h-4" /></span>
+                    <input
+                      type="text" placeholder="e.g. SpeedLeaper9" value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-4 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
+                      maxLength={18} required
+                    />
+                  </div>
+                  {isSignUp && usernameTaken && (
+                    <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Username already in use.</p>
+                  )}
+                  {isSignUp && hasVulgarLanguage(username) && (
+                    <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Explicit or vulgar language is prohibited.</p>
+                  )}
+                </div>
+
+                {isSignUp && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Email</label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><Mail className="w-4 h-4" /></span>
+                      <input
+                        type="email" placeholder="you@example.com" value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-4 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between ml-1 mr-0.5">
+                    <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400">Password</label>
+                    {!isSignUp && (
+                      <button
+                        type="button"
+                        onClick={switchToForgot}
+                        className="text-[10px] text-indigo-400 hover:text-indigo-300 font-mono transition cursor-pointer"
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><Lock className="w-4 h-4" /></span>
+                    <input
+                      type={showPassword ? 'text' : 'password'} placeholder="Min. 6 alphanumeric" value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-10 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
+                      minLength={6} required
+                    />
+                    <button type="button" onClick={() => { setShowPassword(!showPassword); synths.playTick(); }}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition">
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {isSignUp && (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Confirm Password</label>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><KeyRound className="w-4 h-4" /></span>
+                        <input
+                          type={showConfirmPassword ? 'text' : 'password'} placeholder="Repeat password" value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-10 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
+                          minLength={6} required
+                        />
+                        <button type="button" onClick={() => { setShowConfirmPassword(!showConfirmPassword); synths.playTick(); }}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition">
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-neutral-800/40">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1 mb-2 text-left">Your Device</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { value: 'computer', label: 'Computer', Icon: Monitor,    recommended: true  },
+                          { value: 'tablet',   label: 'Tablet',   Icon: Tablet,     recommended: false },
+                          { value: 'phone',    label: 'Phone',    Icon: Smartphone, recommended: false },
+                        ] as const).map(({ value, label, Icon, recommended }) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => { setSelectedDevice(value); synths.playTick(); }}
+                            className={`relative flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                              selectedDevice === value
+                                ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
+                                : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
+                            }`}
+                          >
+                            {recommended && (
+                              <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                                Recommended
+                              </span>
+                            )}
+                            <Icon className="w-5 h-5" />
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      {isSignUp && !selectedDevice && (
+                        <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Please select your device type.</p>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                <button
+                  type="submit" disabled={isLoading}
+                  className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition flex items-center justify-center gap-2 cursor-pointer text-sm font-mono uppercase tracking-widest leading-none"
+                >
+                  {isLoading ? (
+                    <span className="animate-pulse">Connecting...</span>
+                  ) : isSignUp ? (
+                    <><UserPlus className="w-4 h-4" />Create Account<ChevronRight className="w-4 h-4" /></>
+                  ) : (
+                    <><LogIn className="w-4 h-4" />Log In<ChevronRight className="w-4 h-4" /></>
+                  )}
+                </button>
+              </form>
+
+              {!isSignUp && (
+                <p className="mt-4 text-center text-[11px] text-neutral-500">
+                  New user?{' '}
+                  <button
+                    type="button"
+                    onClick={switchToSignup}
+                    className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 cursor-pointer transition"
+                  >
+                    Create an account!
+                  </button>
+                </p>
+              )}
+
+              <div className="mt-4 text-center flex items-center justify-center gap-1.5 text-[10px] font-mono text-neutral-500">
+                <Sparkles className="w-3 h-3 text-indigo-500" />
+                <span>Accounts secured server-side with bcrypt.</span>
+              </div>
+            </>
+          )}
         </div>
 
         <div
