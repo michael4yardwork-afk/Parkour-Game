@@ -203,6 +203,35 @@ export default function GameCanvas({
     isNpc: boolean;
     color: string;
   }[]>([]);
+  // username → { eloChange, newRating } for real players after a race
+  const [raceEloData, setRaceEloData] = useState<Record<string, { eloChange: number; newRating: number }> | null>(null);
+
+  // Fetch ELO for all real players whenever final standings are committed
+  useEffect(() => {
+    if (finalStandings.length === 0) return;
+    const realPlayers = finalStandings.filter(s => !s.isNpc);
+    if (realPlayers.length === 0) return;
+
+    (async () => {
+      const { api: apiModule } = await import('../api');
+      const results: Record<string, { eloChange: number; newRating: number }> = {};
+      await Promise.all(
+        realPlayers.map(async (std, _) => {
+          // placement index inside finalStandings (already sorted)
+          const idx = finalStandings.indexOf(std);
+          const eloChange = idx === 0 ? 10 : idx === 1 ? 5 : idx === 2 ? 2 : idx === 3 ? -2 : idx === 4 ? -5 : -10;
+          try {
+            const { rating } = await apiModule.users.getRating(std.username);
+            results[std.username] = { eloChange, newRating: Math.max(100, rating + eloChange) };
+          } catch {
+            // If fetch fails just show the delta without a new-total
+            results[std.username] = { eloChange, newRating: 0 };
+          }
+        })
+      );
+      setRaceEloData(results);
+    })();
+  }, [finalStandings]);
 
   // Touch Screen virtual joystick states (Mobile variables)
   const isMobileRef = useRef<boolean>(false);
@@ -623,6 +652,7 @@ export default function GameCanvas({
     isCompletedRef.current = false;
     setIsWaitingForOthers(false);
     isWaitingForOthersRef.current = false;
+    setRaceEloData(null);
     playerFinishTimeRef.current = 0;
     if (waitForOpponentsTimeoutRef.current) {
       clearTimeout(waitForOpponentsTimeoutRef.current);
@@ -2979,6 +3009,7 @@ export default function GameCanvas({
                   {finalStandings.map((std, idx) => {
                     const isSelf = std.username.toLowerCase() === (currentUser?.username || '').toLowerCase() || std.username === 'You';
                     const eloChange = idx === 0 ? 10 : idx === 1 ? 5 : idx === 2 ? 2 : idx === 3 ? -2 : idx === 4 ? -5 : -10;
+                    const eloEntry = !std.isNpc ? raceEloData?.[std.username] : undefined;
                     return (
                       <div key={idx} className="flex items-center justify-between p-3 text-xs font-mono">
                         <div className="flex items-center gap-2">
@@ -3008,6 +3039,11 @@ export default function GameCanvas({
                           </span>
                           <span className={`text-[10px] font-bold ${eloChange > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             {eloChange > 0 ? '+' : ''}{eloChange} ELO
+                            {eloEntry && eloEntry.newRating > 0 && (
+                              <span className="text-neutral-500 font-normal ml-1">
+                                → {eloEntry.newRating}
+                              </span>
+                            )}
                           </span>
                         </div>
                       </div>
