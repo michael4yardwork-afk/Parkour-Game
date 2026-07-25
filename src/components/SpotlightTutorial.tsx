@@ -82,10 +82,6 @@ const steps: Step[] = [
             <Key label="R"/>
             <span className="text-neutral-400">Restart</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Key label="Mouse"/>
-            <span className="text-neutral-400">Look around</span>
-          </div>
         </div>
         <p className="text-[10px] text-neutral-500 font-mono bg-neutral-800/50 rounded-lg px-3 py-2">
           📱 <span className="text-neutral-400">Phone / Tablet —</span> use the on-screen joystick to move and the Jump button to jump
