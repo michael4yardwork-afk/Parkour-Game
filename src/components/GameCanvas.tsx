@@ -2290,6 +2290,11 @@ export default function GameCanvas({
       climbingRef.current = false;
       wallRunDirectionRef.current = null;
       lastWallTouchRef.current = null;
+      // Reset HWM to checkpoint's spline position so standings show the actual
+      // respawn location, not the peak distance reached before dying.
+      if (raceMode) {
+        playerProgressHWMRef.current = getSplineProgressForPos(activeCheckpointRef.current);
+      }
     } else {
       if (raceMode) {
         // Since we are in a race, we do not want to reset the timer or race opponents.
