@@ -183,6 +183,10 @@ export default function GameCanvas({
   const splineCheckpointsRef = useRef<{ distance: number; position: THREE.Vector3 }[]>([]);
   const bcRef = useRef<BroadcastChannel | null>(null);
   const commitRaceResultsRef = useRef<() => void>(() => {});
+  // Set to true when the player clicks "Leave Race" early so the completion
+  // dialog is never rendered during the brief window between
+  // setIsWaitingForOthers(false) and onExit() unmounting the component.
+  const isLeavingRaceEarlyRef = useRef(false);
   // High-water-mark for the local player's spline progress: only ever increases
   // during a race so the live standings distance never jumps backwards.
   const playerProgressHWMRef = useRef<number>(0);
@@ -2938,13 +2942,16 @@ export default function GameCanvas({
 
             <button
               onClick={() => {
+                // Set flag synchronously BEFORE committing results so that when
+                // React re-renders with isWaitingForOthers=false the completion
+                // dialog condition sees this flag and never mounts.
+                isLeavingRaceEarlyRef.current = true;
                 if (waitForOpponentsTimeoutRef.current) {
                   clearTimeout(waitForOpponentsTimeoutRef.current);
                   waitForOpponentsTimeoutRef.current = null;
                 }
-                // Commit standings now so ELO is saved even though we're leaving
-                // before all opponents finish. commitRaceResultsRef clears
-                // isWaitingForOthersRef internally and calls onRaceFinished.
+                // Commit standings so ELO is saved even though we're leaving
+                // before all opponents finish.
                 commitRaceResultsRef.current();
                 // App.tsx's onExit handler awaits raceSavePromiseRef, so the
                 // ELO write lands before navigation regardless of timing.
@@ -2960,7 +2967,7 @@ export default function GameCanvas({
       )}
 
       {/* Completion Dialog Overlay */}
-      {isCompleted && !isWaitingForOthers && (
+      {isCompleted && !isWaitingForOthers && !isLeavingRaceEarlyRef.current && (
         <div className="absolute inset-0 bg-neutral-950/85 backdrop-blur-md flex items-center justify-center p-4 z-40">
           <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl flex flex-col items-center">
             
