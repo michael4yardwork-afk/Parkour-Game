@@ -257,11 +257,39 @@ router.get('/:username/rating', async (req: Request, res: Response) => {
       'SELECT rating, color FROM user_ratings WHERE LOWER(username) = LOWER($1)',
       [req.params.username]
     );
+    const rating = result.rows[0]?.rating ?? 200;
+    const rankRes = await pool.query(
+      'SELECT COUNT(*)::int AS cnt FROM user_ratings WHERE rating > $1',
+      [rating]
+    );
+    const rank = (rankRes.rows[0]?.cnt ?? 0) + 1;
     res.json({
-      rating: result.rows[0]?.rating ?? 200,
-      color: result.rows[0]?.color ?? '#3b82f6'
+      rating,
+      color: result.rows[0]?.color ?? '#3b82f6',
+      rank,
     });
   } catch (err) {
+    res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+router.get('/ratings/leaderboard', async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT ur.username, ur.rating, u.avatar, u.avatar_bg
+       FROM user_ratings ur
+       LEFT JOIN users u ON LOWER(u.username) = LOWER(ur.username)
+       ORDER BY ur.rating DESC
+       LIMIT 100`
+    );
+    res.json(result.rows.map(r => ({
+      username: r.username,
+      rating: r.rating,
+      avatar: r.avatar || '🚀',
+      avatarBg: r.avatar_bg || 'bg-rose-500',
+    })));
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error.' });
   }
 });

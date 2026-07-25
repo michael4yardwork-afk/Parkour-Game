@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trophy, Timer, Bot, User, Users, Flame, History, Play, Sparkles, Crown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Trophy, Timer, Bot, User, Users, Flame, History, Play, Sparkles, Crown, Globe, X } from 'lucide-react';
 import PlatinumGate from './PlatinumGate';
 import { LevelConfig, UserAccount, RaceParticipant, RaceHistoryEntry } from '../types';
 import { synths } from '../audio';
@@ -21,6 +22,14 @@ interface RacesProps {
   refreshKey?: number;
   isPlatinum?: boolean;
   onUpgrade?: () => void;
+  onViewProfile?: (username: string) => void;
+}
+
+interface EloLeaderboardEntry {
+  username: string;
+  rating: number;
+  avatar: string;
+  avatarBg: string;
 }
 
 // Fixed list of vibrant opponent colors
@@ -66,12 +75,17 @@ function getLeague(rating: number): League {
   return                      { name: 'Delta',       color: 'text-red-400',      bg: 'bg-red-500/15',      icon: '⚡🔺' };
 }
 
-export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatinum, onUpgrade }: RacesProps) {
+export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatinum, onUpgrade, onViewProfile }: RacesProps) {
   const [gate, setGate] = useState<{ feature: string; description?: string } | null>(null);
   // Stats
   const [rating, setRating] = useState<number>(100);
+  const [worldRank, setWorldRank] = useState<number | null>(null);
   const [history, setHistory] = useState<RaceHistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  // ELO leaderboard modal
+  const [showEloLeaderboard, setShowEloLeaderboard] = useState(false);
+  const [eloLeaderboard, setEloLeaderboard] = useState<EloLeaderboardEntry[]>([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
   // Fetch history and rating from server on mount, whenever the user changes, and whenever
   // the parent bumps refreshKey (e.g. right after a race result finishes saving) so stats
@@ -88,6 +102,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
         if (!cancelled) {
           setHistory(raceHistory);
           setRating(ratingData.rating);
+          setWorldRank(ratingData.rank ?? null);
         }
       } catch (e) {
         console.error('Failed to load race data:', e);
@@ -323,6 +338,17 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
     onSelectLevel(selectedLevel, true, finalOpponents, wsRef.current, roomId, raceStartTime ?? null);
   };
 
+  // Fetch ELO leaderboard when modal opens
+  useEffect(() => {
+    if (!showEloLeaderboard) return;
+    let cancelled = false;
+    setLoadingLeaderboard(true);
+    api.users.getEloLeaderboard().then(data => {
+      if (!cancelled) { setEloLeaderboard(data); setLoadingLeaderboard(false); }
+    }).catch(() => { if (!cancelled) setLoadingLeaderboard(false); });
+    return () => { cancelled = true; };
+  }, [showEloLeaderboard]);
+
   // Pseudo-random helper
   function newSeedRandom(val: number) {
     const x = Math.sin(val) * 10000;
@@ -347,26 +373,35 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
             </p>
           </div>
 
-          {/* Profile rating board */}
-          {(() => {
-            const league = getLeague(rating);
-            return (
-              <div className="flex items-center gap-4 bg-neutral-900 border border-neutral-800 p-4 rounded-2xl shadow-xl">
-                <div className="w-12 h-12 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl flex items-center justify-center text-2xl">
-                  {league.icon}
-                </div>
-                <div>
-                  <div className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest font-bold">Racer Elo Rating</div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-black font-mono text-amber-500 tracking-tight">{rating}</span>
-                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${league.color} ${league.bg}`}>
-                      {league.name} League
-                    </span>
+          {/* Profile rating board + World Rankings button */}
+          <div className="flex flex-col gap-2 items-stretch md:items-end">
+            {(() => {
+              const league = getLeague(rating);
+              return (
+                <div className="flex items-center gap-4 bg-neutral-900 border border-neutral-800 p-4 rounded-2xl shadow-xl">
+                  <div className="w-12 h-12 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl flex items-center justify-center text-2xl">
+                    {league.icon}
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-mono text-neutral-400 uppercase tracking-widest font-bold">Racer Elo Rating</div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-2xl font-black font-mono text-amber-500 tracking-tight">{rating}</span>
+                      <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${league.color} ${league.bg}`}>
+                        {league.name} League
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
+            <button
+              onClick={() => setShowEloLeaderboard(true)}
+              className="flex items-center justify-center gap-2 text-[11px] font-semibold text-neutral-500 hover:text-amber-400 border border-neutral-800 hover:border-amber-500/30 bg-neutral-900/50 hover:bg-amber-500/5 rounded-xl px-4 py-2 transition cursor-pointer w-full"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              View World ELO Rankings
+            </button>
+          </div>
         </div>
 
         {!isSearching ? (
@@ -483,7 +518,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
 
         {/* Triple Bento Stats Block */}
         {isPlatinum ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
               <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Total Matches</div>
               <div className="text-3xl font-black font-mono text-neutral-50 mt-2">{totalRaces}</div>
@@ -499,6 +534,12 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
             <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
               <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">Win Percentage</div>
               <div className="text-3xl font-black font-mono text-indigo-400 mt-2">{winRatio}%</div>
+            </div>
+            <div className="bg-neutral-900/60 border border-neutral-800/80 p-5 rounded-2xl flex flex-col justify-between">
+              <div className="text-neutral-500 font-mono text-[9px] uppercase tracking-wider font-bold">World ELO Rank</div>
+              <div className="text-3xl font-black font-mono text-amber-400 mt-2">
+                {worldRank ? `#${worldRank.toLocaleString()}` : '—'}
+              </div>
             </div>
           </div>
         ) : (
@@ -600,6 +641,100 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
           onUpgrade={onUpgrade ?? (() => {})}
         />
       )}
+
+      {/* World ELO Leaderboard Modal */}
+      <AnimatePresence>
+        {showEloLeaderboard && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm"
+              onClick={() => setShowEloLeaderboard(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ type: 'spring', damping: 24, stiffness: 300 }}
+              className="relative z-10 bg-neutral-950 border border-neutral-800 rounded-3xl w-full max-w-lg shadow-2xl flex flex-col max-h-[80vh]"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-5 border-b border-neutral-800 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg flex items-center justify-center">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-white tracking-tight">World ELO Rankings</h3>
+                    <p className="text-[10px] font-mono text-neutral-500">Top 100 racers by rating</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowEloLeaderboard(false)}
+                  className="p-1.5 text-neutral-600 hover:text-neutral-300 hover:bg-neutral-800 rounded-lg transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* List */}
+              <div className="overflow-y-auto flex-1">
+                {loadingLeaderboard ? (
+                  <div className="p-8 text-center text-xs text-neutral-500 font-mono">Loading rankings…</div>
+                ) : eloLeaderboard.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-neutral-500 font-mono">No ratings recorded yet.</div>
+                ) : (
+                  <div className="divide-y divide-neutral-800/60">
+                    {eloLeaderboard.map((entry, idx) => {
+                      const league = getLeague(entry.rating);
+                      const isSelf = entry.username.toLowerCase() === currentUser.username.toLowerCase();
+                      return (
+                        <div
+                          key={entry.username}
+                          className={`flex items-center gap-3 px-5 py-3 transition ${isSelf ? 'bg-indigo-500/5 border-l-2 border-indigo-500' : 'hover:bg-neutral-900/50'}`}
+                        >
+                          {/* Rank */}
+                          <span className={`text-[11px] font-black font-mono w-7 shrink-0 ${
+                            idx === 0 ? 'text-amber-400' : idx === 1 ? 'text-neutral-300' : idx === 2 ? 'text-amber-700' : 'text-neutral-600'
+                          }`}>
+                            #{idx + 1}
+                          </span>
+
+                          {/* Avatar */}
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 ${entry.avatarBg || 'bg-neutral-700'}`}>
+                            {entry.avatar}
+                          </div>
+
+                          {/* Username */}
+                          <button
+                            onClick={() => { onViewProfile?.(entry.username); setShowEloLeaderboard(false); }}
+                            className="text-xs font-bold text-neutral-200 hover:text-indigo-400 transition truncate flex-1 text-left cursor-pointer"
+                          >
+                            {entry.username}
+                            {isSelf && <span className="ml-1.5 text-[9px] font-mono text-indigo-400 font-normal">(you)</span>}
+                          </button>
+
+                          {/* League badge */}
+                          <span className={`hidden sm:inline text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 ${league.color} ${league.bg}`}>
+                            {league.icon} {league.name}
+                          </span>
+
+                          {/* ELO */}
+                          <span className="text-xs font-black font-mono text-amber-500 shrink-0 w-14 text-right">
+                            {entry.rating.toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

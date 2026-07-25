@@ -848,6 +848,7 @@ export default function App() {
             }}
             isPlatinum={isPlatinum}
             onUpgrade={handleGoToUpgrade}
+            onViewProfile={handleViewProfile}
           />
         )}
 

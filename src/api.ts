@@ -280,13 +280,21 @@ export const api = {
       });
     },
 
-    async getRating(username: string): Promise<{ rating: number; color: string }> {
+    async getRating(username: string): Promise<{ rating: number; color: string; rank: number }> {
       try {
-        return await apiFetch<{ rating: number; color: string }>(`/users/${encodeURIComponent(username)}/rating`);
+        return await apiFetch<{ rating: number; color: string; rank: number }>(`/users/${encodeURIComponent(username)}/rating`);
       } catch {
-        return { rating: 200, color: '#3b82f6' };
+        return { rating: 200, color: '#3b82f6', rank: 1 };
       }
-    }
+    },
+
+    async getEloLeaderboard(): Promise<{ username: string; rating: number; avatar: string; avatarBg: string }[]> {
+      try {
+        return await apiFetch<{ username: string; rating: number; avatar: string; avatarBg: string }[]>('/users/ratings/leaderboard');
+      } catch {
+        return [];
+      }
+    },
   },
 
   billing: {
