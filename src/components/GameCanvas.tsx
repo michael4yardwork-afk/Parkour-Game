@@ -1997,6 +1997,19 @@ export default function GameCanvas({
         }
         playerVel.current.x = 0;
 
+        // Side contact with a jump block — fire the launch just like a top contact
+        if (block.type === 'jump') {
+          const now = Date.now();
+          lastJumpBlockCollisionTimeRef.current = now;
+          if (now - (jumpCoolRef.current[block.id] || 0) > 500) {
+            playerVel.current.y = 22.5;
+            playerVel.current.x = forwardVec.x * 8.5;
+            playerVel.current.z = forwardVec.z * 8.5;
+            synths.playBoost();
+            jumpCoolRef.current[block.id] = now;
+          }
+        }
+
         // Record wall contact for wall-jump and (for wallrun/normal) wall-run
         if (!groundedRef.current && wallRunCooldownRef.current <= 0) {
           const normX = pushLeft ? -1 : 1;
@@ -2038,6 +2051,19 @@ export default function GameCanvas({
           playerPos.current.z = maxZ + r;
         }
         playerVel.current.z = 0;
+
+        // Side contact with a jump block — fire the launch just like a top contact
+        if (block.type === 'jump') {
+          const now = Date.now();
+          lastJumpBlockCollisionTimeRef.current = now;
+          if (now - (jumpCoolRef.current[block.id] || 0) > 500) {
+            playerVel.current.y = 22.5;
+            playerVel.current.x = forwardVec.x * 8.5;
+            playerVel.current.z = forwardVec.z * 8.5;
+            synths.playBoost();
+            jumpCoolRef.current[block.id] = now;
+          }
+        }
 
         // Record wall contact for wall-jump and wall-run
         if (!groundedRef.current && wallRunCooldownRef.current <= 0) {
