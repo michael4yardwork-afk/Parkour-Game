@@ -49,3 +49,4 @@ The database schema is auto-initialized on server startup (`server/db.ts`). No m
 
 - Keep existing project structure and stack
 - Do not migrate the database to a different provider without explicit request
+- Do not push to GitHub on the user's behalf — the user pushes manually themselves
