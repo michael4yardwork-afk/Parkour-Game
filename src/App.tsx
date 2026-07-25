@@ -813,7 +813,6 @@ export default function App() {
           <LevelSelector
             onSelectLevel={handleSelectLevel}
             onCreateNewCustom={handleStartBuilder}
-            onEditCustom={handleEditCustomLevel}
             currentUser={currentUser}
           />
         )}

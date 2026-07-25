@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Plus, Trash2, Upload, Award, Compass, Map, Clock, Trophy, Zap, Medal } from 'lucide-react';
+import { Play, Plus, Award, Trophy, Zap, Medal } from 'lucide-react';
 import { LevelConfig, SceneTheme, UserAccount } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
 import { api } from '../api';
@@ -8,7 +8,6 @@ import { formatPercentile, getPlayerRanking } from '../utils/rankings';
 interface LevelSelectorProps {
   onSelectLevel: (level: LevelConfig) => void;
   onCreateNewCustom: () => void;
-  onEditCustom: (level: LevelConfig) => void;
   currentUser: UserAccount;
 }
 
@@ -113,19 +112,11 @@ const formatTheme = (theme: SceneTheme) => {
   }
 };
 
-export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEditCustom, currentUser }: LevelSelectorProps) {
-  const [customLevels, setCustomLevels] = useState<LevelConfig[]>([]);
+export default function LevelSelector({ onSelectLevel, onCreateNewCustom, currentUser }: LevelSelectorProps) {
   const [courseStats, setCourseStats] = useState<Record<string, {
     worldRecord: string | null;
     percentile: number | null;
   }>>({});
-
-  useEffect(() => {
-    const list = localStorage.getItem('custom_parkour_levels');
-    if (list) {
-      try { setCustomLevels(JSON.parse(list)); } catch {}
-    }
-  }, []);
 
   useEffect(() => {
     Promise.all(
@@ -158,21 +149,6 @@ export default function LevelSelector({ onSelectLevel, onCreateNewCustom, onEdit
       setCourseStats(map);
     });
   }, [currentUser.username]);
-
-  const deleteCustomLevel = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm('Delete this custom level? This cannot be undone.')) {
-      const updated = customLevels.filter(lvl => lvl.id !== id);
-      setCustomLevels(updated);
-      localStorage.setItem('custom_parkour_levels', JSON.stringify(updated));
-    }
-  };
-
-  const exportLevelJSON = (lvl: LevelConfig, e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(JSON.stringify(lvl, null, 2));
-    alert(`Copied "${lvl.name}" level code to clipboard!`);
-  };
 
   const getPB = (id: string): string | null => {
     const score = localStorage.getItem(`best_time_${id}`);
