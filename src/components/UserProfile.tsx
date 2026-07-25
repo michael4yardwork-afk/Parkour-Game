@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Trophy, Activity, Sparkles, Clock, User, Award, Play, ChevronRight, BookmarkCheck, Heart, Check, Plus, Users, Bookmark, RefreshCw, EyeOff, Flag, Crown, Lock } from 'lucide-react';
+import { ArrowLeft, Trophy, Activity, Sparkles, Clock, User, Award, Play, ChevronRight, BookmarkCheck, Heart, Check, Plus, Users, Bookmark, RefreshCw, EyeOff, Flag, Crown, Lock, UserX, X } from 'lucide-react';
 import PlatinumGate from './PlatinumGate';
 import { LevelConfig, SceneTheme, UserAccount, LeaderboardEntry } from '../types';
 import { DEFAULT_LEVELS } from '../defaultLevels';
@@ -447,10 +447,18 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
     }
   };
 
+  const [showFollowNeedsUpgrade, setShowFollowNeedsUpgrade] = useState(false);
+
   const handleToggleFollow = async () => {
-    // Gate: free-plan users cannot receive followers. Show the gate before calling the API.
+    // Gate: free-plan users cannot receive followers.
     if (!isFollowing && !profileIsPlatinum) {
-      setGate({ feature: 'Following Players', description: 'Only Platinum members can be followed. This player needs to upgrade before others can follow them.' });
+      if (isPlatinum) {
+        // Current user already has Platinum — show an informational popup instead of the upgrade prompt.
+        setShowFollowNeedsUpgrade(true);
+      } else {
+        // Neither user has Platinum — show the standard upgrade gate.
+        setGate({ feature: 'Following Players', description: 'Only Platinum members can be followed. Upgrade to Platinum to build your own follower base.' });
+      }
       return;
     }
     try {
@@ -1026,6 +1034,54 @@ export default function UserProfile({ username, currentUser, onBack, onSelectLev
           onUpgrade={onUpgrade ?? (() => {})}
         />
       )}
+
+      {/* Informational popup shown when a Platinum user tries to follow a non-Platinum player */}
+      <AnimatePresence>
+        {showFollowNeedsUpgrade && (
+          <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-neutral-950/75 backdrop-blur-sm"
+              onClick={() => setShowFollowNeedsUpgrade(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.90, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.90, y: 20 }}
+              transition={{ type: 'spring', damping: 22, stiffness: 280 }}
+              className="relative z-10 bg-neutral-950 border border-neutral-700/50 rounded-3xl max-w-[340px] w-full p-7 shadow-2xl text-center"
+            >
+              <button
+                onClick={() => setShowFollowNeedsUpgrade(false)}
+                className="absolute top-4 right-4 p-1.5 text-neutral-600 hover:text-neutral-400 transition cursor-pointer rounded-lg hover:bg-neutral-900"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-neutral-800 border border-neutral-700 flex items-center justify-center shadow-lg mb-5">
+                <UserX className="w-8 h-8 text-neutral-400" />
+              </div>
+
+              <h3 className="text-lg font-black text-white tracking-tight leading-snug">
+                This player can't receive followers yet
+              </h3>
+
+              <p className="mt-3 text-xs text-neutral-400 leading-relaxed">
+                Only Platinum members can build a follower base. <span className="text-neutral-200 font-semibold">{resolvedName}</span> would need to upgrade to Platinum before others can follow them.
+              </p>
+
+              <button
+                onClick={() => setShowFollowNeedsUpgrade(false)}
+                className="mt-6 w-full py-2.5 rounded-xl text-sm font-bold bg-neutral-800 hover:bg-neutral-700 text-neutral-200 transition cursor-pointer"
+              >
+                Got it
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
