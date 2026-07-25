@@ -2306,6 +2306,9 @@ export default function GameCanvas({
         climbingRef.current = false;
         wallRunDirectionRef.current = null;
         lastWallTouchRef.current = null;
+        // Reset progress so standings reflect actual current position, not the
+        // peak distance reached before dying.
+        playerProgressHWMRef.current = 0;
       } else {
         // Since player has no active checkpoints, they respawn on the start block.
         // Reset the timer and run states as if they had clicked the reset button.
