@@ -2942,9 +2942,13 @@ export default function GameCanvas({
                   clearTimeout(waitForOpponentsTimeoutRef.current);
                   waitForOpponentsTimeoutRef.current = null;
                 }
-                setIsWaitingForOthers(false);
-                isWaitingForOthersRef.current = false;
-                handleExitAttempt();
+                // Commit standings now so ELO is saved even though we're leaving
+                // before all opponents finish. commitRaceResultsRef clears
+                // isWaitingForOthersRef internally and calls onRaceFinished.
+                commitRaceResultsRef.current();
+                // App.tsx's onExit handler awaits raceSavePromiseRef, so the
+                // ELO write lands before navigation regardless of timing.
+                onExit();
               }}
               className="flex items-center gap-2 text-xs font-semibold text-neutral-500 hover:text-red-400 transition"
             >

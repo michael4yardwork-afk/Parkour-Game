@@ -39,7 +39,7 @@ interface Step {
   label: string;
   title: string;
   content: React.ReactNode;
-  targetId?: string;
+  targetIds?: string[];
 }
 
 const steps: Step[] = [
@@ -88,7 +88,7 @@ const steps: Step[] = [
           </div>
         </div>
         <p className="text-[10px] text-neutral-500 font-mono bg-neutral-800/50 rounded-lg px-3 py-2">
-          📱 <span className="text-neutral-400">Phone / Tablet —</span> drag left to move, right to look, tap Jump button
+          📱 <span className="text-neutral-400">Phone / Tablet —</span> use the on-screen joystick to move and the Jump button to jump
         </p>
       </div>
     ),
@@ -138,27 +138,29 @@ const steps: Step[] = [
         ))}
       </div>
     ),
-    targetId: 'course-builder-tab-trigger',
+    targetIds: ['rush-tab-trigger', 'community-workshop-tab-trigger', 'races-tab-trigger', 'course-builder-tab-trigger'],
   },
 ];
 
 // ── Spotlight rect helper ─────────────────────────────────────────────────────
 
-function getTargetRect(id?: string): DOMRect | null {
-  if (!id) return null;
-  return document.getElementById(id)?.getBoundingClientRect() ?? null;
+function getTargetRects(ids?: string[]): DOMRect[] {
+  if (!ids || ids.length === 0) return [];
+  return ids
+    .map(id => document.getElementById(id)?.getBoundingClientRect() ?? null)
+    .filter((r): r is DOMRect => r !== null);
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function SpotlightTutorial({ isOpen, onClose }: SpotlightTutorialProps) {
   const [idx, setIdx] = useState(0);
-  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const [targetRects, setTargetRects] = useState<DOMRect[]>([]);
   const step = steps[idx];
 
   const updateRect = useCallback(() => {
-    setTargetRect(getTargetRect(step.targetId));
-  }, [step.targetId]);
+    setTargetRects(getTargetRects(step.targetIds));
+  }, [step.targetIds]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -213,36 +215,33 @@ export default function SpotlightTutorial({ isOpen, onClose }: SpotlightTutorial
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-neutral-950/55 backdrop-blur-[3px]"
+            className="fixed inset-0 bg-neutral-950/65"
             onClick={onClose}
           />
 
-          {/* ── Spotlight ring around target element ── */}
+          {/* ── Spotlight rings around target elements ── */}
           <AnimatePresence>
-            {targetRect && (
+            {targetRects.map((rect, i) => (
               <motion.div
-                key={`${idx}-${targetRect.left}-${targetRect.top}`}
+                key={`${idx}-${i}-${rect.left}-${rect.top}`}
                 initial={{ opacity: 0, scale: 0.94 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.22 }}
                 className="pointer-events-none fixed rounded-2xl"
                 style={{
-                  left:   targetRect.left   - PAD,
-                  top:    targetRect.top    - PAD,
-                  width:  targetRect.width  + PAD * 2,
-                  height: targetRect.height + PAD * 2,
-                  // The enormous box-shadow creates the "dark surround" outside this element,
-                  // making it appear brighter than the rest of the screen.
+                  left:   rect.left   - PAD,
+                  top:    rect.top    - PAD,
+                  width:  rect.width  + PAD * 2,
+                  height: rect.height + PAD * 2,
                   boxShadow: [
-                    '0 0 0 9999px rgba(3,7,18,0.80)',
                     '0 0 0 2px #6366f1',
                     '0 0 0 4px rgba(99,102,241,0.35)',
                     '0 0 28px 4px rgba(99,102,241,0.70)',
                   ].join(', '),
                 }}
               />
-            )}
+            ))}
           </AnimatePresence>
 
           {/* ── Tutorial card ── */}
