@@ -60154,6 +60154,37 @@ async function getAuthenticatedAccount(req) {
   return null;
 }
 
+// server/email.ts
+var import_nodemailer = __toESM(require("nodemailer"), 1);
+var {
+  SMTP_HOST,
+  SMTP_PORT,
+  SMTP_SECURE,
+  SMTP_USER,
+  SMTP_PASS,
+  SMTP_FROM
+} = process.env;
+var isConfigured = !!(SMTP_HOST && SMTP_USER && SMTP_PASS);
+var transporter = isConfigured ? import_nodemailer.default.createTransport({
+  host: SMTP_HOST,
+  port: Number(SMTP_PORT ?? 587),
+  secure: SMTP_SECURE === "true",
+  auth: { user: SMTP_USER, pass: SMTP_PASS }
+}) : null;
+async function sendMail(opts) {
+  if (!transporter) {
+    console.warn("[email] SMTP not configured \u2014 skipping sendMail.");
+    return;
+  }
+  await transporter.sendMail({
+    from: SMTP_FROM ?? SMTP_USER,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    text: opts.text
+  });
+}
+
 // server/routes/auth.ts
 var router = (0, import_express.Router)();
 function originFromUrl(value) {
@@ -60367,14 +60398,57 @@ router.post("/forgot-password", async (req, res) => {
     );
     if (userResult.rows.length > 0 && supabaseAdmin) {
       const appUrl = recoveryRedirectOrigin(req, redirectTo);
-      const { error } = await supabaseAdmin.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: appUrl
-      });
-      if (error) {
-        console.error("[supabase] resetPasswordForEmail error:", error.message);
-        if (error.message?.toLowerCase().includes("not found") || error.message?.toLowerCase().includes("invalid")) {
+      console.log(`[auth] forgot-password: generating recovery link with redirectTo=${appUrl}`);
+      if (isConfigured) {
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: "recovery",
+          email: normalizedEmail,
+          options: { redirectTo: appUrl }
+        });
+        if (linkError || !linkData?.properties?.action_link) {
+          console.error("[supabase] generateLink error:", linkError?.message ?? "no action_link returned");
         } else {
-          console.error("[supabase] recovery email failed:", error.message);
+          const actionLink = linkData.properties.action_link;
+          await sendMail({
+            to: normalizedEmail,
+            subject: "Reset your Delta Rush password",
+            html: `
+              <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+                <h2 style="color:#6366f1">Delta Rush \u2014 Password Reset</h2>
+                <p>Someone requested a password reset for your account. Click the button below to set a new password.</p>
+                <p style="margin:32px 0">
+                  <a href="${actionLink}"
+                     style="background:#6366f1;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">
+                    Reset Password
+                  </a>
+                </p>
+                <p style="color:#888;font-size:13px">
+                  This link expires in 1 hour. If you didn't request a reset, you can safely ignore this email.
+                </p>
+                <p style="color:#888;font-size:13px">
+                  If the button doesn't work, copy and paste this link:<br>
+                  <a href="${actionLink}" style="color:#6366f1;word-break:break-all">${actionLink}</a>
+                </p>
+              </div>
+            `,
+            text: `Reset your Delta Rush password
+
+Click this link to reset your password:
+${actionLink}
+
+This link expires in 1 hour. If you didn't request a reset, ignore this email.`
+          });
+          console.log("[auth] forgot-password: recovery email sent via SMTP");
+        }
+      } else {
+        console.warn(
+          `[auth] SMTP not configured. Falling back to Supabase built-in email. The recovery link will only redirect to "${appUrl}" if that domain is listed in Supabase \u2192 Authentication \u2192 URL Configuration \u2192 Redirect URLs. Otherwise the link will point to Supabase's configured Site URL. Set SMTP_HOST/SMTP_USER/SMTP_PASS to bypass this restriction.`
+        );
+        const { error } = await supabaseAdmin.auth.resetPasswordForEmail(normalizedEmail, {
+          redirectTo: appUrl
+        });
+        if (error) {
+          console.error("[supabase] resetPasswordForEmail error:", error.message);
         }
       }
     } else if (!supabaseAdmin) {

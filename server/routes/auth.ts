@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import pool from '../db';
 import { supabaseAdmin } from '../supabase';
 import { getAuthenticatedAccount, signAuthToken } from '../authIdentity';
+import { isConfigured as smtpConfigured, sendMail } from '../email';
 
 const router = Router();
 
@@ -275,18 +276,71 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
     if (userResult.rows.length > 0 && supabaseAdmin) {
       // Determine the app's public URL for the redirect after the user clicks the email link
       const appUrl = recoveryRedirectOrigin(req, redirectTo);
+      console.log(`[auth] forgot-password: generating recovery link with redirectTo=${appUrl}`);
 
-      const { error } = await supabaseAdmin.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: appUrl,
-      });
+      if (smtpConfigured) {
+        // ── Preferred path: admin.generateLink + SMTP email ───────────────────
+        // admin.generateLink is not restricted by Supabase's Site URL / redirect
+        // allowlist, so the recovery link in the email will always point to the
+        // real app URL rather than whatever is configured as the Supabase Site URL.
+        const { data: linkData, error: linkError } =
+          await supabaseAdmin.auth.admin.generateLink({
+            type: 'recovery',
+            email: normalizedEmail,
+            options: { redirectTo: appUrl },
+          });
 
-      if (error) {
-        console.error('[supabase] resetPasswordForEmail error:', error.message);
-        // Surface a user-friendly error only for clear configuration issues
-        if (error.message?.toLowerCase().includes('not found') || error.message?.toLowerCase().includes('invalid')) {
-          // Still generic — don't leak
+        if (linkError || !linkData?.properties?.action_link) {
+          console.error('[supabase] generateLink error:', linkError?.message ?? 'no action_link returned');
         } else {
-          console.error('[supabase] recovery email failed:', error.message);
+          const actionLink = linkData.properties.action_link;
+          await sendMail({
+            to: normalizedEmail,
+            subject: 'Reset your Delta Rush password',
+            html: `
+              <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+                <h2 style="color:#6366f1">Delta Rush — Password Reset</h2>
+                <p>Someone requested a password reset for your account. Click the button below to set a new password.</p>
+                <p style="margin:32px 0">
+                  <a href="${actionLink}"
+                     style="background:#6366f1;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">
+                    Reset Password
+                  </a>
+                </p>
+                <p style="color:#888;font-size:13px">
+                  This link expires in 1 hour. If you didn't request a reset, you can safely ignore this email.
+                </p>
+                <p style="color:#888;font-size:13px">
+                  If the button doesn't work, copy and paste this link:<br>
+                  <a href="${actionLink}" style="color:#6366f1;word-break:break-all">${actionLink}</a>
+                </p>
+              </div>
+            `,
+            text: `Reset your Delta Rush password\n\nClick this link to reset your password:\n${actionLink}\n\nThis link expires in 1 hour. If you didn't request a reset, ignore this email.`,
+          });
+          console.log('[auth] forgot-password: recovery email sent via SMTP');
+        }
+      } else {
+        // ── Fallback path: Supabase built-in email ────────────────────────────
+        // This path works when SMTP is not configured, but the link in the email
+        // will point to Supabase's configured Site URL instead of the redirectTo
+        // we supply — unless the redirectTo domain is added to Supabase's
+        // "Redirect URLs" allowlist in the Supabase dashboard under
+        // Authentication → URL Configuration.
+        console.warn(
+          '[auth] SMTP not configured. Falling back to Supabase built-in email. ' +
+          `The recovery link will only redirect to "${appUrl}" if that domain is ` +
+          'listed in Supabase → Authentication → URL Configuration → Redirect URLs. ' +
+          'Otherwise the link will point to Supabase\'s configured Site URL. ' +
+          'Set SMTP_HOST/SMTP_USER/SMTP_PASS to bypass this restriction.'
+        );
+
+        const { error } = await supabaseAdmin.auth.resetPasswordForEmail(normalizedEmail, {
+          redirectTo: appUrl,
+        });
+
+        if (error) {
+          console.error('[supabase] resetPasswordForEmail error:', error.message);
         }
       }
     } else if (!supabaseAdmin) {

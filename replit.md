@@ -45,6 +45,41 @@ The database schema is auto-initialized on server startup (`server/db.ts`). No m
 - **PR ghost (blue wireframe):** Stored in `localStorage` as `ghost_replay_{levelId}`, updated on every new personal best
 - **Race ghost (amber/orange solid):** Loaded from server when user clicks the ▶ "Race Ghost" button in the leaderboard. Frames are stored server-side (downsampled every 3rd frame) alongside each leaderboard entry. Both ghosts can be visible simultaneously.
 
+## Account Recovery (Password Reset)
+
+The recovery system uses Supabase's admin API + SMTP email to ensure the reset link always points to the real app URL (not localhost).
+
+### Why the link used to go to localhost:3000
+Supabase has a **Site URL** setting. If it's set to `localhost:3000`, every recovery email uses that URL — even when the code sends the correct app URL as `redirectTo`. The preferred fix is to either:
+- **Configure SMTP** (recommended for full control), OR
+- **Update the Supabase Site URL** in the dashboard
+
+### Option A — Configure SMTP (fixes the redirect without dashboard changes)
+Set these secrets in your deployment environment (Railway/Hostinger Variables or Replit Secrets):
+
+| Secret | Example |
+|---|---|
+| `SMTP_HOST` | `smtp.gmail.com` or `smtp.resend.com` |
+| `SMTP_PORT` | `587` |
+| `SMTP_SECURE` | `false` (use `true` for port 465) |
+| `SMTP_USER` | your SMTP login |
+| `SMTP_PASS` | Gmail app password or SMTP password |
+| `SMTP_FROM` | `"Delta Rush <no-reply@deltarush.win>"` |
+
+With SMTP configured, the server uses `supabaseAdmin.auth.admin.generateLink` (admin API, not subject to URL allowlist) to generate the recovery link with the correct app URL, then sends the email itself.
+
+**Gmail:** Enable 2FA → generate an App Password at myaccount.google.com/apppasswords. Use `smtp.gmail.com`, port `587`.
+**Resend:** Get a free API key at resend.com. Use `smtp.resend.com`, port `587`, user `resend`, pass = API key.
+
+### Option B — Fix the Supabase Site URL (simplest if you only have one domain)
+1. Go to your [Supabase project dashboard](https://supabase.com/dashboard)
+2. Navigate to **Authentication → URL Configuration**
+3. Change **Site URL** to your actual app URL (e.g. `https://deltarush.win`)
+4. Add your app URL and Replit dev domain to **Redirect URLs**:
+   - `https://deltarush.win`
+   - `https://*.replit.dev` (covers all Replit dev domains)
+5. Save changes
+
 ## User Preferences
 
 - Keep existing project structure and stack
