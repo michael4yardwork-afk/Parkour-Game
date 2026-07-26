@@ -394,7 +394,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
         <div className="text-center space-y-1 px-2">
           <p className="text-2xl md:text-3xl font-black text-neutral-50 tracking-tight leading-tight">
             Beat your best time.{' '}
-            <span className="bg-gradient-to-r from-indigo-400 via-violet-400 to-sky-400 bg-clip-text text-transparent">
+            <span className="text-glory-rainbow">
               Earn global glory.
             </span>
           </p>

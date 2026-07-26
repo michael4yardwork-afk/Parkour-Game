@@ -59,6 +59,32 @@ body,
   to { transform: scaleX(1); }
 }
 
+/* Glowing fading rainbow for "Earn global glory." */
+@keyframes glory-rainbow {
+  0%   { background-position: 0% 50%;   opacity: 1;    text-shadow: 0 0 12px rgba(167,139,250,0.8), 0 0 28px rgba(99,102,241,0.5); }
+  14%  { background-position: 14% 50%;  opacity: 0.75; text-shadow: 0 0 14px rgba(236,72,153,0.8),  0 0 30px rgba(219,39,119,0.5); }
+  28%  { background-position: 28% 50%;  opacity: 1;    text-shadow: 0 0 12px rgba(251,146,60,0.8),  0 0 26px rgba(234,88,12,0.5);  }
+  42%  { background-position: 50% 50%;  opacity: 0.8;  text-shadow: 0 0 14px rgba(250,204,21,0.8),  0 0 30px rgba(202,138,4,0.5);  }
+  56%  { background-position: 72% 50%;  opacity: 1;    text-shadow: 0 0 12px rgba(52,211,153,0.8),  0 0 26px rgba(16,185,129,0.5); }
+  70%  { background-position: 86% 50%;  opacity: 0.75; text-shadow: 0 0 14px rgba(56,189,248,0.8),  0 0 30px rgba(14,165,233,0.5); }
+  85%  { background-position: 95% 50%;  opacity: 1;    text-shadow: 0 0 12px rgba(129,140,248,0.8), 0 0 26px rgba(99,102,241,0.5); }
+  100% { background-position: 100% 50%; opacity: 0.8;  text-shadow: 0 0 14px rgba(167,139,250,0.8), 0 0 28px rgba(99,102,241,0.5); }
+}
+
+.text-glory-rainbow {
+  background-image: linear-gradient(
+    90deg,
+    #a78bfa, #ec4899, #f97316, #facc15,
+    #34d399, #38bdf8, #818cf8, #a78bfa,
+    #ec4899, #f97316, #facc15, #34d399
+  );
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: glory-rainbow 4s ease-in-out infinite;
+}
+
 .animate-progress-grow {
   animation: progress-grow 5s linear forwards;
 }
