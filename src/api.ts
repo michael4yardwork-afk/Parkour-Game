@@ -126,10 +126,10 @@ export const api = {
       });
     },
 
-    async forgotPassword(email: string): Promise<{ message: string }> {
+    async forgotPassword(email: string, redirectTo?: string): Promise<{ message: string }> {
       return apiFetch<{ message: string }>('/auth/forgot-password', {
         method: 'POST',
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, redirectTo })
       });
     },
 

@@ -269,7 +269,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     }
     setIsLoading(true);
     try {
-      const result = await api.auth.forgotPassword(trimmedEmail);
+      const result = await api.auth.forgotPassword(trimmedEmail, window.location.origin);
       notifyFeedback('success', result.message);
     } catch (err: any) {
       notifyFeedback('error', err.message || 'Failed to send recovery email. Please try again.');

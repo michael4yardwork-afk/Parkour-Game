@@ -60156,6 +60156,55 @@ async function getAuthenticatedAccount(req) {
 
 // server/routes/auth.ts
 var router = (0, import_express.Router)();
+function originFromUrl(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+function isLocalOrigin(origin) {
+  try {
+    const hostname2 = new URL(origin).hostname.toLowerCase();
+    return hostname2 === "localhost" || hostname2 === "127.0.0.1" || hostname2 === "[::1]" || hostname2 === "::1";
+  } catch {
+    return true;
+  }
+}
+function configuredPublicOrigins() {
+  const origins = /* @__PURE__ */ new Set();
+  for (const domain of [
+    process.env.REPLIT_DEV_DOMAIN,
+    ...(process.env.REPLIT_DOMAINS || "").split(",")
+  ]) {
+    if (!domain?.trim()) continue;
+    const origin = originFromUrl(
+      domain.trim().startsWith("http") ? domain.trim() : `https://${domain.trim()}`
+    );
+    if (origin) origins.add(origin);
+  }
+  const configuredUrl = originFromUrl(process.env.APP_URL);
+  if (configuredUrl && (!isLocalOrigin(configuredUrl) || origins.size === 0)) {
+    origins.add(configuredUrl);
+  }
+  return origins;
+}
+function recoveryRedirectOrigin(req, requestedRedirectTo) {
+  const requestedOrigin = originFromUrl(requestedRedirectTo);
+  const configuredOrigins = configuredPublicOrigins();
+  if (requestedOrigin && (configuredOrigins.has(requestedOrigin) || configuredOrigins.size === 0 && isLocalOrigin(requestedOrigin))) {
+    return requestedOrigin;
+  }
+  const configuredUrl = originFromUrl(process.env.APP_URL);
+  if (configuredUrl && (!isLocalOrigin(configuredUrl) || configuredOrigins.size === 0)) {
+    return configuredUrl;
+  }
+  if (configuredOrigins.size > 0) return [...configuredOrigins][0];
+  return `${req.protocol}://${req.get("host")}`;
+}
 router.get("/check-username", async (req, res) => {
   const { username } = req.query;
   if (!username || typeof username !== "string") {
@@ -60307,7 +60356,7 @@ router.get("/user/:username", async (req, res) => {
 });
 router.post("/forgot-password", async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, redirectTo } = req.body;
     if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return res.status(400).json({ error: "Please provide a valid email address." });
     }
@@ -60317,7 +60366,7 @@ router.post("/forgot-password", async (req, res) => {
       [normalizedEmail]
     );
     if (userResult.rows.length > 0 && supabaseAdmin) {
-      const appUrl = process.env.APP_URL || req.headers.origin || `${req.protocol}://${req.headers.host}`;
+      const appUrl = recoveryRedirectOrigin(req, redirectTo);
       const { error } = await supabaseAdmin.auth.resetPasswordForEmail(normalizedEmail, {
         redirectTo: appUrl
       });

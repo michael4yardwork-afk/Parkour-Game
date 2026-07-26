@@ -6,6 +6,76 @@ import { getAuthenticatedAccount, signAuthToken } from '../authIdentity';
 
 const router = Router();
 
+function originFromUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function isLocalOrigin(origin: string): boolean {
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase();
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1';
+  } catch {
+    return true;
+  }
+}
+
+function configuredPublicOrigins(): Set<string> {
+  const origins = new Set<string>();
+
+  for (const domain of [
+    process.env.REPLIT_DEV_DOMAIN,
+    ...(process.env.REPLIT_DOMAINS || '').split(','),
+  ]) {
+    if (!domain?.trim()) continue;
+    const origin = originFromUrl(
+      domain.trim().startsWith('http') ? domain.trim() : `https://${domain.trim()}`
+    );
+    if (origin) origins.add(origin);
+  }
+
+  const configuredUrl = originFromUrl(process.env.APP_URL);
+  if (configuredUrl && (!isLocalOrigin(configuredUrl) || origins.size === 0)) {
+    origins.add(configuredUrl);
+  }
+
+  return origins;
+}
+
+function recoveryRedirectOrigin(req: Request, requestedRedirectTo: unknown): string {
+  const requestedOrigin = originFromUrl(requestedRedirectTo);
+  const configuredOrigins = configuredPublicOrigins();
+
+  // The frontend supplies window.location.origin. Accept it only when it is
+  // one of the deployment's known origins, or when running a local standalone
+  // server with no public origin configured.
+  if (
+    requestedOrigin &&
+    (configuredOrigins.has(requestedOrigin) ||
+      (configuredOrigins.size === 0 && isLocalOrigin(requestedOrigin)))
+  ) {
+    return requestedOrigin;
+  }
+
+  const configuredUrl = originFromUrl(process.env.APP_URL);
+  if (configuredUrl && (!isLocalOrigin(configuredUrl) || configuredOrigins.size === 0)) {
+    return configuredUrl;
+  }
+  if (configuredOrigins.size > 0) return [...configuredOrigins][0];
+
+  // With no deployment URL configured, keep local standalone development
+  // working. Production deployments should set APP_URL (or Replit supplies
+  // REPLIT_DEV_DOMAIN/REPLIT_DOMAINS above) so a proxy's internal host can
+  // never become the recovery destination.
+  return `${req.protocol}://${req.get('host')}`;
+}
+
 router.get('/check-username', async (req: Request, res: Response) => {
   const { username } = req.query;
   if (!username || typeof username !== 'string') {
@@ -189,7 +259,7 @@ router.get('/user/:username', async (req: Request, res: Response) => {
 // Always returns 200 with a generic message so we don't leak account existence.
 router.post('/forgot-password', async (req: Request, res: Response) => {
   try {
-    const { email } = req.body;
+    const { email, redirectTo } = req.body;
     if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return res.status(400).json({ error: 'Please provide a valid email address.' });
     }
@@ -204,10 +274,7 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
 
     if (userResult.rows.length > 0 && supabaseAdmin) {
       // Determine the app's public URL for the redirect after the user clicks the email link
-      const appUrl =
-        process.env.APP_URL ||
-        (req.headers.origin as string | undefined) ||
-        `${req.protocol}://${req.headers.host}`;
+      const appUrl = recoveryRedirectOrigin(req, redirectTo);
 
       const { error } = await supabaseAdmin.auth.resetPasswordForEmail(normalizedEmail, {
         redirectTo: appUrl,
