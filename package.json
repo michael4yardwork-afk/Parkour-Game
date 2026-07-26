@@ -10,7 +10,7 @@
     "dev": "vite --port=5000 --host=0.0.0.0",
     "server": "node dist/index.cjs",
     "build": "vite build && node_modules/.bin/esbuild server/index.ts --platform=node --bundle --format=cjs --outfile=dist/index.cjs --external:pg-native --external:bufferutil --external:utf-8-validate --external:nodemailer && cp dist/index.cjs server.cjs",
-    "start": "node dist/index.cjs",
+    "start": "npm run build && node dist/index.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.cjs",
     "lint": "tsc --noEmit",

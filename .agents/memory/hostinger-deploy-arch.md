@@ -8,19 +8,18 @@ description: How Hostinger actually serves the site and what must stay in git on
 ## How it works
 - Hostinger deploys **directly from the `main` branch** — it serves `dist/` as-is from the repo.
 - `dist/` and `server.cjs` **must be committed to `main`** for the site to load. Removing them from main breaks production immediately.
-- There is also a `deploy.yml` GitHub Actions workflow that rebuilds and force-pushes to a `deploy` branch, but Hostinger does NOT use that branch.
+- Hostinger must deploy from `main`; do not route production through a separate `deploy` branch.
 
-## The stale-dist problem and its fix
-- Before the fix, `package-lock.json` had Replit-internal npm URLs (`package-firewall.replit.local`) that broke `npm ci` on GitHub Actions, so the workflow never rebuilt dist/.
-- Fix applied: replaced all internal URLs with `https://registry.npmjs.org/` via sed.
-- Now `npm ci` works externally, so `dist/` can be rebuilt on any push.
+## Reliability constraints
+- External CI must resolve dependencies from the public npm registry; Replit-internal registry hosts cannot be used outside Replit.
+- The production start command must build from source before serving so Hostinger does not depend on a separately committed or separately generated `dist/` snapshot.
 
-## Rule: always rebuild before pushing to main
-After any source code change, run `npm run build` and commit the result before pushing to main. Hostinger serves whatever dist/ is in main — stale dist = stale site.
+## Rule: build before serving on Hostinger
+After any source code change, push the source to `main`; Hostinger's `npm start` build step regenerates `dist/` before serving.
 
-**Why:** Hostinger shared/Node hosting can't run a build step; it serves the committed files directly.
+**Why:** Hostinger's Node.js entrypoint runs the package `start` script, so building there prevents stale committed frontend artifacts from being served.
 
-**How to apply:** Any time you commit source changes, always run `npm run build` and `git add -f dist/ server.cjs` as part of the same commit. Never push source-only to main without rebuilding first.
+**How to apply:** Keep `npm start` as the Hostinger entrypoint and ensure it runs `npm run build` before the server process.
 
 ## Lockfile maintenance
 After any `npm install` inside Replit, run:

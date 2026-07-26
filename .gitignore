@@ -4,3 +4,4 @@ coverage/
 *.log
 .env*
 !.env.example
+attached_assets/DeltaRush_prettymuchfinalwithstripesandbox_1785091074451.zip

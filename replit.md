@@ -17,6 +17,12 @@ The workflow `Start application` runs both servers in parallel:
 npm install && (npm run server & npm run dev)
 ```
 
+## Hostinger deployment sync
+
+Hostinger deploys from the `main` branch. The `npm start` script rebuilds both the frontend and bundled server before launching, so a Hostinger deployment always generates `dist/` from the source files currently on `main`.
+
+The GitHub Actions workflows are kept unchanged so normal Replit GitHub authentication can push without requiring the special GitHub OAuth `workflow` scope. Do not change the Hostinger source branch to the temporary `deploy` branch.
+
 **Required secrets (set in Replit Secrets):**
 | Secret | Purpose |
 |---|---|
