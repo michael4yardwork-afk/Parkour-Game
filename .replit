@@ -101,3 +101,5 @@ run = ["node", "./dist/index.cjs"]
 [userenv.shared]
 STRIPE_PRICE_MONTHLY = "price_1Tt9CfCaCz8fOQEhMUTNALy2"
 STRIPE_PRICE_YEARLY = "price_1Tt9CfCaCz8fOQEhTeuHjyJs"
+SUPABASE_URL = "https://yxhkdbocswagfbrrvfcr.supabase.co"
+APP_URL = "https://grey-wildcat-481714.hostingersite.com/"
