@@ -67,19 +67,19 @@ const SNEAK_PEEK: { icon: React.ReactNode; title: string; description: string; i
     icon: <LineChart className="w-4 h-4" />,
     title: 'Interactive performance graphs',
     description: 'Hover any run to inspect exact speed and progress at every second of the course.',
-    image: '/marketing/leaderboard-compare.png',
+    image: '/marketing/leaderboard-compare.png?v=2',
   },
   {
     icon: <Ghost className="w-4 h-4" />,
     title: 'Race ghosts from the leaderboard',
     description: 'Load any world-ranked run as a live ghost and chase it through the course in real time.',
-    image: '/marketing/leaderboard-ghost.png',
+    image: '/marketing/leaderboard-ghost.png?v=2',
   },
   {
     icon: <BarChart3 className="w-4 h-4" />,
     title: 'Advanced career statistics',
     description: 'Track completions, best world rank, race wins, and courses built from your dashboard.',
-    image: '/marketing/activity-stats.png',
+    image: '/marketing/activity-stats.png?v=2',
   },
   {
     icon: <Blocks className="w-4 h-4" />,
