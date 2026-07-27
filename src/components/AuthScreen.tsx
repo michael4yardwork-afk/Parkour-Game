@@ -99,11 +99,14 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
   const [isLoading, setIsLoading] = useState(false);
   const [usernameTaken, setUsernameTaken] = useState(false);
 
-  // Detect Supabase recovery redirect: URL hash contains access_token + type=recovery
+  // Detect Supabase recovery redirects. Supabase normally returns the session
+  // in the hash, but some email clients/proxies preserve it as query params.
+  // Supporting both forms makes recovery resilient without putting the token
+  // into an API request based on a guessed URL.
   useEffect(() => {
-    const hash = window.location.hash;
-    if (!hash) return;
-    const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const queryParams = new URLSearchParams(window.location.search);
+    const params = hashParams.has('type') || hashParams.has('access_token') ? hashParams : queryParams;
     const type = params.get('type');
     const accessToken = params.get('access_token');
     if (type === 'recovery' && accessToken) {
@@ -111,7 +114,12 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
       setAuthMode('reset');
       setIsSignUp(false);
       // Remove the sensitive token from the URL bar
-      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (params.get('error')) {
+      const description = params.get('error_description') || 'This recovery link is invalid or has expired.';
+      setAuthMode('login');
+      setFeedback({ type: 'error', message: description.replace(/\+/g, ' ') });
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
 

@@ -60,6 +60,19 @@ Supabase has a **Site URL** setting. If it's set to `localhost:3000`, every reco
 - **Configure SMTP** (recommended for full control), OR
 - **Update the Supabase Site URL** in the dashboard
 
+The app now sends the browser's current public origin and also honors forwarded
+public hosts when it is behind a proxy. In Supabase, the destination still must
+be allowed under **Authentication → URL Configuration → Redirect URLs**:
+
+1. Set **Site URL** to the app's real public URL (not `localhost:3000`).
+2. Add the same public URL as a redirect URL.
+3. For Replit development, add the current `https://<your-repl-domain>.replit.dev`
+   URL as a redirect URL.
+
+Existing emails that already contain `http://localhost:3000` cannot be repaired
+after they were generated; request a new recovery email after updating the
+Supabase URL configuration.
+
 ### Option A — Configure SMTP (fixes the redirect without dashboard changes)
 Set these secrets in your deployment environment (Railway/Hostinger Variables or Replit Secrets):
 

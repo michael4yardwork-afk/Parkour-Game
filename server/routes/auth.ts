@@ -70,10 +70,27 @@ function recoveryRedirectOrigin(req: Request, requestedRedirectTo: unknown): str
   }
   if (configuredOrigins.size > 0) return [...configuredOrigins][0];
 
-  // With no deployment URL configured, keep local standalone development
-  // working. Production deployments should set APP_URL (or Replit supplies
-  // REPLIT_DEV_DOMAIN/REPLIT_DOMAINS above) so a proxy's internal host can
-  // never become the recovery destination.
+  // With no deployment URL configured, use the public forwarded host when the
+  // app is behind a reverse proxy. Express's req.protocol/req.get('host') can
+  // otherwise resolve to an internal localhost address, which produces a
+  // recovery email that cannot be opened from the user's browser.
+  const forwardedProto = String(req.get('x-forwarded-proto') || '')
+    .split(',')[0]
+    .trim();
+  const forwardedHost = String(req.get('x-forwarded-host') || '')
+    .split(',')[0]
+    .trim();
+  if (
+    forwardedHost &&
+    (forwardedProto === 'http' || forwardedProto === 'https') &&
+    originFromUrl(`${forwardedProto}://${forwardedHost}`)
+  ) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+
+  // Keep standalone local development working. Production deployments should
+  // set APP_URL (or REPLIT_DEV_DOMAIN/REPLIT_DOMAINS) so this branch is never
+  // used behind a proxy.
   return `${req.protocol}://${req.get('host')}`;
 }
 

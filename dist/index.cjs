@@ -60234,6 +60234,11 @@ function recoveryRedirectOrigin(req, requestedRedirectTo) {
     return configuredUrl;
   }
   if (configuredOrigins.size > 0) return [...configuredOrigins][0];
+  const forwardedProto = String(req.get("x-forwarded-proto") || "").split(",")[0].trim();
+  const forwardedHost = String(req.get("x-forwarded-host") || "").split(",")[0].trim();
+  if (forwardedHost && (forwardedProto === "http" || forwardedProto === "https") && originFromUrl(`${forwardedProto}://${forwardedHost}`)) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
   return `${req.protocol}://${req.get("host")}`;
 }
 router.get("/check-username", async (req, res) => {
