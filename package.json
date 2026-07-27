@@ -15,7 +15,7 @@
     "clean": "rm -rf dist server.cjs",
     "lint": "tsc --noEmit",
     "seed:stripe": "tsx scripts/seed-stripe-products.ts",
-    "postinstall": "node scripts/patch-postcss.cjs"
+    "postinstall": "node scripts/patch-postcss.cjs && node scripts/setup-hooks.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",

@@ -1,0 +1,16 @@
+#!/bin/sh
+# Pre-push hook: rebuild dist/ and amend the last commit if anything changed.
+# This ensures Hostinger always receives up-to-date built files.
+
+echo "[pre-push] Building dist/ to keep deployed files in sync..."
+npm run build
+
+git add -f dist/ server.cjs
+
+if ! git diff --cached --quiet; then
+  echo "[pre-push] dist/ changed after build — amending commit to include it..."
+  git commit --amend --no-edit
+  echo "[pre-push] Done."
+else
+  echo "[pre-push] dist/ already up to date — no amend needed."
+fi
