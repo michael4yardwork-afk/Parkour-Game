@@ -52253,9 +52253,6 @@ var bcryptjs_default = {
   decodeBase64
 };
 
-// server/routes/auth.ts
-var import_crypto2 = require("crypto");
-
 // node_modules/@supabase/supabase-js/dist/index.mjs
 var dist_exports = {};
 __export(dist_exports, {
@@ -60185,37 +60182,6 @@ async function getAuthenticatedAccount(req) {
   return null;
 }
 
-// server/email.ts
-var import_nodemailer = __toESM(require("nodemailer"), 1);
-var {
-  SMTP_HOST,
-  SMTP_PORT,
-  SMTP_SECURE,
-  SMTP_USER,
-  SMTP_PASS,
-  SMTP_FROM
-} = process.env;
-var isConfigured = !!(SMTP_HOST && SMTP_USER && SMTP_PASS);
-var transporter = isConfigured ? import_nodemailer.default.createTransport({
-  host: SMTP_HOST,
-  port: Number(SMTP_PORT ?? 587),
-  secure: SMTP_SECURE === "true",
-  auth: { user: SMTP_USER, pass: SMTP_PASS }
-}) : null;
-async function sendMail(opts) {
-  if (!transporter) {
-    console.warn("[email] SMTP not configured \u2014 skipping sendMail.");
-    return;
-  }
-  await transporter.sendMail({
-    from: SMTP_FROM ?? SMTP_USER,
-    to: opts.to,
-    subject: opts.subject,
-    html: opts.html,
-    text: opts.text
-  });
-}
-
 // server/routes/auth.ts
 var router = (0, import_express.Router)();
 function originFromUrl(value) {
@@ -60432,111 +60398,39 @@ router.get("/user/:username", async (req, res) => {
     res.status(500).json({ error: "Server error." });
   }
 });
-var MAX_CODE_ATTEMPTS = 5;
-var MAX_CODE_REQUESTS_PER_WINDOW = 3;
-var CODE_WINDOW_MS = 15 * 60 * 1e3;
-function generateResetCode() {
-  return String((0, import_crypto2.randomInt)(0, 1e6)).padStart(6, "0");
-}
 router.post("/forgot-password", async (req, res) => {
   try {
     const { email, redirectTo } = req.body;
     if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return res.status(400).json({ error: "Please provide a valid email address." });
     }
+    if (!supabasePublicConfigured) {
+      console.error("[auth] forgot-password: Supabase is not configured (SUPABASE_URL / SUPABASE_ANON_KEY missing).");
+      return res.status(503).json({
+        error: "Account recovery is currently unavailable. Please contact the site administrator."
+      });
+    }
     const normalizedEmail = email.trim().toLowerCase();
-    if (supabasePublicConfigured) {
-      const recoveryOrigin = recoveryRedirectOrigin(req, redirectTo);
-      const supabase = createSupabasePublicClient();
-      if (!supabase) {
-        return res.status(503).json({
-          error: "Account recovery email is temporarily unavailable. Please contact the site administrator."
-        });
-      }
-      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: `${recoveryOrigin}/`
-      });
-      if (error) {
-        console.error("[supabase] resetPasswordForEmail error:", error.message);
-        return res.status(502).json({
-          error: "Account recovery email could not be sent. Please try again later."
-        });
-      }
-      return res.json({
-        method: "supabase-link",
-        message: "If an account with that email exists, a password recovery link has been sent."
+    const recoveryOrigin = recoveryRedirectOrigin(req, redirectTo);
+    const supabase = createSupabasePublicClient();
+    if (!supabase) {
+      return res.status(503).json({
+        error: "Account recovery is currently unavailable. Please contact the site administrator."
       });
     }
-    const userResult = await db_default.query(
-      "SELECT id FROM users WHERE LOWER(email) = $1",
-      [normalizedEmail]
-    );
-    if (userResult.rows.length > 0) {
-      const windowStart = Date.now() - CODE_WINDOW_MS;
-      const recentCount = await db_default.query(
-        "SELECT COUNT(*) FROM password_reset_codes WHERE email = $1 AND created_at > $2",
-        [normalizedEmail, windowStart]
-      );
-      if (parseInt(recentCount.rows[0].count, 10) >= MAX_CODE_REQUESTS_PER_WINDOW) {
-        return res.json({ message: "If an account with that email exists, a 6-digit verification code has been sent." });
-      }
-      const code = generateResetCode();
-      const expiresAt = Date.now() + CODE_WINDOW_MS;
-      await db_default.query(
-        "UPDATE password_reset_codes SET used = TRUE WHERE email = $1 AND used = FALSE",
-        [normalizedEmail]
-      );
-      await db_default.query(
-        "INSERT INTO password_reset_codes (email, code, expires_at) VALUES ($1, $2, $3)",
-        [normalizedEmail, code, expiresAt]
-      );
-      if (!isConfigured) {
-        await db_default.query(
-          "DELETE FROM password_reset_codes WHERE email = $1 AND code = $2",
-          [normalizedEmail, code]
-        );
-        console.error(
-          "[auth] forgot-password unavailable: SMTP_HOST, SMTP_USER, and SMTP_PASS are required to send recovery email."
-        );
-        return res.status(503).json({
-          error: "Account recovery email is temporarily unavailable. Please contact the site administrator."
-        });
-      }
-      try {
-        await sendMail({
-          to: normalizedEmail,
-          subject: "Your Delta Rush verification code",
-          html: `
-            <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
-              <h2 style="color:#6366f1">Delta Rush \u2014 Password Reset</h2>
-              <p>Someone requested a password reset for your account. Use the code below to verify your identity and set a new password.</p>
-              <div style="margin:32px 0;text-align:center">
-                <span style="display:inline-block;background:#1e1b4b;color:#a5b4fc;font-size:36px;font-weight:700;letter-spacing:12px;padding:16px 32px;border-radius:12px;border:2px solid #4f46e5;font-family:monospace">
-                  ${code}
-                </span>
-              </div>
-              <p style="color:#888;font-size:13px">
-                This code expires in <strong>15 minutes</strong>. If you didn't request a reset, you can safely ignore this email.
-              </p>
-              <p style="color:#888;font-size:13px">
-                Never share this code with anyone.
-              </p>
-            </div>
-          `,
-          text: `Your Delta Rush password reset code is: ${code}
-
-This code expires in 15 minutes. If you didn't request a reset, ignore this email.`
-        });
-      } catch (mailError) {
-        await db_default.query(
-          "DELETE FROM password_reset_codes WHERE email = $1 AND code = $2",
-          [normalizedEmail, code]
-        );
-        throw mailError;
-      }
-      console.log("[auth] forgot-password: verification code sent via SMTP to", normalizedEmail);
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: `${recoveryOrigin}/`
+    });
+    if (error) {
+      console.error("[supabase] resetPasswordForEmail error:", error.message);
+      return res.status(502).json({
+        error: "Account recovery email could not be sent. Please try again later."
+      });
     }
-    res.json({ message: "If an account with that email exists, a 6-digit verification code has been sent." });
+    return res.json({
+      method: "supabase-link",
+      message: "If an account with that email exists, a password recovery link has been sent."
+    });
   } catch (err) {
     console.error("Forgot-password error:", err);
     res.status(500).json({ error: "Internal server error." });
@@ -60614,124 +60508,35 @@ router.post("/reset-password-supabase", async (req, res) => {
     res.status(500).json({ error: "Internal server error." });
   }
 });
-async function lookupActiveCode(normalizedEmail, trimmedCode) {
-  const result = await db_default.query(
-    `SELECT id, code, expires_at, attempts FROM password_reset_codes
-     WHERE email = $1 AND used = FALSE
-     ORDER BY created_at DESC LIMIT 1`,
-    [normalizedEmail]
-  );
-  if (result.rows.length === 0) {
-    return "Invalid or expired verification code. Please request a new one.";
-  }
-  const row = result.rows[0];
-  if (row.attempts >= MAX_CODE_ATTEMPTS) {
-    return "Too many incorrect attempts. Please request a new verification code.";
-  }
-  if (row.code !== trimmedCode) {
-    const newAttempts = row.attempts + 1;
-    if (newAttempts >= MAX_CODE_ATTEMPTS) {
-      await db_default.query(
-        "UPDATE password_reset_codes SET attempts = $1, used = TRUE WHERE id = $2",
-        [newAttempts, row.id]
-      );
-      return "Too many incorrect attempts. Please request a new verification code.";
-    } else {
-      await db_default.query(
-        "UPDATE password_reset_codes SET attempts = $1 WHERE id = $2",
-        [newAttempts, row.id]
-      );
-      return "Invalid or expired verification code. Please request a new one.";
-    }
-  }
-  if (Date.now() > Number(row.expires_at)) {
-    return "This code has expired. Please request a new one.";
-  }
-  return { id: row.id, expires_at: row.expires_at };
-}
-router.post("/verify-reset-code", async (req, res) => {
+router.post("/exchange-recovery-token", async (req, res) => {
   try {
-    const { email, code } = req.body;
-    if (!email || typeof email !== "string") {
-      return res.status(400).json({ error: "Email is required." });
+    const { tokenHash } = req.body;
+    if (!tokenHash || typeof tokenHash !== "string") {
+      return res.status(400).json({ error: "Token hash is required." });
     }
-    if (!code || typeof code !== "string" || !/^\d{6}$/.test(code.trim())) {
-      return res.status(400).json({ error: "Please enter a valid 6-digit code." });
+    if (!supabasePublicConfigured) {
+      return res.status(503).json({ error: "Account recovery is currently unavailable." });
     }
-    const normalizedEmail = email.trim().toLowerCase();
-    const trimmedCode = code.trim();
-    const lookup = await lookupActiveCode(normalizedEmail, trimmedCode);
-    if (typeof lookup === "string") {
-      return res.status(401).json({ error: lookup });
+    const supabase = createSupabasePublicClient();
+    if (!supabase) {
+      return res.status(503).json({ error: "Account recovery is currently unavailable." });
     }
-    res.json({ valid: true });
-  } catch (err) {
-    console.error("Verify-reset-code error:", err);
-    res.status(500).json({ error: "Internal server error." });
-  }
-});
-router.post("/reset-password", async (req, res) => {
-  try {
-    const { email, code, newPassword } = req.body;
-    if (!email || typeof email !== "string") {
-      return res.status(400).json({ error: "Email is required." });
-    }
-    if (!code || typeof code !== "string" || !/^\d{6}$/.test(code.trim())) {
-      return res.status(400).json({ error: "Please enter a valid 6-digit code." });
-    }
-    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
-      return res.status(400).json({ error: "New password must be at least 6 characters." });
-    }
-    const normalizedEmail = email.trim().toLowerCase();
-    const trimmedCode = code.trim();
-    const lookup = await lookupActiveCode(normalizedEmail, trimmedCode);
-    if (typeof lookup === "string") {
-      return res.status(401).json({ error: lookup });
-    }
-    const codeRow = lookup;
-    await db_default.query(
-      "UPDATE password_reset_codes SET used = TRUE WHERE id = $1",
-      [codeRow.id]
-    );
-    const localResult = await db_default.query(
-      "SELECT id, username, supabase_user_id FROM users WHERE LOWER(email) = $1",
-      [normalizedEmail]
-    );
-    if (localResult.rows.length === 0) {
-      return res.status(404).json({ error: "Account not found." });
-    }
-    const localUser = localResult.rows[0];
-    const newHash = await bcryptjs_default.hash(newPassword, 10);
-    await db_default.query("UPDATE users SET password_hash = $1 WHERE id = $2", [newHash, localUser.id]);
-    if (supabaseAdmin && localUser.supabase_user_id) {
-      supabaseAdmin.auth.admin.updateUserById(localUser.supabase_user_id, {
-        password: newPassword
-      }).then(({ error }) => {
-        if (error) console.warn("[supabase] updateUserById password sync failed:", error.message);
-      }).catch((e) => {
-        console.warn("[supabase] updateUserById exception:", e?.message || e);
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: "recovery"
+    });
+    if (error || !data.session) {
+      console.error("[supabase] verifyOtp error:", error?.message);
+      return res.status(401).json({
+        error: "The recovery link is invalid or expired. Please request a new one."
       });
     }
-    const fullUserResult = await db_default.query(
-      "SELECT username, avatar, avatar_bg, device, created_at FROM users WHERE id = $1",
-      [localUser.id]
-    );
-    const fullUser = fullUserResult.rows[0];
-    const token = signAuthToken({ id: localUser.id, username: localUser.username });
-    res.json({
-      message: "Password updated successfully.",
-      token,
-      user: {
-        username: fullUser.username,
-        avatar: fullUser.avatar,
-        avatarBg: fullUser.avatar_bg,
-        device: fullUser.device ?? null,
-        createdAt: parseInt(fullUser.created_at),
-        passwordHash: ""
-      }
+    return res.json({
+      accessToken: data.session.access_token,
+      refreshToken: data.session.refresh_token
     });
   } catch (err) {
-    console.error("Reset-password error:", err);
+    console.error("exchange-recovery-token error:", err);
     res.status(500).json({ error: "Internal server error." });
   }
 });

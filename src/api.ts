@@ -126,10 +126,17 @@ export const api = {
       });
     },
 
-    async forgotPassword(email: string): Promise<{ message: string; method?: 'supabase-link' | 'code' }> {
-      return apiFetch<{ message: string }>('/auth/forgot-password', {
+    async forgotPassword(email: string): Promise<{ message: string; method?: 'supabase-link' }> {
+      return apiFetch<{ message: string; method?: 'supabase-link' }>('/auth/forgot-password', {
         method: 'POST',
         body: JSON.stringify({ email, redirectTo: window.location.origin })
+      });
+    },
+
+    async exchangeRecoveryToken(tokenHash: string): Promise<{ accessToken: string; refreshToken: string }> {
+      return apiFetch<{ accessToken: string; refreshToken: string }>('/auth/exchange-recovery-token', {
+        method: 'POST',
+        body: JSON.stringify({ tokenHash })
       });
     },
 
@@ -138,23 +145,6 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ accessToken, refreshToken, newPassword })
       });
-      localStorage.setItem('delta_rush_token', result.token);
-      return result;
-    },
-
-    async verifyResetCode(email: string, code: string): Promise<{ valid: boolean }> {
-      return apiFetch<{ valid: boolean }>('/auth/verify-reset-code', {
-        method: 'POST',
-        body: JSON.stringify({ email, code })
-      });
-    },
-
-    async resetPassword(email: string, code: string, newPassword: string): Promise<AuthResult & { message: string }> {
-      const result = await apiFetch<AuthResult & { message: string }>('/auth/reset-password', {
-        method: 'POST',
-        body: JSON.stringify({ email, code, newPassword })
-      });
-      // Store the token so subsequent API calls are authenticated immediately
       localStorage.setItem('delta_rush_token', result.token);
       return result;
     }
