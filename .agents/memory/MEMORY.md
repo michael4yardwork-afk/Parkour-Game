@@ -7,3 +7,4 @@
 - [Billing account isolation](billing-account-isolation.md) — payment ownership must resolve through verified immutable account IDs and stored Stripe customer IDs.
 - [Collision contact resolution](collision-contact-resolution.md) — separate vertical plane crossings from shallow lateral block-edge overlaps to preserve natural momentum.
 - [Recovery redirect origins](recovery-redirect-origins.md) — password-reset links must use the public browser/deployment origin, never the backend proxy's localhost host.
+- [GitHub push policy](github-push-policy.md) — never push to GitHub on the user's behalf; always leave git push to them.
