@@ -101,6 +101,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [usernameTaken, setUsernameTaken] = useState(false);
+  const [emailInUse, setEmailInUse] = useState(false);
 
   // Detect Supabase recovery links on page load and switch to the reset-password screen.
   // Supabase uses two formats depending on project auth settings:
@@ -269,7 +270,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
   const clearInputs = () => {
     setUsername(''); setEmail(''); setPassword(''); setConfirmPassword('');
     setNewPassword(''); setNewPasswordConfirm('');
-    setFeedback(null); setUsernameTaken(false);
+    setFeedback(null); setUsernameTaken(false); setEmailInUse(false);
   };
 
   const switchToLogin = () => {
@@ -382,6 +383,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
         };
         localStorage.setItem('momentum_player_settings', JSON.stringify(initialSettings));
 
+        setEmailInUse(false);
         const result = await api.auth.signup(trimmedUsername, password, selectedAvatar, selectedBg, selectedDevice ?? undefined, trimmedEmail);
         notifyFeedback('success', 'Account created successfully! Logging you in...');
         // Override server-returned avatar/avatarBg with the exact values the user
@@ -401,7 +403,13 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
         setTimeout(() => onLoginSuccess(result.user), 800);
       }
     } catch (err: any) {
-      notifyFeedback('error', err.message || 'Connection error. Please try again.');
+      const msg: string = err.message || '';
+      const isEmailConflict = msg.toLowerCase().includes('email') && (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('exists') || msg.toLowerCase().includes('use'));
+      if (isSignUp && isEmailConflict) {
+        setEmailInUse(true);
+      } else {
+        notifyFeedback('error', msg || 'Connection error. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -689,11 +697,18 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
                       <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><Mail className="w-4 h-4" /></span>
                       <input
                         type="email" placeholder="you@example.com" value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-4 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
+                        onChange={(e) => { setEmail(e.target.value); setEmailInUse(false); }}
+                        className={`w-full bg-neutral-950 border focus:ring-1 text-sm py-2.5 pl-10 pr-4 rounded-xl text-neutral-100 placeholder-neutral-600 transition ${
+                          emailInUse
+                            ? 'border-rose-500/70 focus:border-rose-500/70 focus:ring-rose-500/20'
+                            : 'border-neutral-800 focus:border-indigo-500/70 focus:ring-indigo-500/20'
+                        }`}
                         required
                       />
                     </div>
+                    {emailInUse && (
+                      <p className="text-rose-500 text-[10px] font-medium mt-1 pl-1">Email already in use. Please choose another.</p>
+                    )}
                   </div>
                 )}
 
