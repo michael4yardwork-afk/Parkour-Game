@@ -307,7 +307,6 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const recoveryOrigin = recoveryRedirectOrigin(req, redirectTo);
     const supabase = createSupabasePublicClient();
     if (!supabase) {
       return res.status(503).json({
@@ -315,9 +314,10 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
       });
     }
 
-    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: `${recoveryOrigin}/`,
-    });
+    // Do not pass redirectTo — Supabase uses its configured Site URL, which
+    // avoids redirect-allowlist validation errors entirely. The Site URL in the
+    // Supabase dashboard must point to the deployed app domain.
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
 
     if (error) {
       console.error('[supabase] resetPasswordForEmail error:', error.message);

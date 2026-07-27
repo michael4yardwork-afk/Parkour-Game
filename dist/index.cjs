@@ -60184,71 +60184,6 @@ async function getAuthenticatedAccount(req) {
 
 // server/routes/auth.ts
 var router = (0, import_express.Router)();
-function originFromUrl(value) {
-  if (typeof value !== "string" || !value.trim()) return null;
-  try {
-    const url = new URL(value.trim());
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    return url.origin;
-  } catch {
-    return null;
-  }
-}
-function isLocalOrigin(origin) {
-  try {
-    const hostname2 = new URL(origin).hostname.toLowerCase();
-    return hostname2 === "localhost" || hostname2 === "127.0.0.1" || hostname2 === "[::1]" || hostname2 === "::1";
-  } catch {
-    return true;
-  }
-}
-function configuredPublicOrigins() {
-  const origins = /* @__PURE__ */ new Set();
-  for (const domain of [
-    process.env.REPLIT_DEV_DOMAIN,
-    ...(process.env.REPLIT_DOMAINS || "").split(",")
-  ]) {
-    if (!domain?.trim()) continue;
-    const origin = originFromUrl(
-      domain.trim().startsWith("http") ? domain.trim() : `https://${domain.trim()}`
-    );
-    if (origin) origins.add(origin);
-  }
-  const configuredUrl = originFromUrl(process.env.APP_URL);
-  if (configuredUrl && (!isLocalOrigin(configuredUrl) || process.env.NODE_ENV !== "production")) {
-    origins.add(configuredUrl);
-  }
-  return origins;
-}
-function forwardedPublicOrigin(req) {
-  const forwardedProto = String(req.get("x-forwarded-proto") || "").split(",")[0].trim();
-  const forwardedHost = String(req.get("x-forwarded-host") || "").split(",")[0].trim();
-  if (forwardedProto !== "http" && forwardedProto !== "https" || !forwardedHost) {
-    return null;
-  }
-  return originFromUrl(`${forwardedProto}://${forwardedHost}`);
-}
-function recoveryRedirectOrigin(req, requestedRedirectTo) {
-  const requestedOrigin = originFromUrl(requestedRedirectTo);
-  const configuredOrigins = configuredPublicOrigins();
-  const forwardedOrigin = forwardedPublicOrigin(req);
-  const requestOrigin = originFromUrl(`${req.protocol}://${req.get("host")}`);
-  const publicRequestOrigin = forwardedOrigin ?? requestOrigin;
-  if (requestedOrigin && configuredOrigins.has(requestedOrigin)) {
-    return requestedOrigin;
-  }
-  if (requestedOrigin && configuredOrigins.size === 0 && publicRequestOrigin === requestedOrigin) {
-    return requestedOrigin;
-  }
-  const configuredUrl = originFromUrl(process.env.APP_URL);
-  if (configuredUrl && (!isLocalOrigin(configuredUrl) || process.env.NODE_ENV !== "production")) {
-    return configuredUrl;
-  }
-  if (configuredOrigins.size > 0) return [...configuredOrigins][0];
-  if (forwardedOrigin) return forwardedOrigin;
-  if (requestOrigin && isLocalOrigin(requestOrigin)) return requestOrigin;
-  throw new Error("No safe public recovery origin is configured.");
-}
 router.get("/check-username", async (req, res) => {
   const { username } = req.query;
   if (!username || typeof username !== "string") {
@@ -60411,16 +60346,13 @@ router.post("/forgot-password", async (req, res) => {
       });
     }
     const normalizedEmail = email.trim().toLowerCase();
-    const recoveryOrigin = recoveryRedirectOrigin(req, redirectTo);
     const supabase = createSupabasePublicClient();
     if (!supabase) {
       return res.status(503).json({
         error: "Account recovery is currently unavailable. Please contact the site administrator."
       });
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: `${recoveryOrigin}/`
-    });
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
     if (error) {
       console.error("[supabase] resetPasswordForEmail error:", error.message);
       return res.status(502).json({
