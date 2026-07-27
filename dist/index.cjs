@@ -60391,7 +60391,19 @@ router.post("/forgot-password", async (req, res) => {
         "INSERT INTO password_reset_codes (email, code, expires_at) VALUES ($1, $2, $3)",
         [normalizedEmail, code, expiresAt]
       );
-      if (isConfigured) {
+      if (!isConfigured) {
+        await db_default.query(
+          "DELETE FROM password_reset_codes WHERE email = $1 AND code = $2",
+          [normalizedEmail, code]
+        );
+        console.error(
+          "[auth] forgot-password unavailable: SMTP_HOST, SMTP_USER, and SMTP_PASS are required to send recovery email."
+        );
+        return res.status(503).json({
+          error: "Account recovery email is temporarily unavailable. Please contact the site administrator."
+        });
+      }
+      try {
         await sendMail({
           to: normalizedEmail,
           subject: "Your Delta Rush verification code",
@@ -60416,12 +60428,14 @@ router.post("/forgot-password", async (req, res) => {
 
 This code expires in 15 minutes. If you didn't request a reset, ignore this email.`
         });
-        console.log("[auth] forgot-password: verification code sent via SMTP to", normalizedEmail);
-      } else {
-        console.warn(
-          `[auth] SMTP not configured. Verification code for ${normalizedEmail}: ${code} (expires in 15 min). Set SMTP_HOST/SMTP_USER/SMTP_PASS to send real emails.`
+      } catch (mailError) {
+        await db_default.query(
+          "DELETE FROM password_reset_codes WHERE email = $1 AND code = $2",
+          [normalizedEmail, code]
         );
+        throw mailError;
       }
+      console.log("[auth] forgot-password: verification code sent via SMTP to", normalizedEmail);
     }
     res.json({ message: "If an account with that email exists, a 6-digit verification code has been sent." });
   } catch (err) {
