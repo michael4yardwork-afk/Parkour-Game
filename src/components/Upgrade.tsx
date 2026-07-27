@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Crown, Check, FolderKanban, LineChart, GitCompareArrows, Ghost, Blocks, BarChart3, Sparkles, Save, Mail, Loader2, BadgeCheck } from 'lucide-react';
+import { Crown, Check, FolderKanban, LineChart, GitCompareArrows, Ghost, Blocks, BarChart3, Sparkles, Save, Mail, Loader2, BadgeCheck, ExternalLink } from 'lucide-react';
 import { synths } from '../audio';
 import { api } from '../api';
 
 type BillingCycle = 'monthly' | 'yearly';
+
+const STRIPE_CUSTOMER_PORTAL_URL = 'https://billing.stripe.com/p/login/test_28E8wOeIVaVQ8Wp974bMQ00';
 
 const FEATURES: { icon: React.ReactNode; title: string; free: string; platinum: string }[] = [
   {
@@ -410,7 +412,18 @@ export default function Upgrade({ isLoggedIn, onRequireLogin, isPlatinum, plan, 
                 <h2 className="text-lg font-black text-white">Your payment history</h2>
                 <p className="text-xs text-white/65 mt-1">Only payments and subscription events for this account.</p>
               </div>
-              <BadgeCheck className="w-5 h-5 text-emerald-300 shrink-0" />
+              <div className="flex items-center gap-3 shrink-0">
+                <a
+                  href={STRIPE_CUSTOMER_PORTAL_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Manage Payments
+                </a>
+                <BadgeCheck className="w-5 h-5 text-emerald-300" />
+              </div>
             </div>
 
             {historyLoading ? (
