@@ -126,11 +126,20 @@ export const api = {
       });
     },
 
-    async forgotPassword(email: string): Promise<{ message: string }> {
+    async forgotPassword(email: string): Promise<{ message: string; method?: 'supabase-link' | 'code' }> {
       return apiFetch<{ message: string }>('/auth/forgot-password', {
         method: 'POST',
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, redirectTo: window.location.origin })
       });
+    },
+
+    async resetPasswordWithSupabase(accessToken: string, refreshToken: string, newPassword: string): Promise<AuthResult & { message: string }> {
+      const result = await apiFetch<AuthResult & { message: string }>('/auth/reset-password-supabase', {
+        method: 'POST',
+        body: JSON.stringify({ accessToken, refreshToken, newPassword })
+      });
+      localStorage.setItem('delta_rush_token', result.token);
+      return result;
     },
 
     async verifyResetCode(email: string, code: string): Promise<{ valid: boolean }> {

@@ -12,6 +12,7 @@ import billingRoutes from './routes/billing';
 import stripeWebhookRoutes from './routes/stripeWebhook';
 import { setupWebSocketServer } from './ws';
 import { isStripeConfigured } from './stripe';
+import { supabasePublicConfigured } from './supabase';
 
 // ── Diagnostics: write crash info to startup.log so it is readable
 // ── from Hostinger's file manager even when console is inaccessible
@@ -69,6 +70,7 @@ app.get('/api/health', (_req, res) => res.json({
   port: PORT,
   recovery: {
     supabaseConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+    supabaseRecoveryConfigured: supabasePublicConfigured,
     smtpConfigured: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
     appUrlConfigured: Boolean(process.env.APP_URL && /^https?:\/\/[^/]+$/i.test(process.env.APP_URL)),
     appUrlIsLocalhost: /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(process.env.APP_URL || ''),

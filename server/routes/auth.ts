@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
 import pool from '../db';
-import { supabaseAdmin } from '../supabase';
+import { createSupabasePublicClient, supabaseAdmin, supabasePublicConfigured } from '../supabase';
 import { getAuthenticatedAccount, signAuthToken } from '../authIdentity';
 import { isConfigured as smtpConfigured, sendMail } from '../email';
 
@@ -309,12 +309,39 @@ function generateResetCode(): string {
 // Rate-limited to MAX_CODE_REQUESTS_PER_WINDOW requests per email per window.
 router.post('/forgot-password', async (req: Request, res: Response) => {
   try {
-    const { email } = req.body;
+    const { email, redirectTo } = req.body;
     if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return res.status(400).json({ error: 'Please provide a valid email address.' });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+
+    // Prefer Supabase's native recovery email. Supabase owns delivery and
+    // produces a signed recovery session, so no SMTP credentials are needed.
+    if (supabasePublicConfigured) {
+      const recoveryOrigin = recoveryRedirectOrigin(req, redirectTo);
+      const supabase = createSupabasePublicClient();
+      if (!supabase) {
+        return res.status(503).json({
+          error: 'Account recovery email is temporarily unavailable. Please contact the site administrator.'
+        });
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: `${recoveryOrigin}/`
+      });
+      if (error) {
+        console.error('[supabase] resetPasswordForEmail error:', error.message);
+        return res.status(502).json({
+          error: 'Account recovery email could not be sent. Please try again later.'
+        });
+      }
+
+      return res.json({
+        method: 'supabase-link',
+        message: 'If an account with that email exists, a password recovery link has been sent.'
+      });
+    }
 
     // Look up user — if not found, still return success to avoid email enumeration
     const userResult = await pool.query(
@@ -401,6 +428,89 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
     res.json({ message: 'If an account with that email exists, a 6-digit verification code has been sent.' });
   } catch (err) {
     console.error('Forgot-password error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// POST /api/auth/reset-password-supabase
+// Accepts a Supabase recovery session and synchronizes the new password to the
+// local account after Supabase has verified the signed recovery token.
+router.post('/reset-password-supabase', async (req: Request, res: Response) => {
+  try {
+    const { accessToken, refreshToken, newPassword } = req.body;
+    if (!accessToken || typeof accessToken !== 'string') {
+      return res.status(401).json({ error: 'The recovery link is invalid or expired. Please request a new one.' });
+    }
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      return res.status(401).json({ error: 'The recovery link is incomplete. Please request a new one.' });
+    }
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters.' });
+    }
+    if (!supabasePublicConfigured) {
+      return res.status(503).json({
+        error: 'Account recovery is temporarily unavailable. Please contact the site administrator.'
+      });
+    }
+
+    const supabase = createSupabasePublicClient();
+    if (!supabase) {
+      return res.status(503).json({
+        error: 'Account recovery is temporarily unavailable. Please contact the site administrator.'
+      });
+    }
+
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (sessionError) {
+      console.error('[supabase] recovery session error:', sessionError.message);
+      return res.status(401).json({ error: 'The recovery link is invalid or expired. Please request a new one.' });
+    }
+
+    const { data: userData, error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (updateError || !userData.user?.email) {
+      console.error('[supabase] recovery password update error:', updateError?.message || 'Missing user email');
+      return res.status(401).json({ error: 'The recovery link is invalid or expired. Please request a new one.' });
+    }
+
+    const normalizedEmail = userData.user.email.trim().toLowerCase();
+    const localResult = await pool.query(
+      'SELECT id, username FROM users WHERE LOWER(email) = $1',
+      [normalizedEmail]
+    );
+    if (localResult.rows.length === 0) {
+      return res.status(404).json({ error: 'No Delta Rush account is linked to this email address.' });
+    }
+
+    const localUser = localResult.rows[0];
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, localUser.id]);
+
+    const fullUserResult = await pool.query(
+      'SELECT username, avatar, avatar_bg, device, created_at FROM users WHERE id = $1',
+      [localUser.id]
+    );
+    const fullUser = fullUserResult.rows[0];
+    const token = signAuthToken({ id: localUser.id, username: localUser.username });
+
+    res.json({
+      message: 'Password updated successfully.',
+      token,
+      user: {
+        username: fullUser.username,
+        avatar: fullUser.avatar,
+        avatarBg: fullUser.avatar_bg,
+        device: fullUser.device ?? null,
+        createdAt: parseInt(fullUser.created_at),
+        passwordHash: '',
+      },
+    });
+  } catch (err) {
+    console.error('Supabase reset-password error:', err);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });

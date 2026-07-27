@@ -4,9 +4,13 @@ import ws from 'ws';
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {
   console.warn('[supabase] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set. Supabase auth will be skipped.');
+}
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn('[supabase] SUPABASE_URL or SUPABASE_ANON_KEY is not set. Native recovery emails will be skipped.');
 }
 
 // Admin client — uses service role key, bypasses RLS.
@@ -22,3 +26,13 @@ export const supabaseAdmin = supabaseUrl && supabaseServiceRoleKey
       realtime: { transport: realtimeTransport }
     })
   : null;
+
+export const supabasePublicConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+export function createSupabasePublicClient() {
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    realtime: { transport: realtimeTransport }
+  });
+}

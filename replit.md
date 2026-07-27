@@ -53,7 +53,14 @@ The database schema is auto-initialized on server startup (`server/db.ts`). No m
 
 ## Account Recovery (Password Reset)
 
-The recovery system uses Supabase's admin API + SMTP email to ensure the reset link always points to the real app URL (not localhost).
+The recovery system uses Supabase's native password-recovery email when
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` are configured. Supabase sends a signed
+recovery link, and the app synchronizes the new password to both Supabase Auth
+and the local account before logging the user in.
+
+If the public Supabase settings are unavailable, the legacy 6-digit code path
+requires SMTP settings (`SMTP_HOST`, `SMTP_USER`, and `SMTP_PASS`) and is kept
+as a fallback for existing deployments.
 
 ### Why the link used to go to localhost:3000
 Supabase has a **Site URL** setting. If it's set to `localhost:3000`, every recovery email can use that URL — even when the code sends the correct app URL as `redirectTo`. The app now refuses to send a production recovery request unless it has a trusted public origin, but Supabase still requires that origin to be allowlisted:
@@ -87,7 +94,11 @@ Set these secrets in your deployment environment (Railway/Hostinger Variables or
 | `SMTP_PASS` | Gmail app password or SMTP password |
 | `SMTP_FROM` | `"Delta Rush <no-reply@deltarush.win>"` |
 
-With SMTP configured, the server uses `supabaseAdmin.auth.admin.generateLink` (admin API, not subject to URL allowlist) to generate the recovery link with the correct app URL, then sends the email itself.
+Supabase must have the app origin configured under **Authentication → URL
+Configuration**. Set the **Site URL** to the deployed app URL and add the
+Replit development URL to **Redirect URLs** while testing. The server sends the
+browser's current public origin as `redirectTo`, after validating it against
+the deployment origin.
 
 **Gmail:** Enable 2FA → generate an App Password at myaccount.google.com/apppasswords. Use `smtp.gmail.com`, port `587`.
 **Resend:** Get a free API key at resend.com. Use `smtp.resend.com`, port `587`, user `resend`, pass = API key.

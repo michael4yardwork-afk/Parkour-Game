@@ -70,7 +70,7 @@ const GAME_FEATURES = [
   },
 ];
 
-type AuthMode = 'login' | 'signup' | 'forgot' | 'verify' | 'reset';
+type AuthMode = 'login' | 'signup' | 'forgot' | 'check-email' | 'verify' | 'reset';
 
 export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: AuthScreenProps) {
   const [isSignUp, setIsSignUp] = useState(initialMode === 'signup');
@@ -78,6 +78,8 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode === 'signup' ? 'signup' : 'login');
   // Email carried through the forgot → verify → reset flow
   const [recoveryEmail, setRecoveryEmail] = useState<string>('');
+  const [recoveryAccessToken, setRecoveryAccessToken] = useState<string>('');
+  const [recoveryRefreshToken, setRecoveryRefreshToken] = useState<string>('');
   // 6-digit code entered during the verify step
   const [verifyCode, setVerifyCode] = useState<string>('');
 
@@ -107,13 +109,16 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const queryParams = new URLSearchParams(window.location.search);
-    const params = hashParams.has('type') || hashParams.has('access_token') ? hashParams : queryParams;
-    if (params.get('type') === 'recovery' || params.get('access_token') || params.get('error')) {
-      // Strip the stale parameters from the URL bar and show a gentle notice.
+    const isRecovery = hashParams.get('type') === 'recovery' && hashParams.get('access_token');
+    if (isRecovery) {
+      setRecoveryAccessToken(hashParams.get('access_token') || '');
+      setRecoveryRefreshToken(hashParams.get('refresh_token') || '');
+      setAuthMode('reset');
       window.history.replaceState({}, document.title, window.location.pathname);
-      if (params.get('error')) {
-        setFeedback({ type: 'error', message: 'That recovery link is no longer valid. Please request a new code below.' });
-      }
+    } else if (queryParams.get('error')) {
+      // Strip invalid recovery parameters from the URL bar and show a notice.
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setFeedback({ type: 'error', message: 'That recovery link is no longer valid. Please request a new one below.' });
     }
   }, []);
 
@@ -250,7 +255,15 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     setFeedback(null); setUsernameTaken(false);
   };
 
-  const switchToLogin = () => { setAuthMode('login'); setIsSignUp(false); clearInputs(); setRecoveryEmail(''); synths.playTick(); };
+  const switchToLogin = () => {
+    setAuthMode('login');
+    setIsSignUp(false);
+    clearInputs();
+    setRecoveryEmail('');
+    setRecoveryAccessToken('');
+    setRecoveryRefreshToken('');
+    synths.playTick();
+  };
   const switchToSignup = () => { setAuthMode('signup'); setIsSignUp(true); clearInputs(); synths.playTick(); };
   const switchToForgot = () => { setAuthMode('forgot'); clearInputs(); synths.playTick(); };
 
@@ -271,12 +284,13 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     }
     setIsLoading(true);
     try {
-      await api.auth.forgotPassword(trimmedEmail);
-      // Always show success to avoid email enumeration, then advance to code entry
+      const result = await api.auth.forgotPassword(trimmedEmail);
+      // Supabase sends a signed reset link; the legacy code path remains
+      // available when Supabase public auth is not configured.
       setRecoveryEmail(trimmedEmail);
       setVerifyCode('');
       setFeedback(null);
-      setAuthMode('verify');
+      setAuthMode(result.method === 'supabase-link' ? 'check-email' : 'verify');
     } catch (err: any) {
       notifyFeedback('error', err.message || 'Failed to send verification code. Please try again.');
     } finally {
@@ -320,7 +334,9 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     }
     setIsLoading(true);
     try {
-      const result = await api.auth.resetPassword(recoveryEmail, verifyCode.trim(), newPassword);
+      const result = recoveryAccessToken
+        ? await api.auth.resetPasswordWithSupabase(recoveryAccessToken, recoveryRefreshToken, newPassword)
+        : await api.auth.resetPassword(recoveryEmail, verifyCode.trim(), newPassword);
       notifyFeedback('success', 'Password updated. Logging you in…');
       setRecoveryEmail('');
       setVerifyCode('');
@@ -489,6 +505,27 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
           )}
 
           {/* ── Verify Code ──────────────────────────────────────────── */}
+          {authMode === 'check-email' && (
+            <>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-bold font-mono uppercase tracking-wider text-neutral-100">Check Your Email</h2>
+                <button
+                  type="button"
+                  onClick={switchToForgot}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider border transition-all duration-200 cursor-pointer bg-neutral-800/60 border-neutral-700/50 text-neutral-300 hover:text-white hover:border-neutral-600"
+                >
+                  <ArrowLeft className="w-3 h-3" />Back
+                </button>
+              </div>
+              <p className="text-xs text-neutral-400 leading-relaxed mb-5">
+                If an account with <span className="text-neutral-200 font-medium">{recoveryEmail}</span> exists, Supabase has sent a secure password recovery link. Open it on this device to choose a new password. Check your spam folder if it does not arrive within a minute.
+              </p>
+              <div className="mt-4 text-center text-[10px] font-mono text-neutral-500">
+                The link expires automatically for your security.
+              </div>
+            </>
+          )}
+
           {authMode === 'verify' && (
             <>
               <div className="flex justify-between items-center mb-6">
