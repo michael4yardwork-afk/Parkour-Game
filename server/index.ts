@@ -67,6 +67,12 @@ app.use('/api/billing', billingRoutes);
 app.get('/api/health', (_req, res) => res.json({
   status: 'ok',
   port: PORT,
+  recovery: {
+    supabaseConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+    smtpConfigured: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+    appUrlConfigured: Boolean(process.env.APP_URL && /^https?:\/\/[^/]+$/i.test(process.env.APP_URL)),
+    appUrlIsLocalhost: /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(process.env.APP_URL || ''),
+  },
   billing: {
     stripeSecretConfigured: isStripeConfigured(),
     webhookSecretConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET),

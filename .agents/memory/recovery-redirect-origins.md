@@ -7,4 +7,4 @@ Password-recovery links must resolve to the public browser/deployment origin rat
 
 **Why:** Supabase recovery emails generated from the proxied backend previously redirected users to `localhost`, which is not reachable from the user's browser.
 
-**How to apply:** Have the browser send its current origin, validate it against configured public deployment origins (`APP_URL`, `REPLIT_DEV_DOMAIN`, or `REPLIT_DOMAINS`), and only allow localhost when explicitly running standalone local development. Keep the reset token in the URL hash until the frontend consumes it, then remove it from the address bar.
+**How to apply:** Have the browser send its current origin, validate it against configured public deployment origins (`APP_URL`, `REPLIT_DEV_DOMAIN`, or `REPLIT_DOMAINS`), and only allow localhost when explicitly running standalone local development. Keep the reset token in the URL hash until the frontend consumes it, then remove it from the address bar. Recovery code changes do not affect emails from a separately deployed server until that server is rebuilt and restarted; verify `/api/health` before requesting a new link.

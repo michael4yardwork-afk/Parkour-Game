@@ -29,6 +29,7 @@ Railway deploys automatically from GitHub on every push. The Express server serv
    |---|---|
    | `DATABASE_URL` | Paste your Supabase direct connection string |
    | `JWT_SECRET` | A long random string (generate at [generate-secret.vercel.app/64](https://generate-secret.vercel.app/64)) |
+   | `APP_URL` | The public HTTPS URL of this app, for example `https://deltarush.win` |
    | `NODE_ENV` | `production` |
 
 4. In **Settings → Build & Deploy**, confirm:
@@ -73,6 +74,12 @@ If running the app directly on Hostinger instead of pointing DNS to Railway:
 
 The server loads `.env` when present, but Hostinger environment variables are
 preferred. Do not expose Stripe secret values in frontend code.
+
+After changing recovery code or environment variables, rebuild and restart the
+deployed server before requesting a new recovery email. Check
+`https://your-domain.example/api/health`: `recovery.appUrlConfigured` must be
+`true` and `recovery.appUrlIsLocalhost` must be `false`. Existing emails cannot
+be repaired because their redirect destination is already embedded in the link.
 
 Verify the Hostinger runtime before testing a purchase by opening
 `https://your-domain.example/api/health`. The response must show all four

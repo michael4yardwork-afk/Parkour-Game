@@ -42,56 +42,73 @@ function configuredPublicOrigins(): Set<string> {
   }
 
   const configuredUrl = originFromUrl(process.env.APP_URL);
-  if (configuredUrl && (!isLocalOrigin(configuredUrl) || origins.size === 0)) {
+  if (
+    configuredUrl &&
+    (!isLocalOrigin(configuredUrl) || process.env.NODE_ENV !== 'production')
+  ) {
     origins.add(configuredUrl);
   }
 
   return origins;
 }
 
-function recoveryRedirectOrigin(req: Request, requestedRedirectTo: unknown): string {
-  const requestedOrigin = originFromUrl(requestedRedirectTo);
-  const configuredOrigins = configuredPublicOrigins();
-
-  // The frontend supplies window.location.origin. Accept it only when it is
-  // one of the deployment's known origins, or when running a local standalone
-  // server with no public origin configured.
-  if (
-    requestedOrigin &&
-    (configuredOrigins.has(requestedOrigin) ||
-      (configuredOrigins.size === 0 && isLocalOrigin(requestedOrigin)))
-  ) {
-    return requestedOrigin;
-  }
-
-  const configuredUrl = originFromUrl(process.env.APP_URL);
-  if (configuredUrl && (!isLocalOrigin(configuredUrl) || configuredOrigins.size === 0)) {
-    return configuredUrl;
-  }
-  if (configuredOrigins.size > 0) return [...configuredOrigins][0];
-
-  // With no deployment URL configured, use the public forwarded host when the
-  // app is behind a reverse proxy. Express's req.protocol/req.get('host') can
-  // otherwise resolve to an internal localhost address, which produces a
-  // recovery email that cannot be opened from the user's browser.
+function forwardedPublicOrigin(req: Request): string | null {
   const forwardedProto = String(req.get('x-forwarded-proto') || '')
     .split(',')[0]
     .trim();
   const forwardedHost = String(req.get('x-forwarded-host') || '')
     .split(',')[0]
     .trim();
+
   if (
-    forwardedHost &&
-    (forwardedProto === 'http' || forwardedProto === 'https') &&
-    originFromUrl(`${forwardedProto}://${forwardedHost}`)
+    (forwardedProto !== 'http' && forwardedProto !== 'https') ||
+    !forwardedHost
   ) {
-    return `${forwardedProto}://${forwardedHost}`;
+    return null;
   }
 
-  // Keep standalone local development working. Production deployments should
-  // set APP_URL (or REPLIT_DEV_DOMAIN/REPLIT_DOMAINS) so this branch is never
-  // used behind a proxy.
-  return `${req.protocol}://${req.get('host')}`;
+  return originFromUrl(`${forwardedProto}://${forwardedHost}`);
+}
+
+function recoveryRedirectOrigin(req: Request, requestedRedirectTo: unknown): string {
+  const requestedOrigin = originFromUrl(requestedRedirectTo);
+  const configuredOrigins = configuredPublicOrigins();
+  const forwardedOrigin = forwardedPublicOrigin(req);
+  const requestOrigin = originFromUrl(`${req.protocol}://${req.get('host')}`);
+  const publicRequestOrigin = forwardedOrigin ?? requestOrigin;
+
+  // The frontend supplies window.location.origin. Accept it only when it is
+  // one of the deployment's known origins. When no public origin is
+  // configured, only accept the origin that the request itself arrived on;
+  // this prevents an arbitrary body value from becoming an open redirect.
+  if (requestedOrigin && configuredOrigins.has(requestedOrigin)) {
+    return requestedOrigin;
+  }
+  if (
+    requestedOrigin &&
+    configuredOrigins.size === 0 &&
+    publicRequestOrigin === requestedOrigin
+  ) {
+    return requestedOrigin;
+  }
+
+  const configuredUrl = originFromUrl(process.env.APP_URL);
+  if (
+    configuredUrl &&
+    (!isLocalOrigin(configuredUrl) || process.env.NODE_ENV !== 'production')
+  ) {
+    return configuredUrl;
+  }
+  if (configuredOrigins.size > 0) return [...configuredOrigins][0];
+
+  // A forwarded public origin is the safest fallback behind a reverse proxy.
+  if (forwardedOrigin) return forwardedOrigin;
+
+  // Keep standalone local development working. A non-local request origin
+  // without an explicit public URL is unsafe because it may be an internal
+  // host supplied by a reverse proxy. Fail instead of sending a broken email.
+  if (requestOrigin && isLocalOrigin(requestOrigin)) return requestOrigin;
+  throw new Error('No safe public recovery origin is configured.');
 }
 
 router.get('/check-username', async (req: Request, res: Response) => {

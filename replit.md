@@ -56,7 +56,7 @@ The database schema is auto-initialized on server startup (`server/db.ts`). No m
 The recovery system uses Supabase's admin API + SMTP email to ensure the reset link always points to the real app URL (not localhost).
 
 ### Why the link used to go to localhost:3000
-Supabase has a **Site URL** setting. If it's set to `localhost:3000`, every recovery email uses that URL — even when the code sends the correct app URL as `redirectTo`. The preferred fix is to either:
+Supabase has a **Site URL** setting. If it's set to `localhost:3000`, every recovery email can use that URL — even when the code sends the correct app URL as `redirectTo`. The app now refuses to send a production recovery request unless it has a trusted public origin, but Supabase still requires that origin to be allowlisted:
 - **Configure SMTP** (recommended for full control), OR
 - **Update the Supabase Site URL** in the dashboard
 
@@ -71,7 +71,9 @@ be allowed under **Authentication → URL Configuration → Redirect URLs**:
 
 Existing emails that already contain `http://localhost:3000` cannot be repaired
 after they were generated; request a new recovery email after updating the
-Supabase URL configuration.
+Supabase URL configuration and redeploying the backend. Changes made in this
+Replit workspace do not update a separately hosted Railway/Hostinger server
+until that deployment rebuilds from the updated source.
 
 ### Option A — Configure SMTP (fixes the redirect without dashboard changes)
 Set these secrets in your deployment environment (Railway/Hostinger Variables or Replit Secrets):

@@ -60218,28 +60218,39 @@ function configuredPublicOrigins() {
     if (origin) origins.add(origin);
   }
   const configuredUrl = originFromUrl(process.env.APP_URL);
-  if (configuredUrl && (!isLocalOrigin(configuredUrl) || origins.size === 0)) {
+  if (configuredUrl && (!isLocalOrigin(configuredUrl) || process.env.NODE_ENV !== "production")) {
     origins.add(configuredUrl);
   }
   return origins;
 }
+function forwardedPublicOrigin(req) {
+  const forwardedProto = String(req.get("x-forwarded-proto") || "").split(",")[0].trim();
+  const forwardedHost = String(req.get("x-forwarded-host") || "").split(",")[0].trim();
+  if (forwardedProto !== "http" && forwardedProto !== "https" || !forwardedHost) {
+    return null;
+  }
+  return originFromUrl(`${forwardedProto}://${forwardedHost}`);
+}
 function recoveryRedirectOrigin(req, requestedRedirectTo) {
   const requestedOrigin = originFromUrl(requestedRedirectTo);
   const configuredOrigins = configuredPublicOrigins();
-  if (requestedOrigin && (configuredOrigins.has(requestedOrigin) || configuredOrigins.size === 0 && isLocalOrigin(requestedOrigin))) {
+  const forwardedOrigin = forwardedPublicOrigin(req);
+  const requestOrigin = originFromUrl(`${req.protocol}://${req.get("host")}`);
+  const publicRequestOrigin = forwardedOrigin ?? requestOrigin;
+  if (requestedOrigin && configuredOrigins.has(requestedOrigin)) {
+    return requestedOrigin;
+  }
+  if (requestedOrigin && configuredOrigins.size === 0 && publicRequestOrigin === requestedOrigin) {
     return requestedOrigin;
   }
   const configuredUrl = originFromUrl(process.env.APP_URL);
-  if (configuredUrl && (!isLocalOrigin(configuredUrl) || configuredOrigins.size === 0)) {
+  if (configuredUrl && (!isLocalOrigin(configuredUrl) || process.env.NODE_ENV !== "production")) {
     return configuredUrl;
   }
   if (configuredOrigins.size > 0) return [...configuredOrigins][0];
-  const forwardedProto = String(req.get("x-forwarded-proto") || "").split(",")[0].trim();
-  const forwardedHost = String(req.get("x-forwarded-host") || "").split(",")[0].trim();
-  if (forwardedHost && (forwardedProto === "http" || forwardedProto === "https") && originFromUrl(`${forwardedProto}://${forwardedHost}`)) {
-    return `${forwardedProto}://${forwardedHost}`;
-  }
-  return `${req.protocol}://${req.get("host")}`;
+  if (forwardedOrigin) return forwardedOrigin;
+  if (requestOrigin && isLocalOrigin(requestOrigin)) return requestOrigin;
+  throw new Error("No safe public recovery origin is configured.");
 }
 router.get("/check-username", async (req, res) => {
   const { username } = req.query;
@@ -79352,6 +79363,12 @@ app.use("/api/billing", billing_default);
 app.get("/api/health", (_req, res) => res.json({
   status: "ok",
   port: PORT,
+  recovery: {
+    supabaseConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+    smtpConfigured: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
+    appUrlConfigured: Boolean(process.env.APP_URL && /^https?:\/\/[^/]+$/i.test(process.env.APP_URL)),
+    appUrlIsLocalhost: /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(process.env.APP_URL || "")
+  },
   billing: {
     stripeSecretConfigured: isStripeConfigured(),
     webhookSecretConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
