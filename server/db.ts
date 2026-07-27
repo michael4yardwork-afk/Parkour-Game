@@ -176,6 +176,28 @@ export async function initDb() {
       WHERE stripe_customer_id IS NOT NULL;
   `);
 
+  // Password reset codes — used by the 6-digit verification code recovery flow.
+  // Each row stores one pending reset request, expires after 15 minutes,
+  // and is marked used once the password has been successfully changed.
+  // The `attempts` column counts failed guesses; rows with >= MAX_ATTEMPTS are
+  // treated as locked and rejected even if the code is correct.
+  await pool.query(`
+    ALTER TABLE password_reset_codes ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0;
+  `).catch(() => { /* table may not exist yet — CREATE TABLE below handles it */ });
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS password_reset_codes (
+      id          SERIAL PRIMARY KEY,
+      email       TEXT NOT NULL,
+      code        TEXT NOT NULL,
+      expires_at  BIGINT NOT NULL,
+      used        BOOLEAN NOT NULL DEFAULT FALSE,
+      attempts    INTEGER NOT NULL DEFAULT 0,
+      created_at  BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000
+    );
+    CREATE INDEX IF NOT EXISTS idx_prc_email ON password_reset_codes(email);
+  `);
+
   // Retroactively enforce the 1-course publish limit for non-platinum users.
   // For each free user who has more than one published course, keep only the
   // newest one (by created_at DESC) and unpublish the rest.  This runs on

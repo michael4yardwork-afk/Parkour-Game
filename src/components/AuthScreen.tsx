@@ -70,13 +70,16 @@ const GAME_FEATURES = [
   },
 ];
 
-type AuthMode = 'login' | 'signup' | 'forgot' | 'reset';
+type AuthMode = 'login' | 'signup' | 'forgot' | 'verify' | 'reset';
 
 export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: AuthScreenProps) {
   const [isSignUp, setIsSignUp] = useState(initialMode === 'signup');
   // 'forgot' = request recovery email; 'reset' = set new password after clicking email link
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode === 'signup' ? 'signup' : 'login');
-  const [recoveryToken, setRecoveryToken] = useState<string | null>(null);
+  // Email carried through the forgot → verify → reset flow
+  const [recoveryEmail, setRecoveryEmail] = useState<string>('');
+  // 6-digit code entered during the verify step
+  const [verifyCode, setVerifyCode] = useState<string>('');
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -99,27 +102,18 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
   const [isLoading, setIsLoading] = useState(false);
   const [usernameTaken, setUsernameTaken] = useState(false);
 
-  // Detect Supabase recovery redirects. Supabase normally returns the session
-  // in the hash, but some email clients/proxies preserve it as query params.
-  // Supporting both forms makes recovery resilient without putting the token
-  // into an API request based on a guessed URL.
+  // Clean up any legacy Supabase recovery URL parameters that may still appear
+  // if the user follows an old-style recovery link.
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const queryParams = new URLSearchParams(window.location.search);
     const params = hashParams.has('type') || hashParams.has('access_token') ? hashParams : queryParams;
-    const type = params.get('type');
-    const accessToken = params.get('access_token');
-    if (type === 'recovery' && accessToken) {
-      setRecoveryToken(accessToken);
-      setAuthMode('reset');
-      setIsSignUp(false);
-      // Remove the sensitive token from the URL bar
+    if (params.get('type') === 'recovery' || params.get('access_token') || params.get('error')) {
+      // Strip the stale parameters from the URL bar and show a gentle notice.
       window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (params.get('error')) {
-      const description = params.get('error_description') || 'This recovery link is invalid or has expired.';
-      setAuthMode('login');
-      setFeedback({ type: 'error', message: description.replace(/\+/g, ' ') });
-      window.history.replaceState({}, document.title, window.location.pathname);
+      if (params.get('error')) {
+        setFeedback({ type: 'error', message: 'That recovery link is no longer valid. Please request a new code below.' });
+      }
     }
   }, []);
 
@@ -252,11 +246,11 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
 
   const clearInputs = () => {
     setUsername(''); setEmail(''); setPassword(''); setConfirmPassword('');
-    setNewPassword(''); setNewPasswordConfirm('');
+    setNewPassword(''); setNewPasswordConfirm(''); setVerifyCode('');
     setFeedback(null); setUsernameTaken(false);
   };
 
-  const switchToLogin = () => { setAuthMode('login'); setIsSignUp(false); clearInputs(); synths.playTick(); };
+  const switchToLogin = () => { setAuthMode('login'); setIsSignUp(false); clearInputs(); setRecoveryEmail(''); synths.playTick(); };
   const switchToSignup = () => { setAuthMode('signup'); setIsSignUp(true); clearInputs(); synths.playTick(); };
   const switchToForgot = () => { setAuthMode('forgot'); clearInputs(); synths.playTick(); };
 
@@ -277,10 +271,36 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     }
     setIsLoading(true);
     try {
-      const result = await api.auth.forgotPassword(trimmedEmail, window.location.origin);
-      notifyFeedback('success', result.message);
+      await api.auth.forgotPassword(trimmedEmail);
+      // Always show success to avoid email enumeration, then advance to code entry
+      setRecoveryEmail(trimmedEmail);
+      setVerifyCode('');
+      setFeedback(null);
+      setAuthMode('verify');
     } catch (err: any) {
-      notifyFeedback('error', err.message || 'Failed to send recovery email. Please try again.');
+      notifyFeedback('error', err.message || 'Failed to send verification code. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedback(null);
+    synths.playTick();
+    const trimmedCode = verifyCode.trim();
+    if (!/^\d{6}$/.test(trimmedCode)) {
+      notifyFeedback('error', 'Please enter the 6-digit code from your email.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await api.auth.verifyResetCode(recoveryEmail, trimmedCode);
+      // Code is valid — advance to the new-password step
+      setFeedback(null);
+      setAuthMode('reset');
+    } catch (err: any) {
+      notifyFeedback('error', err.message || 'Invalid or expired code. Please try again or request a new one.');
     } finally {
       setIsLoading(false);
     }
@@ -298,18 +318,15 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
       notifyFeedback('error', 'Passwords do not match.');
       return;
     }
-    if (!recoveryToken) {
-      notifyFeedback('error', 'Recovery token missing. Please request a new recovery email.');
-      return;
-    }
     setIsLoading(true);
     try {
-      const result = await api.auth.resetPassword(recoveryToken, newPassword);
+      const result = await api.auth.resetPassword(recoveryEmail, verifyCode.trim(), newPassword);
       notifyFeedback('success', 'Password updated. Logging you in…');
-      setRecoveryToken(null);
+      setRecoveryEmail('');
+      setVerifyCode('');
       setTimeout(() => onLoginSuccess(result.user), 800);
     } catch (err: any) {
-      notifyFeedback('error', err.message || 'Failed to reset password. The link may have expired — request a new one.');
+      notifyFeedback('error', err.message || 'Failed to reset password. The code may have expired — request a new one.');
     } finally {
       setIsLoading(false);
     }
@@ -425,7 +442,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
               </div>
 
               <p className="text-xs text-neutral-400 leading-relaxed mb-5">
-                Enter the email address linked to your account. We'll send you a recovery link so you can set a new password.
+                Enter the email address linked to your account. We'll send you a 6-digit verification code so you can set a new password.
               </p>
 
               <form onSubmit={handleForgotPassword} className="space-y-4">
@@ -459,14 +476,90 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
                   {isLoading ? (
                     <span className="animate-pulse">Sending…</span>
                   ) : (
-                    <><Mail className="w-4 h-4" />Send Recovery Email<ChevronRight className="w-4 h-4" /></>
+                    <><Mail className="w-4 h-4" />Send Verification Code<ChevronRight className="w-4 h-4" /></>
                   )}
                 </button>
               </form>
 
               <div className="mt-4 text-center flex items-center justify-center gap-1.5 text-[10px] font-mono text-neutral-500">
                 <Sparkles className="w-3 h-3 text-indigo-500" />
-                <span>Recovery link expires after one use.</span>
+                <span>Verification code expires in 15 minutes.</span>
+              </div>
+            </>
+          )}
+
+          {/* ── Verify Code ──────────────────────────────────────────── */}
+          {authMode === 'verify' && (
+            <>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-bold font-mono uppercase tracking-wider text-neutral-100">Enter Code</h2>
+                <button
+                  type="button"
+                  onClick={switchToForgot}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider border transition-all duration-200 cursor-pointer bg-neutral-800/60 border-neutral-700/50 text-neutral-300 hover:text-white hover:border-neutral-600"
+                >
+                  <ArrowLeft className="w-3 h-3" />Back
+                </button>
+              </div>
+
+              <p className="text-xs text-neutral-400 leading-relaxed mb-5">
+                We sent a 6-digit verification code to <span className="text-neutral-200 font-medium">{recoveryEmail}</span>. Enter it below to continue. Check your spam folder if it doesn't arrive within a minute.
+              </p>
+
+              <form onSubmit={handleVerifyCode} className="space-y-4">
+                {feedback && (
+                  <div className={`p-3.5 rounded-xl border text-xs font-medium leading-relaxed ${
+                    feedback.type === 'error'
+                      ? 'bg-rose-950/25 border-rose-800/40 text-rose-300'
+                      : 'bg-green-950/25 border-green-800/40 text-green-300'
+                  }`}>
+                    {feedback.message}
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block ml-1">Verification Code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="\d{6}"
+                    placeholder="000000"
+                    value={verifyCode}
+                    onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-2xl text-center py-3 px-4 rounded-xl text-neutral-100 placeholder-neutral-700 tracking-[0.5em] font-mono transition"
+                    maxLength={6}
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit" disabled={isLoading || verifyCode.length !== 6}
+                  className="w-full mt-2 py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-600/10 transition flex items-center justify-center gap-2 cursor-pointer text-sm font-mono uppercase tracking-widest leading-none"
+                >
+                  {isLoading ? (
+                    <span className="animate-pulse">Verifying…</span>
+                  ) : (
+                    <><KeyRound className="w-4 h-4" />Verify Code<ChevronRight className="w-4 h-4" /></>
+                  )}
+                </button>
+              </form>
+
+              <div className="mt-4 text-center space-y-2">
+                <div className="flex items-center justify-center gap-1.5 text-[10px] font-mono text-neutral-500">
+                  <Sparkles className="w-3 h-3 text-indigo-500" />
+                  <span>Code expires in 15 minutes.</span>
+                </div>
+                <p className="text-[10px] font-mono text-neutral-600">
+                  Didn't receive it?{' '}
+                  <button
+                    type="button"
+                    onClick={switchToForgot}
+                    className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 cursor-pointer transition"
+                  >
+                    Resend code
+                  </button>
+                </p>
               </div>
             </>
           )}
@@ -551,7 +644,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
 
               <div className="mt-4 text-center flex items-center justify-center gap-1.5 text-[10px] font-mono text-neutral-500">
                 <Sparkles className="w-3 h-3 text-indigo-500" />
-                <span>Secured with bcrypt. Link expires after one use.</span>
+                <span>Secured with bcrypt.</span>
               </div>
             </>
           )}

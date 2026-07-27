@@ -126,17 +126,24 @@ export const api = {
       });
     },
 
-    async forgotPassword(email: string, redirectTo?: string): Promise<{ message: string }> {
+    async forgotPassword(email: string): Promise<{ message: string }> {
       return apiFetch<{ message: string }>('/auth/forgot-password', {
         method: 'POST',
-        body: JSON.stringify({ email, redirectTo })
+        body: JSON.stringify({ email })
       });
     },
 
-    async resetPassword(accessToken: string, newPassword: string): Promise<AuthResult & { message: string }> {
+    async verifyResetCode(email: string, code: string): Promise<{ valid: boolean }> {
+      return apiFetch<{ valid: boolean }>('/auth/verify-reset-code', {
+        method: 'POST',
+        body: JSON.stringify({ email, code })
+      });
+    },
+
+    async resetPassword(email: string, code: string, newPassword: string): Promise<AuthResult & { message: string }> {
       const result = await apiFetch<AuthResult & { message: string }>('/auth/reset-password', {
         method: 'POST',
-        body: JSON.stringify({ accessToken, newPassword })
+        body: JSON.stringify({ email, code, newPassword })
       });
       // Store the token so subsequent API calls are authenticated immediately
       localStorage.setItem('delta_rush_token', result.token);
