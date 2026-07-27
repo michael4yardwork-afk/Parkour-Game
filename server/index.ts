@@ -72,7 +72,7 @@ app.get('/api/health', (_req, res) => res.json({
     supabaseConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
     supabaseRecoveryConfigured: supabasePublicConfigured,
     smtpConfigured: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
-    appUrlConfigured: Boolean(process.env.APP_URL && /^https?:\/\/[^/]+$/i.test(process.env.APP_URL)),
+    appUrlConfigured: Boolean(process.env.APP_URL && /^https?:\/\/[^/]+\/?$/i.test(process.env.APP_URL.trim())),
     appUrlIsLocalhost: /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(process.env.APP_URL || ''),
   },
   billing: {

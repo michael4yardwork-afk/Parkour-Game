@@ -60119,14 +60119,26 @@ var wrapper_default = import_websocket.default;
 // server/supabase.ts
 var supabaseUrl = process.env.SUPABASE_URL;
 var supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+var supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
 if (!supabaseUrl || !supabaseServiceRoleKey) {
   console.warn("[supabase] SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set. Supabase auth will be skipped.");
+}
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn("[supabase] SUPABASE_URL or SUPABASE_ANON_KEY is not set. Native recovery emails will be skipped.");
 }
 var realtimeTransport = wrapper_default;
 var supabaseAdmin = supabaseUrl && supabaseServiceRoleKey ? createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
   realtime: { transport: realtimeTransport }
 }) : null;
+var supabasePublicConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+function createSupabasePublicClient() {
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    realtime: { transport: realtimeTransport }
+  });
+}
 
 // server/authIdentity.ts
 var import_jsonwebtoken = __toESM(require_jsonwebtoken(), 1);
@@ -60206,6 +60218,71 @@ async function sendMail(opts) {
 
 // server/routes/auth.ts
 var router = (0, import_express.Router)();
+function originFromUrl(value) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+function isLocalOrigin(origin) {
+  try {
+    const hostname2 = new URL(origin).hostname.toLowerCase();
+    return hostname2 === "localhost" || hostname2 === "127.0.0.1" || hostname2 === "[::1]" || hostname2 === "::1";
+  } catch {
+    return true;
+  }
+}
+function configuredPublicOrigins() {
+  const origins = /* @__PURE__ */ new Set();
+  for (const domain of [
+    process.env.REPLIT_DEV_DOMAIN,
+    ...(process.env.REPLIT_DOMAINS || "").split(",")
+  ]) {
+    if (!domain?.trim()) continue;
+    const origin = originFromUrl(
+      domain.trim().startsWith("http") ? domain.trim() : `https://${domain.trim()}`
+    );
+    if (origin) origins.add(origin);
+  }
+  const configuredUrl = originFromUrl(process.env.APP_URL);
+  if (configuredUrl && (!isLocalOrigin(configuredUrl) || process.env.NODE_ENV !== "production")) {
+    origins.add(configuredUrl);
+  }
+  return origins;
+}
+function forwardedPublicOrigin(req) {
+  const forwardedProto = String(req.get("x-forwarded-proto") || "").split(",")[0].trim();
+  const forwardedHost = String(req.get("x-forwarded-host") || "").split(",")[0].trim();
+  if (forwardedProto !== "http" && forwardedProto !== "https" || !forwardedHost) {
+    return null;
+  }
+  return originFromUrl(`${forwardedProto}://${forwardedHost}`);
+}
+function recoveryRedirectOrigin(req, requestedRedirectTo) {
+  const requestedOrigin = originFromUrl(requestedRedirectTo);
+  const configuredOrigins = configuredPublicOrigins();
+  const forwardedOrigin = forwardedPublicOrigin(req);
+  const requestOrigin = originFromUrl(`${req.protocol}://${req.get("host")}`);
+  const publicRequestOrigin = forwardedOrigin ?? requestOrigin;
+  if (requestedOrigin && configuredOrigins.has(requestedOrigin)) {
+    return requestedOrigin;
+  }
+  if (requestedOrigin && configuredOrigins.size === 0 && publicRequestOrigin === requestedOrigin) {
+    return requestedOrigin;
+  }
+  const configuredUrl = originFromUrl(process.env.APP_URL);
+  if (configuredUrl && (!isLocalOrigin(configuredUrl) || process.env.NODE_ENV !== "production")) {
+    return configuredUrl;
+  }
+  if (configuredOrigins.size > 0) return [...configuredOrigins][0];
+  if (forwardedOrigin) return forwardedOrigin;
+  if (requestOrigin && isLocalOrigin(requestOrigin)) return requestOrigin;
+  throw new Error("No safe public recovery origin is configured.");
+}
 router.get("/check-username", async (req, res) => {
   const { username } = req.query;
   if (!username || typeof username !== "string") {
@@ -60363,11 +60440,33 @@ function generateResetCode() {
 }
 router.post("/forgot-password", async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, redirectTo } = req.body;
     if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return res.status(400).json({ error: "Please provide a valid email address." });
     }
     const normalizedEmail = email.trim().toLowerCase();
+    if (supabasePublicConfigured) {
+      const recoveryOrigin = recoveryRedirectOrigin(req, redirectTo);
+      const supabase = createSupabasePublicClient();
+      if (!supabase) {
+        return res.status(503).json({
+          error: "Account recovery email is temporarily unavailable. Please contact the site administrator."
+        });
+      }
+      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: `${recoveryOrigin}/`
+      });
+      if (error) {
+        console.error("[supabase] resetPasswordForEmail error:", error.message);
+        return res.status(502).json({
+          error: "Account recovery email could not be sent. Please try again later."
+        });
+      }
+      return res.json({
+        method: "supabase-link",
+        message: "If an account with that email exists, a password recovery link has been sent."
+      });
+    }
     const userResult = await db_default.query(
       "SELECT id FROM users WHERE LOWER(email) = $1",
       [normalizedEmail]
@@ -60440,6 +60539,78 @@ This code expires in 15 minutes. If you didn't request a reset, ignore this emai
     res.json({ message: "If an account with that email exists, a 6-digit verification code has been sent." });
   } catch (err) {
     console.error("Forgot-password error:", err);
+    res.status(500).json({ error: "Internal server error." });
+  }
+});
+router.post("/reset-password-supabase", async (req, res) => {
+  try {
+    const { accessToken, refreshToken, newPassword } = req.body;
+    if (!accessToken || typeof accessToken !== "string") {
+      return res.status(401).json({ error: "The recovery link is invalid or expired. Please request a new one." });
+    }
+    if (!refreshToken || typeof refreshToken !== "string") {
+      return res.status(401).json({ error: "The recovery link is incomplete. Please request a new one." });
+    }
+    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+      return res.status(400).json({ error: "New password must be at least 6 characters." });
+    }
+    if (!supabasePublicConfigured) {
+      return res.status(503).json({
+        error: "Account recovery is temporarily unavailable. Please contact the site administrator."
+      });
+    }
+    const supabase = createSupabasePublicClient();
+    if (!supabase) {
+      return res.status(503).json({
+        error: "Account recovery is temporarily unavailable. Please contact the site administrator."
+      });
+    }
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken
+    });
+    if (sessionError) {
+      console.error("[supabase] recovery session error:", sessionError.message);
+      return res.status(401).json({ error: "The recovery link is invalid or expired. Please request a new one." });
+    }
+    const { data: userData, error: updateError } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+    if (updateError || !userData.user?.email) {
+      console.error("[supabase] recovery password update error:", updateError?.message || "Missing user email");
+      return res.status(401).json({ error: "The recovery link is invalid or expired. Please request a new one." });
+    }
+    const normalizedEmail = userData.user.email.trim().toLowerCase();
+    const localResult = await db_default.query(
+      "SELECT id, username FROM users WHERE LOWER(email) = $1",
+      [normalizedEmail]
+    );
+    if (localResult.rows.length === 0) {
+      return res.status(404).json({ error: "No Delta Rush account is linked to this email address." });
+    }
+    const localUser = localResult.rows[0];
+    const passwordHash = await bcryptjs_default.hash(newPassword, 10);
+    await db_default.query("UPDATE users SET password_hash = $1 WHERE id = $2", [passwordHash, localUser.id]);
+    const fullUserResult = await db_default.query(
+      "SELECT username, avatar, avatar_bg, device, created_at FROM users WHERE id = $1",
+      [localUser.id]
+    );
+    const fullUser = fullUserResult.rows[0];
+    const token = signAuthToken({ id: localUser.id, username: localUser.username });
+    res.json({
+      message: "Password updated successfully.",
+      token,
+      user: {
+        username: fullUser.username,
+        avatar: fullUser.avatar,
+        avatarBg: fullUser.avatar_bg,
+        device: fullUser.device ?? null,
+        createdAt: parseInt(fullUser.created_at),
+        passwordHash: ""
+      }
+    });
+  } catch (err) {
+    console.error("Supabase reset-password error:", err);
     res.status(500).json({ error: "Internal server error." });
   }
 });
@@ -79392,8 +79563,9 @@ app.get("/api/health", (_req, res) => res.json({
   port: PORT,
   recovery: {
     supabaseConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
+    supabaseRecoveryConfigured: supabasePublicConfigured,
     smtpConfigured: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
-    appUrlConfigured: Boolean(process.env.APP_URL && /^https?:\/\/[^/]+$/i.test(process.env.APP_URL)),
+    appUrlConfigured: Boolean(process.env.APP_URL && /^https?:\/\/[^/]+\/?$/i.test(process.env.APP_URL.trim())),
     appUrlIsLocalhost: /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(process.env.APP_URL || "")
   },
   billing: {

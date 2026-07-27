@@ -63,6 +63,8 @@ If running the app directly on Hostinger instead of pointing DNS to Railway:
    | `STRIPE_WEBHOOK_SECRET` | Signing secret for the webhook endpoint |
    | `STRIPE_PRICE_MONTHLY` | Monthly Platinum Price ID |
    | `STRIPE_PRICE_YEARLY` | Yearly Platinum Price ID |
+   | `SUPABASE_URL` | Supabase project URL |
+   | `SUPABASE_ANON_KEY` | Supabase public anon/publishable key used for recovery emails |
    | `APP_URL` | Public HTTPS app URL, for example `https://deltarush.win` |
    | `NODE_ENV` | `production` |
 
@@ -77,9 +79,10 @@ preferred. Do not expose Stripe secret values in frontend code.
 
 After changing recovery code or environment variables, rebuild and restart the
 deployed server before requesting a new recovery email. Check
-`https://your-domain.example/api/health`: `recovery.appUrlConfigured` must be
-`true` and `recovery.appUrlIsLocalhost` must be `false`. Existing emails cannot
-be repaired because their redirect destination is already embedded in the link.
+`https://your-domain.example/api/health`: `recovery.supabaseRecoveryConfigured`
+must be `true`, `recovery.appUrlConfigured` must be `true`, and
+`recovery.appUrlIsLocalhost` must be `false`. Existing emails cannot be
+repaired because their redirect destination is already embedded in the link.
 
 Verify the Hostinger runtime before testing a purchase by opening
 `https://your-domain.example/api/health`. The response must show all four

@@ -29,7 +29,9 @@ The GitHub Actions workflows are kept unchanged so normal Replit GitHub authenti
 | `DATABASE_URL` | PostgreSQL connection string (Supabase direct connection, port 5432) |
 | `JWT_SECRET` | Secret for signing auth tokens |
 | `SUPABASE_URL` | Supabase project URL (e.g. `https://xxxx.supabase.co`) |
+| `SUPABASE_ANON_KEY` | Supabase public anon/publishable key used for recovery emails |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key — used server-side to create/verify auth users |
+| `APP_URL` | Public HTTPS URL used for recovery redirects |
 
 The database schema is auto-initialized on server startup (`server/db.ts`). No manual migrations needed — new columns are added with `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
 
@@ -60,7 +62,9 @@ and the local account before logging the user in.
 
 If the public Supabase settings are unavailable, the legacy 6-digit code path
 requires SMTP settings (`SMTP_HOST`, `SMTP_USER`, and `SMTP_PASS`) and is kept
-as a fallback for existing deployments.
+as a fallback for existing deployments. Replit Secrets do not automatically
+sync to a separately hosted Hostinger server; configure the same values in
+Hostinger's Node.js environment.
 
 ### Why the link used to go to localhost:3000
 Supabase has a **Site URL** setting. If it's set to `localhost:3000`, every recovery email can use that URL — even when the code sends the correct app URL as `redirectTo`. The app now refuses to send a production recovery request unless it has a trusted public origin, but Supabase still requires that origin to be allowlisted:
@@ -82,7 +86,7 @@ Supabase URL configuration and redeploying the backend. Changes made in this
 Replit workspace do not update a separately hosted Railway/Hostinger server
 until that deployment rebuilds from the updated source.
 
-### Option A — Configure SMTP (fixes the redirect without dashboard changes)
+### Legacy option — Configure SMTP (only if native Supabase recovery is unavailable)
 Set these secrets in your deployment environment (Railway/Hostinger Variables or Replit Secrets):
 
 | Secret | Example |
