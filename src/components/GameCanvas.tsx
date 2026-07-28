@@ -1397,9 +1397,22 @@ export default function GameCanvas({
             // Frames are loaded asynchronously after scene init; NPC stays hidden until ready.
             if (!opp.framesLoaded || opp.frames.length === 0) return;
 
-            const targetMs = raceNowMs;
             const frames = opp.frames;
             const lastFrame = frames[frames.length - 1];
+            // Never let an NPC advance during the countdown. This is especially
+            // important when ghost frames finish loading asynchronously: the
+            // bot must appear at frame zero, not jump to the current race time.
+            if (!raceStartedRef.current) {
+              const firstFrame = frames[0];
+              opp.mesh.position.set(firstFrame.x, firstFrame.y + 0.8, firstFrame.z);
+              opp.mesh.rotation.x = firstFrame.rx;
+              opp.mesh.rotation.y = firstFrame.ry;
+              opp.mesh.rotation.z = 0;
+              opp.progressDistance = 0;
+              return;
+            }
+
+            const targetMs = Math.max(0, raceNowMs);
 
             // NPC finished — hand off to idle end-block animation
             if (targetMs >= lastFrame.time) {
