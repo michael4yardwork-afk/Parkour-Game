@@ -395,7 +395,16 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
               );
             })()}
             <button
-              onClick={() => setShowEloLeaderboard(true)}
+              onClick={() => {
+                if (!isPlatinum) {
+                  setGate({
+                    feature: 'World ELO Leaderboard',
+                    description: 'See how every racer ranks worldwide and track the leaders by ELO rating.',
+                  });
+                  return;
+                }
+                setShowEloLeaderboard(true);
+              }}
               className="flex items-center justify-center gap-2 text-[11px] font-semibold text-neutral-500 hover:text-amber-400 border border-neutral-800 hover:border-amber-500/30 bg-neutral-900/50 hover:bg-amber-500/5 rounded-xl px-4 py-2 transition cursor-pointer w-full"
             >
               <Globe className="w-3.5 h-3.5" />

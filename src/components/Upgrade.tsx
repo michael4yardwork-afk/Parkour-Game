@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Crown, Check, FolderKanban, LineChart, GitCompareArrows, Ghost, Blocks, BarChart3, Sparkles, Save, Mail, Loader2, BadgeCheck, ExternalLink } from 'lucide-react';
+import { Crown, Check, FolderKanban, LineChart, GitCompareArrows, Ghost, Blocks, BarChart3, Sparkles, Save, Mail, Loader2, BadgeCheck, ExternalLink, Trophy } from 'lucide-react';
 import { synths } from '../audio';
 import { api } from '../api';
 
@@ -61,6 +61,12 @@ const FEATURES: { icon: React.ReactNode; title: string; free: string; platinum: 
     title: 'Statistics',
     free: 'No Advanced Statistics',
     platinum: 'Advanced Statistics & Insights',
+  },
+  {
+    icon: <Trophy className="w-4 h-4" />,
+    title: 'World ELO rankings',
+    free: 'No ELO leaderboard',
+    platinum: 'World ELO Leaderboard',
   },
 ];
 

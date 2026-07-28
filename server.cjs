@@ -61144,6 +61144,18 @@ router4.get("/:username/rating", async (req, res) => {
 });
 router4.get("/ratings/leaderboard", async (req, res) => {
   try {
+    const account = await getAuthenticatedAccount(req);
+    if (!account) return res.status(401).json({ error: "Unauthorized." });
+    const entitlement = await db_default.query(
+      `SELECT subscription_status
+       FROM users
+       WHERE id = $1`,
+      [account.id]
+    );
+    const status = entitlement.rows[0]?.subscription_status;
+    if (status !== "active" && status !== "trialing") {
+      return res.status(403).json({ error: "platinum_required" });
+    }
     const result = await db_default.query(
       `SELECT ur.username, ur.rating, u.avatar, u.avatar_bg
        FROM user_ratings ur
