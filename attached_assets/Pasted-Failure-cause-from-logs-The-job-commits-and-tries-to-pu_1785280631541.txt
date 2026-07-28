@@ -1,0 +1,68 @@
+Failure cause (from logs)
+- The job commits and tries to push built files, but git push fails with:
+  "remote: Write access to repository not granted." / "fatal: ... error: 403"
+- This means the workflow's token did not have write permission to the repository when attempting the push.
+
+Immediate fix
+1. Give the workflow write permissions to repository contents. Add a permissions section to the workflow (root or job-level):
+   - permissions:
+       contents: write
+
+2. Ensure checkout preserves credentials so the GITHUB_TOKEN can be used for pushing:
+   - uses: actions/checkout@v4
+     with:
+       persist-credentials: true
+       fetch-depth: 0
+
+3. If your organization or repo settings restrict Actions write access, change the repository settings (Settings → Actions → General → Workflow permissions) to allow "Read and write permissions" or set the appropriate policy.
+
+Suggested updated workflow (replace your .github/workflows/deploy.yml with this or apply the changes shown)
+```yaml
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+
+# allow the workflow to push back to the repo
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Push built files to deploy branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f dist/ server.cjs
+          git commit -m "deploy: built from ${{ github.sha }}" || echo "no changes to commit"
+          git push origin HEAD:deploy --force
+```
+
+Notes and alternatives
+- If this workflow runs on events from forks or if you have stricter org rules, GITHUB_TOKEN may still be limited. In that case create a personal access token (repo scope), store it as a secret (e.g., REPO_PAT), and push with it:
+  git push https://x-access-token:${{ secrets.REPO_PAT }}@github.com/${{ github.repository }} HEAD:deploy --force
+  (Use this only if you understand the security implications and prefer PAT over GITHUB_TOKEN.)
+- The Node deprecation message in the logs is informational; it does not cause the 403 push error.
+
+Applying the recommended permission change and ensuring checkout preserves credentials should resolve the 403 and allow the workflow to push the built files.
