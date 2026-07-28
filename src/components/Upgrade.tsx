@@ -5,7 +5,7 @@ import { api } from '../api';
 
 type BillingCycle = 'monthly' | 'yearly';
 
-const STRIPE_CUSTOMER_PORTAL_URL = import.meta.env.VITE_STRIPE_CUSTOMER_PORTAL_URL?.trim() || '';
+const BUILD_TIME_PORTAL_URL = import.meta.env.VITE_STRIPE_CUSTOMER_PORTAL_URL?.trim() || '';
 
 const FEATURES: { icon: React.ReactNode; title: string; free: string; platinum: string }[] = [
   {
@@ -116,6 +116,8 @@ export default function Upgrade({ isLoggedIn, onRequireLogin, isPlatinum, plan, 
   const [error, setError] = useState<string | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<Awaited<ReturnType<typeof api.billing.getHistory>>['history']>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [portalUrl, setPortalUrl] = useState(BUILD_TIME_PORTAL_URL);
+  const [portalConfigLoaded, setPortalConfigLoaded] = useState(false);
 
   const handleSelect = (nextCycle: BillingCycle) => {
     setCycle(nextCycle);
@@ -143,6 +145,27 @@ export default function Upgrade({ isLoggedIn, onRequireLogin, isPlatinum, plan, 
 
   const renewalDate = formatRenewalDate(currentPeriodEnd);
   const planLabel = plan === 'monthly' ? 'Monthly' : plan === 'yearly' ? 'Yearly' : null;
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/config')
+      .then(response => response.ok ? response.json() : Promise.reject(new Error('Configuration unavailable')))
+      .then((config: { stripeCustomerPortalUrl?: string }) => {
+        if (!cancelled && typeof config.stripeCustomerPortalUrl === 'string') {
+          setPortalUrl(config.stripeCustomerPortalUrl.trim());
+        }
+      })
+      .catch(() => {
+        // Keep the build-time value as a local-development fallback.
+      })
+      .finally(() => {
+        if (!cancelled) setPortalConfigLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!isLoggedIn) {
@@ -419,9 +442,11 @@ export default function Upgrade({ isLoggedIn, onRequireLogin, isPlatinum, plan, 
                 <p className="text-xs text-white/65 mt-1">Only payments and subscription events for this account.</p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                {STRIPE_CUSTOMER_PORTAL_URL ? (
+                {!portalConfigLoaded ? (
+                  <span className="text-xs font-medium text-white/50">Loading payment management…</span>
+                ) : portalUrl ? (
                   <a
-                    href={STRIPE_CUSTOMER_PORTAL_URL}
+                    href={portalUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"

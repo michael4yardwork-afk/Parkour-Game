@@ -83,6 +83,15 @@ app.get('/api/health', (_req, res) => res.json({
   },
 }));
 
+app.get('/api/config', (_req, res) => {
+  const portalUrl = process.env.STRIPE_CUSTOMER_PORTAL_URL || process.env.VITE_STRIPE_CUSTOMER_PORTAL_URL || '';
+  res.json({
+    stripeCustomerPortalUrl: /^https:\/\/billing\.stripe\.com\/.+/i.test(portalUrl.trim())
+      ? portalUrl.trim()
+      : '',
+  });
+});
+
 const distPath = path.join(process.cwd(), 'dist');
 app.use(express.static(distPath));
 app.get('*', (_req, res) => {

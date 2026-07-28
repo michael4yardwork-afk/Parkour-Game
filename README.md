@@ -120,4 +120,5 @@ Open [http://localhost:5000](http://localhost:5000).
 | `JWT_SECRET` | ✅ | Secret for signing auth tokens |
 | `NODE_ENV` | production only | Set to `production` when deploying |
 | `APP_URL` | recommended | Public HTTPS app URL used for password-recovery redirects |
+| `STRIPE_CUSTOMER_PORTAL_URL` | recommended | Public Stripe Customer Portal login link read at runtime by the Upgrade tab |
 | `VITE_STRIPE_CUSTOMER_PORTAL_URL` | recommended | Public Stripe Customer Portal login link shown in the Upgrade tab; set before building the frontend |

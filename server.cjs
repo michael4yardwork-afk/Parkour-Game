@@ -79336,6 +79336,12 @@ app.get("/api/health", (_req, res) => res.json({
     yearlyPriceConfigured: Boolean(process.env.STRIPE_PRICE_YEARLY)
   }
 }));
+app.get("/api/config", (_req, res) => {
+  const portalUrl = process.env.STRIPE_CUSTOMER_PORTAL_URL || process.env.VITE_STRIPE_CUSTOMER_PORTAL_URL || "";
+  res.json({
+    stripeCustomerPortalUrl: /^https:\/\/billing\.stripe\.com\/.+/i.test(portalUrl.trim()) ? portalUrl.trim() : ""
+  });
+});
 var distPath = import_path.default.join(process.cwd(), "dist");
 app.use(import_express7.default.static(distPath));
 app.get("*", (_req, res) => {
