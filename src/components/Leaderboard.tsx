@@ -72,6 +72,21 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
       }
       setUserIconMap(iconMap);
       setRawEntries(entries.filter(e => e.time > 0.05));
+      const username = currentUser?.username.toLowerCase().trim();
+      if (username) {
+        const ownTimes = entries
+          .filter(entry => entry.playerName.toLowerCase().trim() === username)
+          .map(entry => entry.time)
+          .filter(time => Number.isFinite(time) && time > 0.05);
+        if (ownTimes.length > 0) {
+          const serverBest = Math.min(...ownTimes);
+          setCurrentLocalBest(serverBest);
+          const localStored = parseFloat(localStorage.getItem(`best_time_${levelId}`) || 'Infinity');
+          if (!Number.isFinite(localStored) || serverBest < localStored) {
+            localStorage.setItem(`best_time_${levelId}`, serverBest.toString());
+          }
+        }
+      }
     } catch (e) {
       console.error('Error loading leaderboard:', e);
     } finally {

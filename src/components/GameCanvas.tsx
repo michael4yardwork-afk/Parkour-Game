@@ -22,6 +22,7 @@ function makeBotRng(seed: number): () => number {
 }
 import { LevelConfig, GhostFrame, RunReplay, GameSettings, UserAccount, RaceParticipant } from '../types';
 import { synths } from '../audio';
+import { api } from '../api';
 import { motion, AnimatePresence } from 'motion/react';
 import { resampleSpeedsToUniformTime } from '../utils/resampleSpeeds';
 import { getPlayerRanking } from '../utils/rankings';
@@ -290,6 +291,36 @@ export default function GameCanvas({
       setPersonalBest(parseFloat(score));
     } else {
       setPersonalBest(null);
+    }
+
+    // The database is authoritative for signed-in users. Sync the server PB
+    // into localStorage so a new device/session cannot treat a slower run as
+    // a new PR simply because its browser has no local baseline.
+    if (currentUser && !demoMode && level.id !== 'test_level_active') {
+      let cancelled = false;
+      api.leaderboard.get(level.id)
+        .then(entries => {
+          if (cancelled) return;
+          const username = currentUser.username.toLowerCase().trim();
+          const serverTimes = entries
+            .filter(entry => entry.playerName.toLowerCase().trim() === username)
+            .map(entry => entry.time)
+            .filter(time => Number.isFinite(time) && time > 0.05);
+          if (serverTimes.length === 0) return;
+
+          const serverBest = Math.min(...serverTimes);
+          const localStored = parseFloat(localStorage.getItem(`best_time_${level.id}`) || 'Infinity');
+          const trueBest = Math.min(serverBest, Number.isFinite(localStored) ? localStored : serverBest);
+          localStorage.setItem(`best_time_${level.id}`, trueBest.toString());
+          setPersonalBest(trueBest);
+        })
+        .catch(() => {
+          // Keep the local baseline when the server is temporarily unavailable.
+        });
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     // Keep the showGhostRef in sync whenever showGhost or level changes
@@ -2530,7 +2561,19 @@ export default function GameCanvas({
           // Submit then fetch the real leaderboard for accurate standing
           import('../api').then(async ({ api, queuePendingSubmission }) => {
             try {
-              await api.leaderboard.submit(level.id, submitPayload);
+              const submission = await api.leaderboard.submit(level.id, submitPayload);
+              // The server is authoritative across devices. Correct the local
+              // UI if the browser's baseline was stale while the run finished.
+              if (submission.isNewPb !== isNewPb) {
+                setIsPb(submission.isNewPb);
+                setTimeDiff(submission.isNewPb ? null : finalTime - submission.bestTime);
+                if (!submission.isNewPb) {
+                  setCompletionPercentile(null);
+                  setCompletionWorldRank(null);
+                }
+              }
+              localStorage.setItem(`best_time_${level.id}`, String(submission.bestTime));
+              setPersonalBest(submission.bestTime);
             } catch (e: any) {
               console.warn(`Leaderboard submit failed for level="${level.id}" time=${finalTime} user="${activeName}": ${e?.message || e}`);
               queuePendingSubmission(level.id, submitPayload);

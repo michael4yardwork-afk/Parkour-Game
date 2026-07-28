@@ -54,7 +54,7 @@ router.post('/:levelId', async (req: Request, res: Response) => {
   try {
     const username = getAuth(req);
     const { levelId } = req.params;
-    const { time, date, device, speeds, frames, isNewPb } = req.body;
+    const { time, date, device, speeds, frames } = req.body;
 
     if (!username) {
       return res.status(401).json({ error: 'Unauthorized.' });
@@ -63,6 +63,18 @@ router.post('/:levelId', async (req: Request, res: Response) => {
     if (!time || time <= 0.05) {
       return res.status(400).json({ error: 'Invalid run time.' });
     }
+
+    // Never trust the browser's isNewPb flag. The database is authoritative,
+    // which keeps PR detection correct across devices and after localStorage
+    // is cleared.
+    const bestResult = await pool.query(
+      `SELECT MIN(time) AS best_time
+       FROM leaderboard_entries
+       WHERE level_id = $1 AND LOWER(player_name) = LOWER($2)`,
+      [levelId, username]
+    );
+    const existingBest = bestResult.rows[0]?.best_time;
+    const isNewPb = existingBest === null || existingBest === undefined || Number(time) < Number(existingBest);
 
     // Only accept ghost frames for personal-best runs; cap at 1000 frames (~10 fps × 100 s).
     let validatedFrames: any[] | null = null;
@@ -98,7 +110,12 @@ router.post('/:levelId', async (req: Request, res: Response) => {
        validatedFrames ? JSON.stringify(validatedFrames) : null]
     );
 
-    res.json({ id, success: true });
+    res.json({
+      id,
+      success: true,
+      isNewPb,
+      bestTime: Math.min(Number(time), existingBest === null || existingBest === undefined ? Number(time) : Number(existingBest)),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error.' });

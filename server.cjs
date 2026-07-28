@@ -60580,13 +60580,21 @@ router2.post("/:levelId", async (req, res) => {
   try {
     const username = getAuth(req);
     const { levelId } = req.params;
-    const { time, date, device, speeds, frames, isNewPb } = req.body;
+    const { time, date, device, speeds, frames } = req.body;
     if (!username) {
       return res.status(401).json({ error: "Unauthorized." });
     }
     if (!time || time <= 0.05) {
       return res.status(400).json({ error: "Invalid run time." });
     }
+    const bestResult = await db_default.query(
+      `SELECT MIN(time) AS best_time
+       FROM leaderboard_entries
+       WHERE level_id = $1 AND LOWER(player_name) = LOWER($2)`,
+      [levelId, username]
+    );
+    const existingBest = bestResult.rows[0]?.best_time;
+    const isNewPb = existingBest === null || existingBest === void 0 || Number(time) < Number(existingBest);
     let validatedFrames = null;
     if (isNewPb && Array.isArray(frames) && frames.length > 0) {
       validatedFrames = frames.slice(0, 1e3).filter(
@@ -60615,7 +60623,12 @@ router2.post("/:levelId", async (req, res) => {
         validatedFrames ? JSON.stringify(validatedFrames) : null
       ]
     );
-    res.json({ id, success: true });
+    res.json({
+      id,
+      success: true,
+      isNewPb,
+      bestTime: Math.min(Number(time), existingBest === null || existingBest === void 0 ? Number(time) : Number(existingBest))
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error." });
