@@ -60871,6 +60871,92 @@ router3.post("/courses/:id/bookmark", async (req, res) => {
     res.status(500).json({ error: "Server error." });
   }
 });
+router3.get("/drafts", async (req, res) => {
+  try {
+    const username = getAuth2(req);
+    if (!username) return res.status(401).json({ error: "Unauthorized." });
+    const result = await db_default.query(
+      `SELECT id, name, description, blocks, theme, creator, created_at
+       FROM community_courses
+       WHERE LOWER(creator) = LOWER($1) AND is_published = FALSE
+       ORDER BY created_at DESC`,
+      [username]
+    );
+    res.json(result.rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      blocks: r.blocks,
+      theme: r.theme,
+      creator: r.creator,
+      createdAt: parseInt(r.created_at),
+      isPublished: false,
+      isCustom: true
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+router3.put("/drafts/:id", async (req, res) => {
+  try {
+    const username = getAuth2(req);
+    if (!username) return res.status(401).json({ error: "Unauthorized." });
+    const { id } = req.params;
+    const { name, description, blocks, theme, createdAt } = req.body;
+    if (!name || !blocks || !Array.isArray(blocks)) {
+      return res.status(400).json({ error: "Invalid course data." });
+    }
+    const existing = await db_default.query(
+      "SELECT creator, is_published FROM community_courses WHERE id = $1",
+      [id]
+    );
+    if (existing.rows.length > 0) {
+      const row = existing.rows[0];
+      if (row.is_published) {
+        return res.status(409).json({ error: "Cannot overwrite a published course as a draft." });
+      }
+      if (row.creator.toLowerCase() !== username.toLowerCase()) {
+        return res.status(403).json({ error: "Not authorized." });
+      }
+      await db_default.query(
+        `UPDATE community_courses
+         SET name = $2, description = $3, blocks = $4, theme = $5
+         WHERE id = $1`,
+        [id, name, description || "", JSON.stringify(blocks), theme || "sky_islands"]
+      );
+    } else {
+      await db_default.query(
+        `INSERT INTO community_courses (id, name, description, blocks, theme, creator, created_at, is_published)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE)`,
+        [id, name, description || "", JSON.stringify(blocks), theme || "sky_islands", username, createdAt || Date.now()]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+router3.delete("/drafts/:id", async (req, res) => {
+  try {
+    const username = getAuth2(req);
+    if (!username) return res.status(401).json({ error: "Unauthorized." });
+    const result = await db_default.query(
+      `DELETE FROM community_courses
+       WHERE id = $1 AND LOWER(creator) = LOWER($2) AND is_published = FALSE
+       RETURNING id`,
+      [req.params.id, username]
+    );
+    if (result.rows.length === 0) {
+      return res.json({ success: true });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
 router3.get("/saved", async (req, res) => {
   try {
     const username = getAuth2(req);

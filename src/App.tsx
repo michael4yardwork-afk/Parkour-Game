@@ -319,6 +319,14 @@ export default function App() {
       setEditingLevel(levelToSave);
       localStorage.setItem('momentum_builder_draft', JSON.stringify(levelToSave));
 
+      // Persist draft to server for logged-in users (fire-and-forget — localStorage
+      // is already written so the UI is consistent even if the server call fails).
+      if (currentUser) {
+        api.community.saveDraft(levelToSave).catch(err => {
+          console.warn('[SaveDraft] Server sync failed — draft is still saved locally:', err);
+        });
+      }
+
       setTab('saved');
       synths.playFinish();
     } catch (e) {

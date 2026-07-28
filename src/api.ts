@@ -221,7 +221,26 @@ export const api = {
       } catch {
         return [];
       }
-    }
+    },
+
+    async getDrafts(): Promise<LevelConfig[]> {
+      try {
+        return await apiFetch<LevelConfig[]>('/community/drafts');
+      } catch {
+        return [];
+      }
+    },
+
+    async saveDraft(course: LevelConfig): Promise<void> {
+      await apiFetch(`/community/drafts/${encodeURIComponent(course.id)}`, {
+        method: 'PUT',
+        body: JSON.stringify(course),
+      });
+    },
+
+    async deleteDraft(courseId: string): Promise<void> {
+      await apiFetch(`/community/drafts/${encodeURIComponent(courseId)}`, { method: 'DELETE' });
+    },
   },
 
   users: {

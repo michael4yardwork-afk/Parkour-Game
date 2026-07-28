@@ -33,27 +33,50 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
 
   const loadCustomLevels = async () => {
     try {
-      const savedFromServer = await api.community.getSaved();
-      const serverIds = new Set(savedFromServer.map(c => c.id));
+      // Fetch published (bookmarked) courses and private drafts from server in parallel
+      const [savedFromServer, serverDrafts] = await Promise.all([
+        api.community.getSaved(),
+        api.community.getDrafts(),
+      ]);
 
+      const serverDraftIds = new Set(serverDrafts.map(c => c.id));
+      const serverSavedIds = new Set(savedFromServer.map(c => c.id));
+
+      // Pull any local drafts that haven't reached the server yet (e.g. created
+      // while offline or before this feature was live) and sync them up now.
       const localStored = localStorage.getItem('custom_parkour_levels');
       const localLevels: LevelConfig[] = localStored ? JSON.parse(localStored) : [];
-      const localDrafts = localLevels.filter(lvl => !lvl.isPublished);
-      const localPublished = localLevels.filter(lvl => lvl.isPublished && serverIds.has(lvl.id));
+      const localOnlyDrafts = localLevels.filter(
+        lvl => !lvl.isPublished && !serverDraftIds.has(lvl.id) && !serverSavedIds.has(lvl.id)
+      );
+      for (const draft of localOnlyDrafts) {
+        api.community.saveDraft(draft).catch(err =>
+          console.warn('[SavedCourses] Background draft sync failed for', draft.id, err)
+        );
+      }
 
-      const merged = [...localDrafts];
-      savedFromServer.forEach(srvLvl => {
-        if (!merged.some(l => l.id === srvLvl.id)) {
-          merged.push(srvLvl);
-        }
+      // Build the merged list: server drafts are authoritative over local copies
+      // for matching IDs; local-only drafts are appended for offline resilience.
+      const merged: LevelConfig[] = [...serverDrafts];
+
+      // Add local-only drafts that the server doesn't know about yet
+      localOnlyDrafts.forEach(draft => {
+        if (!merged.some(l => l.id === draft.id)) merged.push(draft);
       });
-      localPublished.forEach(pub => {
-        if (!merged.some(l => l.id === pub.id)) {
-          merged.push(pub);
-        }
+
+      // Add published/bookmarked courses from server
+      savedFromServer.forEach(srvLvl => {
+        if (!merged.some(l => l.id === srvLvl.id)) merged.push(srvLvl);
       });
 
       setCustomLevels(merged);
+
+      // Keep localStorage in sync with what the server returned so the rest of
+      // the app (Dashboard, LevelSelector) still has an up-to-date local list.
+      const updatedLocal = merged.filter(
+        lvl => !lvl.isPublished || lvl.creator?.toLowerCase() === currentUser.username.toLowerCase()
+      );
+      localStorage.setItem('custom_parkour_levels', JSON.stringify(updatedLocal));
     } catch (e) {
       console.error('Error loading saved courses', e);
       const localStored = localStorage.getItem('custom_parkour_levels');
@@ -124,6 +147,13 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
         await api.community.deleteCourse(id);
       } catch (e) {
         console.error('Failed to delete from community:', e);
+      }
+    } else if (isOwner && !deletingLevel.isPublished) {
+      // Delete the private draft from the server too
+      try {
+        await api.community.deleteDraft(id);
+      } catch (e) {
+        console.error('Failed to delete draft from server:', e);
       }
     } else if (!isOwner) {
       try {
