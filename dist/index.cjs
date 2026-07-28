@@ -60184,6 +60184,17 @@ async function getAuthenticatedAccount(req) {
 
 // server/routes/auth.ts
 var router = (0, import_express.Router)();
+var SIGNUP_AVATAR_BACKGROUNDS = [
+  "bg-blue-500",
+  "bg-green-500",
+  "bg-red-500",
+  "bg-yellow-400",
+  "bg-white",
+  "bg-neutral-900"
+];
+function randomSignupAvatarBackground() {
+  return SIGNUP_AVATAR_BACKGROUNDS[Math.floor(Math.random() * SIGNUP_AVATAR_BACKGROUNDS.length)];
+}
 router.get("/check-username", async (req, res) => {
   const { username } = req.query;
   if (!username || typeof username !== "string") {
@@ -60236,6 +60247,7 @@ router.post("/signup", async (req, res) => {
       }
     }
     const passwordHash = await bcryptjs_default.hash(password, 10);
+    const selectedAvatarBackground = typeof avatarBg === "string" && SIGNUP_AVATAR_BACKGROUNDS.includes(avatarBg) ? avatarBg : randomSignupAvatarBackground();
     const result = await db_default.query(
       `INSERT INTO users (username, password_hash, avatar, avatar_bg, device, created_at, email, supabase_user_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, username, avatar, avatar_bg, device, created_at`,
@@ -60243,7 +60255,7 @@ router.post("/signup", async (req, res) => {
         username,
         passwordHash,
         avatar || "\u{1F680}",
-        avatarBg || "bg-indigo-500",
+        selectedAvatarBackground,
         device || null,
         Date.now(),
         email.toLowerCase().trim(),

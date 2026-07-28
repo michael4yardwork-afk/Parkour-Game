@@ -6,6 +6,23 @@ import { getAuthenticatedAccount, signAuthToken } from '../authIdentity';
 
 const router = Router();
 
+// Keep the server-side signup default varied even when an older client omits
+// avatarBg. The frontend also chooses from this same set during signup.
+const SIGNUP_AVATAR_BACKGROUNDS = [
+  'bg-blue-500',
+  'bg-green-500',
+  'bg-red-500',
+  'bg-yellow-400',
+  'bg-white',
+  'bg-neutral-900',
+] as const;
+
+function randomSignupAvatarBackground(): string {
+  return SIGNUP_AVATAR_BACKGROUNDS[
+    Math.floor(Math.random() * SIGNUP_AVATAR_BACKGROUNDS.length)
+  ];
+}
+
 function originFromUrl(value: unknown): string | null {
   if (typeof value !== 'string' || !value.trim()) return null;
   try {
@@ -174,6 +191,10 @@ router.post('/signup', async (req: Request, res: Response) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const selectedAvatarBackground =
+      typeof avatarBg === 'string' && SIGNUP_AVATAR_BACKGROUNDS.includes(avatarBg as typeof SIGNUP_AVATAR_BACKGROUNDS[number])
+        ? avatarBg
+        : randomSignupAvatarBackground();
     const result = await pool.query(
       `INSERT INTO users (username, password_hash, avatar, avatar_bg, device, created_at, email, supabase_user_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, username, avatar, avatar_bg, device, created_at`,
@@ -181,7 +202,7 @@ router.post('/signup', async (req: Request, res: Response) => {
         username,
         passwordHash,
         avatar || '🚀',
-        avatarBg || 'bg-indigo-500',
+        selectedAvatarBackground,
         device || null,
         Date.now(),
         email.toLowerCase().trim(),
