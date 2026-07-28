@@ -5,7 +5,7 @@ import { api } from '../api';
 
 type BillingCycle = 'monthly' | 'yearly';
 
-const STRIPE_CUSTOMER_PORTAL_URL = 'https://billing.stripe.com/p/login/test_28E8wOeIVaVQ8Wp974bMQ00';
+const STRIPE_CUSTOMER_PORTAL_URL = import.meta.env.VITE_STRIPE_CUSTOMER_PORTAL_URL?.trim() || '';
 
 const FEATURES: { icon: React.ReactNode; title: string; free: string; platinum: string }[] = [
   {
@@ -413,15 +413,19 @@ export default function Upgrade({ isLoggedIn, onRequireLogin, isPlatinum, plan, 
                 <p className="text-xs text-white/65 mt-1">Only payments and subscription events for this account.</p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <a
-                  href={STRIPE_CUSTOMER_PORTAL_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Manage Payments
-                </a>
+                {STRIPE_CUSTOMER_PORTAL_URL ? (
+                  <a
+                    href={STRIPE_CUSTOMER_PORTAL_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Manage Payments
+                  </a>
+                ) : (
+                  <span className="text-xs font-medium text-white/50">Payment management unavailable</span>
+                )}
                 <BadgeCheck className="w-5 h-5 text-emerald-300" />
               </div>
             </div>
