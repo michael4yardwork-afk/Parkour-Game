@@ -274,6 +274,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
     // Build participant list: server-provided real players (excluding self) + NPC fill
     const humanOpponents: RaceParticipant[] = serverPlayers
       .filter(p => p.username.toLowerCase().trim() !== currentUser.username.toLowerCase().trim())
+      .slice(0, 5)
       .map(p => ({
         username: p.username,
         color: p.color,
@@ -286,23 +287,23 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
 
     // Fill remaining slots up to 6 total (self + humanOpponents + npcs)
     const totalHumans = humanOpponents.length + 1; // +1 for self
-    let slotsRemaining = 6 - totalHumans;
-    let botIndex = 0;
+    const slotsRemaining = Math.max(0, 6 - totalHumans);
 
     const takenColors = [playerColor, ...humanOpponents.map(p => p.color)].map(c => c.toLowerCase());
     let availableColors = OPPONENT_COLORS.filter(col => !takenColors.includes(col.toLowerCase()));
     if (availableColors.length === 0) availableColors = [...OPPONENT_COLORS];
 
-    const npcs: RaceParticipant[] = [];
-    while (slotsRemaining > 0 && botIndex < BOT_NAMES.length) {
-      const botName = BOT_NAMES[Math.floor(newSeedRandom(seed + botIndex) * BOT_NAMES.length)];
-      if (
-        !humanOpponents.some(p => p.username === botName) &&
-        !npcs.some(p => p.username === botName) &&
-        botName !== currentUser.username
-      ) {
-        const botColor = availableColors[npcs.length % availableColors.length];
+    const humanNames = new Set(humanOpponents.map(p => p.username.toLowerCase().trim()));
+    const candidateBotNames = BOT_NAMES
+      .filter(name => !humanNames.has(name.toLowerCase()) && name.toLowerCase() !== currentUser.username.toLowerCase().trim())
+      // Sort once into a deterministic, seed-based order. Unlike repeatedly
+      // sampling random names, this cannot waste attempts on duplicates.
+      .sort((a, b) => newSeedRandom(seed + BOT_NAMES.indexOf(a) * 7919) - newSeedRandom(seed + BOT_NAMES.indexOf(b) * 7919));
 
+    const npcs: RaceParticipant[] = candidateBotNames
+      .slice(0, slotsRemaining)
+      .map((botName, botIndex) => {
+        const botColor = availableColors[botIndex % availableColors.length];
         const speedRoll = newSeedRandom(seed + botIndex * 43);
         let botSpeed = 10.0;
         if (speedRoll < 0.15) {
@@ -317,18 +318,15 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
           botSpeed = 3.8 + newSeedRandom(seed + botIndex * 15) * 1.4;
         }
 
-        npcs.push({
+        return {
           username: botName,
           color: botColor,
           avatar: '🤖',
           isNpc: true,
           baseSpeed: botSpeed,
           seed: newSeedRandom(seed + botIndex),
-        });
-        slotsRemaining--;
-      }
-      botIndex++;
-    }
+        };
+      });
 
     const finalOpponents = [...humanOpponents, ...npcs];
 
