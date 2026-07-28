@@ -1,7 +1,33 @@
 #!/bin/sh
-# Pre-push hook: rebuild dist/ and amend the last commit if anything changed.
-# This ensures Hostinger always receives up-to-date built files.
+# Pre-push hook:
+# 1. Auto-rebase on top of remote to prevent push rejection from divergence.
+# 2. Rebuild dist/ and amend the last commit if anything changed.
 
+REMOTE="$1"
+
+# ── Step 1: sync with remote ─────────────────────────────────────────────────
+echo "[pre-push] Fetching from '$REMOTE' to check for upstream changes..."
+if git fetch "$REMOTE" main 2>/dev/null; then
+  LOCAL=$(git rev-parse HEAD)
+  REMOTE_HEAD=$(git rev-parse "$REMOTE/main" 2>/dev/null || echo "")
+  BASE=$(git merge-base HEAD "$REMOTE/main" 2>/dev/null || echo "")
+
+  if [ -n "$REMOTE_HEAD" ] && [ "$LOCAL" != "$REMOTE_HEAD" ] && [ "$BASE" != "$REMOTE_HEAD" ]; then
+    echo "[pre-push] Remote has new commits — rebasing local commits on top..."
+    if ! git rebase "$REMOTE/main"; then
+      echo "[pre-push] ERROR: Rebase failed. Resolve conflicts then run 'git rebase --continue'."
+      git rebase --abort 2>/dev/null
+      exit 1
+    fi
+    echo "[pre-push] Rebase complete."
+  else
+    echo "[pre-push] Already up to date with remote."
+  fi
+else
+  echo "[pre-push] Could not fetch from remote — proceeding without rebase."
+fi
+
+# ── Step 2: rebuild dist/ and amend if changed ───────────────────────────────
 echo "[pre-push] Building dist/ to keep deployed files in sync..."
 npm run build
 
