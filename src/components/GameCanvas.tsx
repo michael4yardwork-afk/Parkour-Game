@@ -101,6 +101,7 @@ export default function GameCanvas({
   const [isPb, setIsPb] = useState(false);
   const [completionPercentile, setCompletionPercentile] = useState<number | null>(null);
   const [completionWorldRank, setCompletionWorldRank] = useState<{ rank: number; total: number } | null>(null);
+  const [completionRankingLoading, setCompletionRankingLoading] = useState(false);
 
   // Canvas ref
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -2485,6 +2486,7 @@ export default function GameCanvas({
 
         // ── Demo mode: skip server submission; store run for post-login submit ──
         if (demoMode) {
+          setCompletionRankingLoading(false);
           setCompletionPercentile(null);
           setCompletionWorldRank(null);
           if (level.id !== 'test_level_active' && onDemoRunComplete) {
@@ -2514,11 +2516,13 @@ export default function GameCanvas({
         }
 
         if (isNewPb && level.id !== 'test_level_active') {
-          // Show a placeholder immediately so the card stays visible while the
-          // submitted leaderboard is fetched for the accurate standing.
-          setCompletionPercentile(0);
-          setCompletionWorldRank({ rank: 1, total: 1 });
+          // Keep the card visible while the submitted leaderboard is fetched,
+          // but never show placeholder values that look like a real ranking.
+          setCompletionRankingLoading(true);
+          setCompletionPercentile(null);
+          setCompletionWorldRank(null);
         } else {
+          setCompletionRankingLoading(false);
           setCompletionPercentile(null);
           setCompletionWorldRank(null);
         }
@@ -2568,6 +2572,7 @@ export default function GameCanvas({
                 setIsPb(submission.isNewPb);
                 setTimeDiff(submission.isNewPb ? null : finalTime - submission.bestTime);
                 if (!submission.isNewPb) {
+                  setCompletionRankingLoading(false);
                   setCompletionPercentile(null);
                   setCompletionWorldRank(null);
                 }
@@ -2604,6 +2609,8 @@ export default function GameCanvas({
                   setCompletionPercentile(ranking.percentile);
                   setCompletionWorldRank({ rank: ranking.rank, total: ranking.total });
                 }
+              } finally {
+                setCompletionRankingLoading(false);
               }
             }
           });
@@ -3122,14 +3129,14 @@ export default function GameCanvas({
                       🔒 Sign Up to Reveal Your Ranking
                     </button>
                   </div>
-                ) : isPb && completionPercentile !== null && completionWorldRank !== null && level.id !== 'test_level_active' && (
+                ) : isPb && level.id !== 'test_level_active' && (
                   <div id="completion-percentile-card" className="w-full mt-3 bg-indigo-500/15 border border-indigo-500/30 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-inner">
                     <span className="text-[9px] font-mono text-indigo-400 uppercase tracking-wider font-bold">Community Standing</span>
                     
                     <div className="flex items-center justify-around w-full gap-4 mt-1">
                       <div className="flex flex-col items-center">
                         <span className="text-2xl font-black font-mono text-indigo-300">
-                          Top {formatPercentile(completionPercentile!)}%
+                           {completionRankingLoading ? 'Loading…' : completionPercentile !== null ? `Top ${formatPercentile(completionPercentile)}%` : '—'}
                         </span>
                         <span className="text-[9px] text-neutral-400 uppercase font-mono font-bold tracking-wider">Percentile</span>
                       </div>
@@ -3138,10 +3145,10 @@ export default function GameCanvas({
                       
                       <div className="flex flex-col items-center">
                         <span className="text-2xl font-black font-mono text-emerald-400">
-                          #{completionWorldRank.rank}
+                           {completionRankingLoading ? 'Loading…' : completionWorldRank !== null ? `#${completionWorldRank.rank}` : '—'}
                         </span>
                         <span className="text-[9px] text-neutral-400 uppercase font-mono font-bold tracking-wider">
-                          Rank of {completionWorldRank.total}
+                           {completionRankingLoading ? 'World Rank' : completionWorldRank !== null ? `Rank of ${completionWorldRank.total}` : 'World Rank'}
                         </span>
                       </div>
                     </div>
