@@ -399,7 +399,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
                 if (!isPlatinum) {
                   setGate({
                     feature: 'World ELO Leaderboard',
-                    description: 'See how every racer ranks worldwide and track the leaders by ELO rating.',
+                    description: 'See how top players rank worldwide and compare with your own ELO rating.',
                   });
                   return;
                 }
