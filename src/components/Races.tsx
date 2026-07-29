@@ -82,6 +82,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
   const [worldRank, setWorldRank] = useState<number | null>(null);
   const [history, setHistory] = useState<RaceHistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [showAllHistory, setShowAllHistory] = useState(false);
   // ELO leaderboard modal
   const [showEloLeaderboard, setShowEloLeaderboard] = useState(false);
   const [eloLeaderboard, setEloLeaderboard] = useState<EloLeaderboardEntry[]>([]);
@@ -582,8 +583,9 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
               No league records registered yet. Complete matchmaking races to pop up records.
             </div>
           ) : (
+            <>
             <div className="bg-neutral-900 border border-neutral-800 rounded-3xl overflow-hidden divide-y divide-neutral-800">
-              {history.map((entry) => (
+              {(showAllHistory ? history : history.slice(0, 5)).map((entry) => (
                 <div key={entry.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs font-mono">
                   
                   {/* Place and Level */}
@@ -640,6 +642,19 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
                 </div>
               ))}
             </div>
+            {history.length > 5 && (
+              <button
+                onClick={() => setShowAllHistory(v => !v)}
+                className="w-full mt-3 py-2.5 text-xs font-semibold text-neutral-400 hover:text-neutral-200 border border-neutral-800 hover:border-neutral-700 rounded-2xl bg-neutral-900/60 hover:bg-neutral-900 transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {showAllHistory ? (
+                  <>Show less <span className="text-neutral-500">↑</span></>
+                ) : (
+                  <>Show {history.length - 5} more {history.length - 5 === 1 ? 'race' : 'races'} <span className="text-neutral-500">↓</span></>
+                )}
+              </button>
+            )}
+            </>
           )}
         </div>
 
