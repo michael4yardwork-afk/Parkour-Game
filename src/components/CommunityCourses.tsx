@@ -3,6 +3,7 @@ import { Play, Heart, Bookmark, Search, Sparkles, Trophy, User, ArrowUpDown, Boo
 import { LevelConfig, SceneTheme, UserAccount } from '../types';
 import { synths } from '../audio';
 import { api } from '../api';
+import PlatinumGate from './PlatinumGate';
 
 interface CommunityCoursesProps {
   onSelectLevel: (level: LevelConfig) => void;
@@ -28,6 +29,7 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
   const [sortBy, setSortBy] = useState<'likes' | 'newest' | 'most_liked'>('likes');
   const [loading, setLoading] = useState(true);
   const [wrMap, setWrMap] = useState<Record<string, string | null>>({});
+  const [gate, setGate] = useState<{ feature: string; description?: string } | null>(null);
 
   const loadCourses = async () => {
     setLoading(true);
@@ -107,8 +109,7 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
 
     // Free plan users cannot save others' courses.
     if (!isOwner && !isPlatinum) {
-      if (onUpgrade) onUpgrade();
-      else alert('Saving workshop courses is a Platinum feature. Upgrade to bookmark any course.');
+      setGate({ feature: 'Course Bookmarks', description: 'Save any workshop course to your personal library and replay it anytime.' });
       return;
     }
 
@@ -126,8 +127,7 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
     } catch (e: any) {
       console.error('Failed to toggle bookmark:', e);
       if (e.message === 'platinum_required') {
-        if (onUpgrade) onUpgrade();
-        else alert('Saving workshop courses is a Platinum feature. Upgrade to bookmark any course.');
+        setGate({ feature: 'Course Bookmarks', description: 'Save any workshop course to your personal library and replay it anytime.' });
       } else {
         alert(e.message || 'Failed to update bookmark.');
       }
@@ -264,7 +264,7 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
                       </button>
                     ) : (
                       <button
-                        onClick={(e) => { e.stopPropagation(); if (onUpgrade) onUpgrade(); else alert('Saving workshop courses is a Platinum feature.'); }}
+                        onClick={(e) => { e.stopPropagation(); setGate({ feature: 'Course Bookmarks', description: 'Save any workshop course to your personal library and replay it anytime.' }); }}
                         className="p-2 rounded-xl border border-neutral-150 bg-neutral-50 text-neutral-300 cursor-pointer flex items-center justify-center"
                         title="Platinum feature — upgrade to save courses"
                       >
@@ -331,6 +331,16 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
             );
           })}
         </div>
+      )}
+
+      {gate && (
+        <PlatinumGate
+          isVisible={!!gate}
+          feature={gate.feature}
+          description={gate.description}
+          onClose={() => setGate(null)}
+          onUpgrade={onUpgrade ?? (() => {})}
+        />
       )}
     </div>
   );
