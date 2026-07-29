@@ -198,8 +198,10 @@ export default function App() {
     const ourPlace = ourRankIndex !== -1 ? ourRankIndex + 1 : 6;
     const playerColor = ourEntry?.color || '#3b82f6';
 
+    // DNF always costs -10 ELO regardless of position
     let ratingChange = 0;
-    if (ourPlace === 1) ratingChange = 10;
+    if (!ourEntry?.finished) ratingChange = -10;
+    else if (ourPlace === 1) ratingChange = 10;
     else if (ourPlace === 2) ratingChange = 5;
     else if (ourPlace === 3) ratingChange = 2;
     else if (ourPlace === 4) ratingChange = -2;

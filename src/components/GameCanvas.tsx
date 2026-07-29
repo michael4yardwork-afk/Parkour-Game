@@ -225,7 +225,7 @@ export default function GameCanvas({
         realPlayers.map(async (std, _) => {
           // placement index inside finalStandings (already sorted)
           const idx = finalStandings.indexOf(std);
-          const eloChange = idx === 0 ? 10 : idx === 1 ? 5 : idx === 2 ? 2 : idx === 3 ? -2 : idx === 4 ? -5 : -10;
+          const eloChange = !std.finished ? -10 : idx === 0 ? 10 : idx === 1 ? 5 : idx === 2 ? 2 : idx === 3 ? -2 : idx === 4 ? -5 : -10;
           try {
             const { rating } = await apiModule.users.getRating(std.username);
             results[std.username] = { eloChange, newRating: Math.max(100, rating + eloChange) };
@@ -870,9 +870,9 @@ export default function GameCanvas({
           opp.targetPosition.set(x, y + 0.8, z);
           opp.targetYaw = ry;
           opp.lastUpdateMs = Date.now();
-          // Project position onto spline for accurate distance; only allow forward progress
-          const splineProgress = getSplineProgressForPos(new THREE.Vector3(x, y, z));
-          opp.progressDistance = Math.max(opp.progressDistance, splineProgress);
+          // Project position onto spline — use actual current position so distance
+          // resets correctly when an opponent dies and respawns at a checkpoint.
+          opp.progressDistance = getSplineProgressForPos(new THREE.Vector3(x, y, z));
         }
       } else if (type === 'GAME_FINISHED') {
         const opp = opponentMeshesRef.current.find(
@@ -915,9 +915,9 @@ export default function GameCanvas({
           opp.targetPosition.set(x, y + 0.8, z);
           opp.targetYaw = ry;
           opp.lastUpdateMs = Date.now();
-          // Project position onto spline for accurate distance; only allow forward progress
-          const splineProgress = getSplineProgressForPos(new THREE.Vector3(x, y, z));
-          opp.progressDistance = Math.max(opp.progressDistance, splineProgress);
+          // Project position onto spline — use actual current position so distance
+          // resets correctly when an opponent dies and respawns at a checkpoint.
+          opp.progressDistance = getSplineProgressForPos(new THREE.Vector3(x, y, z));
         }
       } else if (type === 'GAME_FINISHED') {
         const opp = opponentMeshesRef.current.find(o => o.username.toLowerCase().trim() === username.toLowerCase().trim());
@@ -962,7 +962,10 @@ export default function GameCanvas({
           color: opp.color,
         })),
       ];
-      finalRanks.sort((a, b) => (a.time || 999) - (b.time || 999));
+      finalRanks.sort((a, b) => {
+        if (a.finished !== b.finished) return a.finished ? -1 : 1;
+        return (a.time || 999) - (b.time || 999);
+      });
       setFinalStandings(finalRanks);
       setIsWaitingForOthers(false);
       isWaitingForOthersRef.current = false;
@@ -1489,15 +1492,11 @@ export default function GameCanvas({
         if (raceMode) {
           liveUpdateFrameCountRef.current++;
           if (liveUpdateFrameCountRef.current % 12 === 0) {
-            // Only allow progress to advance — prevents snapping backwards on
-            // curved sections where two spline points are close together.
-            const rawProgress = getPlayerSplineProgress();
-            if (!isCompletedRef.current) {
-              playerProgressHWMRef.current = Math.max(playerProgressHWMRef.current, rawProgress);
-            }
+            // Use actual current spline progress so the distance resets correctly
+            // when the local player dies and respawns at a checkpoint.
             const ourProgress = isCompletedRef.current
               ? totalSplineLengthRef.current
-              : playerProgressHWMRef.current;
+              : getPlayerSplineProgress();
             const selfEntry = {
               username: currentUser?.username || 'You',
               color: localStorage.getItem(`racer_color_${currentUser?.username}`) || '#3b82f6',
@@ -3055,14 +3054,17 @@ export default function GameCanvas({
                 <div className="bg-neutral-950 border border-neutral-800 rounded-2xl divide-y divide-neutral-900 overflow-hidden w-full">
                   {finalStandings.map((std, idx) => {
                     const isSelf = std.username.toLowerCase() === (currentUser?.username || '').toLowerCase() || std.username === 'You';
-                    const eloChange = idx === 0 ? 10 : idx === 1 ? 5 : idx === 2 ? 2 : idx === 3 ? -2 : idx === 4 ? -5 : -10;
+                    const isDnf = !std.finished;
+                    const eloChange = isDnf ? -10 : idx === 0 ? 10 : idx === 1 ? 5 : idx === 2 ? 2 : idx === 3 ? -2 : idx === 4 ? -5 : -10;
                     const eloEntry = !std.isNpc ? raceEloData?.[std.username] : undefined;
                     return (
                       <div key={idx} className="flex items-center justify-between p-3 text-xs font-mono">
                         <div className="flex items-center gap-2">
                           <span 
                             className={`w-5 h-5 rounded flex items-center justify-center font-bold text-[9px] ${
-                              idx === 0 
+                              isDnf
+                                ? 'bg-red-500/10 text-red-500 border border-red-500/20'
+                                : idx === 0 
                                 ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' 
                                 : idx === 1 
                                 ? 'bg-neutral-200/10 text-neutral-300 border border-neutral-300/15' 
@@ -3071,7 +3073,7 @@ export default function GameCanvas({
                                 : 'bg-neutral-900 text-neutral-500'
                             }`}
                           >
-                            {idx + 1}
+                            {isDnf ? '✕' : idx + 1}
                           </span>
                           <div className="flex items-center gap-1.5 font-sans font-semibold">
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: std.color }} />

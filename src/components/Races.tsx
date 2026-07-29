@@ -506,7 +506,6 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
                     </button>
                     {lobbyPlayers.length >= 2 ? (
                       <button
-                        onClick={handleForceStart}
                         className="flex-1 py-3 px-6 bg-neutral-900 border border-neutral-700 text-neutral-200 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer hover:bg-neutral-800"
                       >
                         <Bot className="w-4 h-4 text-neutral-400 shrink-0" />
