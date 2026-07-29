@@ -790,11 +790,11 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest, isPl
                   <label className="block text-[9px] font-mono text-neutral-400 uppercase">Width (W)</label>
                   <input
                     type="number"
-                    min="0.5"
+                    min="1"
                     max="100"
-                    step="0.1"
+                    step="1"
                     value={selectedBlock.w}
-                    onChange={(e) => updateSelectedBlock({ w: Math.min(100, Math.round(Math.abs(parseFloat(e.target.value) || 1) * 10) / 10) })}
+                    onChange={(e) => updateSelectedBlock({ w: Math.min(100, Math.max(1, Math.round(Math.abs(parseFloat(e.target.value) || 1)))) })}
                     className="w-full mt-1 p-1.5 bg-neutral-900 border border-neutral-800 rounded text-center text-xs text-neutral-100"
                   />
                 </div>
@@ -802,11 +802,11 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest, isPl
                   <label className="block text-[9px] font-mono text-neutral-400 uppercase">Height (H)</label>
                   <input
                     type="number"
-                    min="0.2"
+                    min="1"
                     max="100"
-                    step="0.1"
+                    step="1"
                     value={selectedBlock.h}
-                    onChange={(e) => updateSelectedBlock({ h: Math.min(100, Math.round(Math.abs(parseFloat(e.target.value) || 1) * 10) / 10) })}
+                    onChange={(e) => updateSelectedBlock({ h: Math.min(100, Math.max(1, Math.round(Math.abs(parseFloat(e.target.value) || 1)))) })}
                     className="w-full mt-1 p-1.5 bg-neutral-900 border border-neutral-800 rounded text-center text-xs text-neutral-100"
                   />
                 </div>
@@ -814,11 +814,11 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest, isPl
                   <label className="block text-[9px] font-mono text-neutral-400 uppercase">Length (D)</label>
                   <input
                     type="number"
-                    min="0.5"
+                    min="1"
                     max="100"
-                    step="0.1"
+                    step="1"
                     value={selectedBlock.d}
-                    onChange={(e) => updateSelectedBlock({ d: Math.min(100, Math.round(Math.abs(parseFloat(e.target.value) || 1) * 10) / 10) })}
+                    onChange={(e) => updateSelectedBlock({ d: Math.min(100, Math.max(1, Math.round(Math.abs(parseFloat(e.target.value) || 1)))) })}
                     className="w-full mt-1 p-1.5 bg-neutral-900 border border-neutral-800 rounded text-center text-xs text-neutral-100"
                   />
                 </div>

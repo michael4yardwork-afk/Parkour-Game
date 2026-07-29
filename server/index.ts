@@ -8,6 +8,7 @@ import authRoutes from './routes/auth';
 import leaderboardRoutes from './routes/leaderboard';
 import communityRoutes from './routes/community';
 import usersRoutes from './routes/users';
+import raceRoutes from './routes/race';
 import billingRoutes from './routes/billing';
 import stripeWebhookRoutes from './routes/stripeWebhook';
 import { setupWebSocketServer } from './ws';
@@ -63,6 +64,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/race', raceRoutes);
 app.use('/api/billing', billingRoutes);
 
 app.get('/api/health', (_req, res) => res.json({

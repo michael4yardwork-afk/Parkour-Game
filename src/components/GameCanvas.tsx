@@ -151,6 +151,10 @@ export default function GameCanvas({
     isNpc: boolean;
     mesh: THREE.Mesh;
     finished: boolean;
+    /** True when the opponent disconnected mid-race (tab close / DNF). finished
+     *  is also set to true so the standings poll resolves, but finished:false is
+     *  reported to the UI so they appear as DNF. */
+    dnf: boolean;
     finalTime?: number;
     progressDistance: number;
     speedBoostTimer: number;
@@ -415,8 +419,8 @@ export default function GameCanvas({
         selfEntry,
         ...(opponentMeshesRef.current || []).map(opp => ({
           username: opp.username,
-          time: opp.finalTime,
-          finished: opp.finished,
+          time: opp.dnf ? undefined : opp.finalTime,
+          finished: !opp.dnf && opp.finished,
           isNpc: opp.isNpc,
           color: opp.color
         }))
@@ -887,6 +891,20 @@ export default function GameCanvas({
             commitRaceResultsRef.current();
           }
         }
+      } else if (type === 'PLAYER_DNF') {
+        const opp = opponentMeshesRef.current.find(
+          o => o.username.toLowerCase().trim() === (username || '').toLowerCase().trim()
+        );
+        if (opp && !opp.isNpc && !opp.finished) {
+          // Mark as finished so the standings poll resolves, but flag as DNF
+          // so the UI shows no time and -10 ELO instead of a place.
+          opp.finished = true;
+          opp.dnf = true;
+          opp.finalTime = undefined;
+          if (isWaitingForOthersRef.current && opponentMeshesRef.current.every(o => o.finished)) {
+            commitRaceResultsRef.current();
+          }
+        }
       }
     };
 
@@ -928,6 +946,16 @@ export default function GameCanvas({
             commitRaceResultsRef.current();
           }
         }
+      } else if (type === 'PLAYER_DNF') {
+        const opp = opponentMeshesRef.current.find(o => o.username.toLowerCase().trim() === username.toLowerCase().trim());
+        if (opp && !opp.isNpc && !opp.finished) {
+          opp.finished = true;
+          opp.dnf = true;
+          opp.finalTime = undefined;
+          if (isWaitingForOthersRef.current && opponentMeshesRef.current.every(o => o.finished)) {
+            commitRaceResultsRef.current();
+          }
+        }
       }
     };
 
@@ -936,6 +964,37 @@ export default function GameCanvas({
       bcRef.current?.close();
     };
   }, [raceMode, level.id, raceWs]);
+
+  // Send a DNF beacon when the player closes/navigates away mid-race so the
+  // server can deduct -10 ELO even though no normal race-result POST is made.
+  useEffect(() => {
+    if (!raceMode || !currentUser) return;
+
+    const handleBeforeUnload = () => {
+      // If the race is already complete (waiting for others or finished screen)
+      // there is nothing to penalise — the normal race-result flow handles it.
+      if (isCompletedRef.current) return;
+
+      const token = localStorage.getItem('delta_rush_token');
+      if (!token) return;
+
+      const payload = JSON.stringify({
+        token,
+        username: currentUser.username,
+        levelId:   level.id,
+        levelName: level.name,
+      });
+
+      // sendBeacon cannot set custom headers so the token travels in the body.
+      navigator.sendBeacon(
+        '/api/race/dnf',
+        new Blob([payload], { type: 'application/json' })
+      );
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [raceMode, currentUser, level.id, level.name]);
 
   // Keep commitRaceResultsRef pointing to the freshest closure (captures latest state setters & refs)
   useEffect(() => {
@@ -956,8 +1015,8 @@ export default function GameCanvas({
         selfEntry,
         ...opponentMeshesRef.current.map(opp => ({
           username: opp.username,
-          time: opp.finalTime,
-          finished: opp.finished,
+          time: opp.dnf ? undefined : opp.finalTime,
+          finished: !opp.dnf && opp.finished,
           isNpc: opp.isNpc,
           color: opp.color,
         })),
@@ -1150,6 +1209,7 @@ export default function GameCanvas({
           isNpc: opponent.isNpc,
           mesh: oppMesh,
           finished: false,
+          dnf: false,
           progressDistance: 0,
           speedBoostTimer: 0,
           lastUpdateMs: Date.now(),
@@ -1512,9 +1572,9 @@ export default function GameCanvas({
                 username: o.username,
                 color: o.color,
                 isNpc: o.isNpc,
-                finished: o.finished,
+                finished: !o.dnf && o.finished,
                 progressDistance: o.progressDistance,
-                finalTime: o.finalTime
+                finalTime: o.dnf ? undefined : o.finalTime
               }))
             ];
 

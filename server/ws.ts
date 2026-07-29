@@ -334,8 +334,21 @@ export function setupWebSocketServer(httpServer: Server) {
       for (const [roomId, room] of rooms.entries()) {
         const idx = room.players.findIndex(p => p.ws === ws);
         if (idx !== -1) {
+          const disconnectedUsername = room.players[idx].username;
           room.players.splice(idx, 1);
-          if (room.players.length === 0) rooms.delete(roomId);
+          // Notify remaining players that this racer DNF'd so they can show
+          // DNF in their standings without waiting for the 60-second timeout.
+          if (room.players.length > 0) {
+            const dnfPayload = JSON.stringify({
+              type: 'PLAYER_DNF',
+              username: disconnectedUsername,
+            });
+            for (const p of room.players) {
+              if (p.ws.readyState === WebSocket.OPEN) p.ws.send(dnfPayload);
+            }
+          } else {
+            rooms.delete(roomId);
+          }
         }
       }
     };

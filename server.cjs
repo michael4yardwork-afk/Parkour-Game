@@ -19295,17 +19295,17 @@ var require_router = __commonJS({
     var toString = Object.prototype.toString;
     var proto = module2.exports = function(options) {
       var opts = options || {};
-      function router7(req, res, next) {
-        router7.handle(req, res, next);
+      function router8(req, res, next) {
+        router8.handle(req, res, next);
       }
-      setPrototypeOf(router7, proto);
-      router7.params = {};
-      router7._params = [];
-      router7.caseSensitive = opts.caseSensitive;
-      router7.mergeParams = opts.mergeParams;
-      router7.strict = opts.strict;
-      router7.stack = [];
-      return router7;
+      setPrototypeOf(router8, proto);
+      router8.params = {};
+      router8._params = [];
+      router8.caseSensitive = opts.caseSensitive;
+      router8.mergeParams = opts.mergeParams;
+      router8.strict = opts.strict;
+      router8.stack = [];
+      return router8;
     };
     proto.param = function param(name, fn) {
       if (typeof name === "function") {
@@ -22322,7 +22322,7 @@ var require_application = __commonJS({
   "node_modules/express/lib/application.js"(exports2, module2) {
     "use strict";
     var finalhandler = require_finalhandler();
-    var Router7 = require_router();
+    var Router8 = require_router();
     var methods = require_methods();
     var middleware = require_init();
     var query = require_query();
@@ -22387,7 +22387,7 @@ var require_application = __commonJS({
     };
     app2.lazyrouter = function lazyrouter() {
       if (!this._router) {
-        this._router = new Router7({
+        this._router = new Router8({
           caseSensitive: this.enabled("case sensitive routing"),
           strict: this.enabled("strict routing")
         });
@@ -22396,17 +22396,17 @@ var require_application = __commonJS({
       }
     };
     app2.handle = function handle(req, res, callback) {
-      var router7 = this._router;
+      var router8 = this._router;
       var done = callback || finalhandler(req, res, {
         env: this.get("env"),
         onerror: logerror.bind(this)
       });
-      if (!router7) {
+      if (!router8) {
         debug("no routes defined on app");
         done();
         return;
       }
-      router7.handle(req, res, done);
+      router8.handle(req, res, done);
     };
     app2.use = function use(fn) {
       var offset = 0;
@@ -22426,15 +22426,15 @@ var require_application = __commonJS({
         throw new TypeError("app.use() requires a middleware function");
       }
       this.lazyrouter();
-      var router7 = this._router;
+      var router8 = this._router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router7.use(path2, fn2);
+          return router8.use(path2, fn2);
         }
         debug(".use app under %s", path2);
         fn2.mountpath = path2;
         fn2.parent = this;
-        router7.use(path2, function mounted_app(req, res, next) {
+        router8.use(path2, function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             setPrototypeOf(req, orig.request);
@@ -24251,7 +24251,7 @@ var require_express = __commonJS({
     var mixin = require_merge_descriptors();
     var proto = require_application();
     var Route = require_route();
-    var Router7 = require_router();
+    var Router8 = require_router();
     var req = require_request();
     var res = require_response();
     exports2 = module2.exports = createApplication;
@@ -24274,7 +24274,7 @@ var require_express = __commonJS({
     exports2.request = req;
     exports2.response = res;
     exports2.Route = Route;
-    exports2.Router = Router7;
+    exports2.Router = Router8;
     exports2.json = bodyParser.json;
     exports2.query = require_query();
     exports2.raw = bodyParser.raw;
@@ -35620,14 +35620,14 @@ var require_GoTrueAdminApi = __commonJS({
        * @category Auth
        * @subcategory Auth Admin
        */
-      async signOut(jwt2, scope = types_1.SIGN_OUT_SCOPES[0]) {
+      async signOut(jwt3, scope = types_1.SIGN_OUT_SCOPES[0]) {
         if (types_1.SIGN_OUT_SCOPES.indexOf(scope) < 0) {
           throw new Error(`@supabase/auth-js: Parameter scope must be one of ${types_1.SIGN_OUT_SCOPES.join(", ")}`);
         }
         try {
           await (0, fetch_1._request)(this.fetch, "POST", `${this.url}/logout?scope=${scope}`, {
             headers: this.headers,
-            jwt: jwt2,
+            jwt: jwt3,
             noResolveJson: true
           });
           return { data: null, error: null };
@@ -40082,9 +40082,9 @@ var require_GoTrueClient = __commonJS({
        * const { data: { user } } = await supabase.auth.getUser(jwt)
        * ```
        */
-      async getUser(jwt2) {
-        if (jwt2) {
-          return await this._getUser(jwt2);
+      async getUser(jwt3) {
+        if (jwt3) {
+          return await this._getUser(jwt3);
         }
         await this.initializePromise;
         let result;
@@ -40100,12 +40100,12 @@ var require_GoTrueClient = __commonJS({
         }
         return result;
       }
-      async _getUser(jwt2) {
+      async _getUser(jwt3) {
         try {
-          if (jwt2) {
+          if (jwt3) {
             return await (0, fetch_1._request)(this.fetch, "GET", `${this.url}/user`, {
               headers: this.headers,
-              jwt: jwt2,
+              jwt: jwt3,
               xform: fetch_1._userResponse
             });
           }
@@ -42140,17 +42140,17 @@ var require_GoTrueClient = __commonJS({
       /**
        * {@see GoTrueMFAApi#getAuthenticatorAssuranceLevel}
        */
-      async _getAuthenticatorAssuranceLevel(jwt2) {
+      async _getAuthenticatorAssuranceLevel(jwt3) {
         var _a, _b, _c, _d;
-        if (jwt2) {
+        if (jwt3) {
           try {
-            const { payload: payload2 } = (0, helpers_1.decodeJWT)(jwt2);
+            const { payload: payload2 } = (0, helpers_1.decodeJWT)(jwt3);
             let currentLevel2 = null;
             if (payload2.aal) {
               currentLevel2 = payload2.aal;
             }
             let nextLevel2 = currentLevel2;
-            const { data: { user }, error: userError } = await this.getUser(jwt2);
+            const { data: { user }, error: userError } = await this.getUser(jwt3);
             if (userError) {
               return this._returnResult({ data: null, error: userError });
             }
@@ -42437,9 +42437,9 @@ var require_GoTrueClient = __commonJS({
        * }
        * ```
        */
-      async getClaims(jwt2, options = {}) {
+      async getClaims(jwt3, options = {}) {
         try {
-          let token = jwt2;
+          let token = jwt3;
           if (!token) {
             const { data, error } = await this.getSession();
             if (error || !data.session) {
@@ -47260,9 +47260,9 @@ var require_jws = __commonJS({
 var require_decode = __commonJS({
   "node_modules/jsonwebtoken/decode.js"(exports2, module2) {
     var jws = require_jws();
-    module2.exports = function(jwt2, options) {
+    module2.exports = function(jwt3, options) {
       options = options || {};
-      var decoded = jws.decode(jwt2, options);
+      var decoded = jws.decode(jwt3, options);
       if (!decoded) {
         return null;
       }
@@ -50316,7 +50316,7 @@ var require_jsonwebtoken = __commonJS({
 })();
 
 // server/index.ts
-var import_express7 = __toESM(require_express2(), 1);
+var import_express8 = __toESM(require_express2(), 1);
 var import_http = require("http");
 var import_path = __toESM(require("path"), 1);
 var import_fs = __toESM(require("fs"), 1);
@@ -61305,8 +61305,71 @@ router4.get("/ratings/leaderboard", async (req, res) => {
 });
 var users_default = router4;
 
-// server/routes/billing.ts
+// server/routes/race.ts
 var import_express5 = __toESM(require_express2(), 1);
+var import_jsonwebtoken2 = __toESM(require_jsonwebtoken(), 1);
+var router5 = (0, import_express5.Router)();
+var JWT_SECRET2 = process.env.JWT_SECRET || process.env.SESSION_SECRET || "";
+router5.post("/dnf", async (req, res) => {
+  try {
+    const { token, username, levelId, levelName } = req.body;
+    if (!token || !username) return res.status(400).json({ error: "Missing fields." });
+    if (!JWT_SECRET2) return res.status(500).json({ error: "Server misconfigured." });
+    let decoded;
+    try {
+      decoded = import_jsonwebtoken2.default.verify(token, JWT_SECRET2);
+    } catch {
+      return res.status(401).json({ error: "Invalid token." });
+    }
+    const tokenUsername = decoded.username || "";
+    if (tokenUsername.toLowerCase() !== username.toLowerCase()) {
+      return res.status(401).json({ error: "Token mismatch." });
+    }
+    const ratingRes = await db_default.query(
+      "SELECT rating, color FROM user_ratings WHERE LOWER(username) = LOWER($1)",
+      [username]
+    );
+    const currentRating = ratingRes.rows[0]?.rating ?? 200;
+    const color = ratingRes.rows[0]?.color ?? "#3b82f6";
+    const newRating = Math.max(100, currentRating - 10);
+    const id = `dnf_${username.toLowerCase()}_${Date.now()}`;
+    const now = Date.now();
+    await db_default.query(
+      `INSERT INTO race_history
+         (id, username, level_id, level_name, player_color, place, time, opponents, rating_change, new_rating, date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT (id) DO NOTHING`,
+      [
+        id,
+        username,
+        levelId || "unknown",
+        levelName || "Unknown",
+        color,
+        99,
+        // sentinel: DNF
+        999999,
+        // sentinel: DNF
+        JSON.stringify([]),
+        -10,
+        newRating,
+        now
+      ]
+    );
+    await db_default.query(
+      `INSERT INTO user_ratings (username, rating, color) VALUES ($1, $2, $3)
+       ON CONFLICT (username) DO UPDATE SET rating = $2`,
+      [username, newRating, color]
+    );
+    res.json({ success: true, newRating });
+  } catch (err) {
+    console.error("[race/dnf]", err);
+    res.status(500).json({ error: "Server error." });
+  }
+});
+var race_default = router5;
+
+// server/routes/billing.ts
+var import_express6 = __toESM(require_express2(), 1);
 
 // node_modules/stripe/esm/Error.js
 var Error_exports = {};
@@ -78798,7 +78861,7 @@ async function syncSubscriptionEntitlement(subscription) {
 }
 
 // server/routes/billing.ts
-var router5 = (0, import_express5.Router)();
+var router6 = (0, import_express6.Router)();
 function appOrigin(req) {
   const configured = process.env.APP_URL;
   if (configured) {
@@ -78809,7 +78872,7 @@ function appOrigin(req) {
   }
   return `${req.protocol}://${req.get("host")}`;
 }
-router5.post("/checkout", async (req, res) => {
+router6.post("/checkout", async (req, res) => {
   try {
     if (!isStripeConfigured()) {
       return res.status(503).json({ error: "Payments are not configured yet." });
@@ -78879,7 +78942,7 @@ router5.post("/checkout", async (req, res) => {
     res.status(500).json({ error: err.message || "Server error." });
   }
 });
-router5.get("/checkout/confirm", async (req, res) => {
+router6.get("/checkout/confirm", async (req, res) => {
   try {
     if (!isStripeConfigured()) {
       return res.status(503).json({ error: "Payments are not configured yet." });
@@ -78921,7 +78984,7 @@ router5.get("/checkout/confirm", async (req, res) => {
     res.status(500).json({ error: "Could not confirm checkout." });
   }
 });
-router5.get("/status", async (req, res) => {
+router6.get("/status", async (req, res) => {
   try {
     const account = await getAuthenticatedAccount(req);
     if (!account) return res.status(401).json({ error: "Unauthorized." });
@@ -78969,7 +79032,7 @@ router5.get("/status", async (req, res) => {
     res.status(500).json({ error: "Server error." });
   }
 });
-router5.get("/history", async (req, res) => {
+router6.get("/history", async (req, res) => {
   try {
     const account = await getAuthenticatedAccount(req);
     if (!account) return res.status(401).json({ error: "Unauthorized." });
@@ -79000,11 +79063,11 @@ router5.get("/history", async (req, res) => {
     res.status(500).json({ error: "Server error." });
   }
 });
-var billing_default = router5;
+var billing_default = router6;
 
 // server/routes/stripeWebhook.ts
-var import_express6 = __toESM(require_express2(), 1);
-var router6 = (0, import_express6.Router)();
+var import_express7 = __toESM(require_express2(), 1);
+var router7 = (0, import_express7.Router)();
 async function recordPurchaseEvent(opts) {
   const { id, userId, username, subscription, eventType, invoiceId, amountCents, currency } = opts;
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
@@ -79038,7 +79101,7 @@ async function recordPurchaseEvent(opts) {
     ]
   );
 }
-router6.post("/", async (req, res) => {
+router7.post("/", async (req, res) => {
   if (!isStripeConfigured()) return res.status(503).send("Stripe not configured.");
   const signature = req.headers["stripe-signature"];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -79150,7 +79213,7 @@ router6.post("/", async (req, res) => {
     res.status(500).send("Webhook handler error.");
   }
 });
-var stripeWebhook_default = router6;
+var stripeWebhook_default = router7;
 
 // server/ws.ts
 var DEFAULT_LEVEL_IDS = [
@@ -79412,8 +79475,19 @@ function setupWebSocketServer(httpServer2) {
       for (const [roomId, room] of rooms.entries()) {
         const idx = room.players.findIndex((p) => p.ws === ws);
         if (idx !== -1) {
+          const disconnectedUsername = room.players[idx].username;
           room.players.splice(idx, 1);
-          if (room.players.length === 0) rooms.delete(roomId);
+          if (room.players.length > 0) {
+            const dnfPayload = JSON.stringify({
+              type: "PLAYER_DNF",
+              username: disconnectedUsername
+            });
+            for (const p of room.players) {
+              if (p.ws.readyState === import_websocket.default.OPEN) p.ws.send(dnfPayload);
+            }
+          } else {
+            rooms.delete(roomId);
+          }
         }
       }
     };
@@ -79440,14 +79514,14 @@ process.on("uncaughtException", (err) => {
 process.on("unhandledRejection", (reason) => {
   log(`UNHANDLED REJECTION: ${reason?.stack ?? reason}`);
 });
-var app = (0, import_express7.default)();
+var app = (0, import_express8.default)();
 var httpServer = (0, import_http.createServer)(app);
 var PORT = Number(process.env.PORT) || 3001;
 log(
   `Starting Delta Rush \u2014 PORT=${PORT} NODE_ENV=${process.env.NODE_ENV ?? "(not set)"} DATABASE_URL=${process.env.DATABASE_URL ? "set" : "NOT SET"} STRIPE_SECRET_KEY=${isStripeConfigured() ? "set" : "NOT SET"} STRIPE_WEBHOOK_SECRET=${process.env.STRIPE_WEBHOOK_SECRET ? "set" : "NOT SET"} STRIPE_PRICE_MONTHLY=${process.env.STRIPE_PRICE_MONTHLY ? "set" : "NOT SET"} STRIPE_PRICE_YEARLY=${process.env.STRIPE_PRICE_YEARLY ? "set" : "NOT SET"}`
 );
-app.use("/api/billing/webhook", import_express7.default.raw({ type: "application/json" }), stripeWebhook_default);
-app.use(import_express7.default.json({ limit: "5mb" }));
+app.use("/api/billing/webhook", import_express8.default.raw({ type: "application/json" }), stripeWebhook_default);
+app.use(import_express8.default.json({ limit: "5mb" }));
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Authorization, Content-Type");
@@ -79459,6 +79533,7 @@ app.use("/api/auth", auth_default);
 app.use("/api/leaderboard", leaderboard_default);
 app.use("/api/community", community_default);
 app.use("/api/users", users_default);
+app.use("/api/race", race_default);
 app.use("/api/billing", billing_default);
 app.get("/api/health", (_req, res) => res.json({
   status: "ok",
@@ -79484,7 +79559,7 @@ app.get("/api/config", (_req, res) => {
   });
 });
 var distPath = import_path.default.join(process.cwd(), "dist");
-app.use(import_express7.default.static(distPath));
+app.use(import_express8.default.static(distPath));
 app.get("*", (_req, res) => {
   res.sendFile(import_path.default.join(distPath, "index.html"));
 });
