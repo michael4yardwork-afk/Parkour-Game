@@ -116,6 +116,36 @@ the deployment origin.
    - `https://*.replit.dev` (covers all Replit dev domains)
 5. Save changes
 
+## Pushing to GitHub
+
+### How it works
+
+Every `git push` runs a pre-push hook (`.githooks/pre-push`) that does two things automatically:
+
+1. **Syncs with remote** — fetches `origin/main` and rebases your local commits on top, so you never push stale code.
+2. **Rebuilds `dist/`** — runs `npm run build` and, if the output changed, commits the updated `dist/` and `server.cjs` as a separate `build: update dist for deployment` commit. This keeps the Hostinger deployment in sync without any manual steps.
+
+### Why pushes were failing (and the fix)
+
+The old hook used `git commit --amend` to fold the build output into your last commit. Amending rewrites the commit's SHA — but git had already resolved that SHA before running the hook, so it tried to push the old (now non-existent) SHA and got a non-fast-forward rejection.
+
+The fix: the hook now creates a **new** commit for the build output instead of amending. Git sees a clean linear history and the push succeeds every time.
+
+### If a push still fails
+
+| Error message | Cause | Fix |
+|---|---|---|
+| `Updates were rejected … non-fast-forward` | Someone else pushed to `main` between your last pull and your push | Run `git pull` (it will rebase automatically), then push again |
+| `error: GITHUB_TOKEN secret is not set` | The `GITHUB_TOKEN` Replit Secret is missing or expired | Go to **Tools → Secrets** in Replit and add/refresh `GITHUB_TOKEN` with a valid GitHub personal access token (needs `repo` scope) |
+| `Rebase failed. Resolve conflicts` | Your changes conflict with commits already on `main` | Follow the on-screen instructions: fix conflicts → `git add` → `git rebase --continue` → push again |
+| Build errors during hook | `npm run build` failed | Fix the TypeScript/build error, commit, then push again |
+
+### Never amend commits that have already been pushed
+
+Amending a commit that exists on the remote will always cause a non-fast-forward failure. If you need to change the last commit after pushing, make a new commit instead.
+
+---
+
 ## User Preferences
 
 - Keep existing project structure and stack
