@@ -53,7 +53,21 @@ let timerActive = false;
 
 function send(ws: WebSocket, data: object) {
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(data));
+    try {
+      ws.send(JSON.stringify(data));
+    } catch {
+      // Socket closed between the readyState check and the send — ignore.
+    }
+  }
+}
+
+function sendRaw(ws: WebSocket, payload: string) {
+  if (ws.readyState === WebSocket.OPEN) {
+    try {
+      ws.send(payload);
+    } catch {
+      // Socket closed between the readyState check and the send — ignore.
+    }
   }
 }
 
@@ -289,9 +303,7 @@ export function setupWebSocketServer(httpServer: Server) {
             x, y, z, ry, time,
           });
           for (const p of senderRoom.players) {
-            if (p.ws !== ws && p.ws.readyState === WebSocket.OPEN) {
-              p.ws.send(payload);
-            }
+            if (p.ws !== ws) sendRaw(p.ws, payload);
           }
           break;
         }
@@ -311,9 +323,7 @@ export function setupWebSocketServer(httpServer: Server) {
             time,
           });
           for (const p of senderRoom.players) {
-            if (p.ws !== ws && p.ws.readyState === WebSocket.OPEN) {
-              p.ws.send(payload);
-            }
+            if (p.ws !== ws) sendRaw(p.ws, payload);
           }
           break;
         }
@@ -344,7 +354,7 @@ export function setupWebSocketServer(httpServer: Server) {
               username: disconnectedUsername,
             });
             for (const p of room.players) {
-              if (p.ws.readyState === WebSocket.OPEN) p.ws.send(dnfPayload);
+              sendRaw(p.ws, dnfPayload);
             }
           } else {
             rooms.delete(roomId);

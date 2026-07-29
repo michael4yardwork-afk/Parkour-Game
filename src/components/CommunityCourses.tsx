@@ -51,6 +51,7 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
 
   useEffect(() => {
     if (courses.length === 0) return;
+    let aborted = false;
     Promise.all(
       courses.map(async (c) => {
         try {
@@ -61,10 +62,12 @@ export default function CommunityCourses({ onSelectLevel, currentUser, onViewPro
         }
       })
     ).then(pairs => {
+      if (aborted) return;
       const map: Record<string, string | null> = {};
       pairs.forEach(([id, wr]) => { map[id] = wr; });
       setWrMap(map);
     });
+    return () => { aborted = true; };
   }, [courses]);
 
   const handleLike = async (level: LevelConfig, e: React.MouseEvent) => {

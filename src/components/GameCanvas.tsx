@@ -1123,6 +1123,7 @@ export default function GameCanvas({
       isNpc: boolean;
       mesh: THREE.Mesh;
       finished: boolean;
+      dnf: boolean;
       finalTime?: number;
       progressDistance: number;
       speedBoostTimer: number;
@@ -2686,6 +2687,8 @@ export default function GameCanvas({
                 setCompletionRankingLoading(false);
               }
             }
+          }).catch(err => {
+            console.warn('[GameCanvas] Race result submission chain failed:', err);
           });
         }
       } catch (e) {
