@@ -126,6 +126,13 @@ export const api = {
       });
     },
 
+    async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+      return apiFetch<{ message: string }>('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+    },
+
     async forgotPassword(email: string): Promise<{ message: string; method?: 'supabase-link' }> {
       return apiFetch<{ message: string; method?: 'supabase-link' }>('/auth/forgot-password', {
         method: 'POST',

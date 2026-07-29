@@ -66,14 +66,9 @@ export default function SettingsModal({
     });
   };
 
-  const handleUpdatePassword = (e: React.FormEvent) => {
+  const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordFeedback(null);
-
-    if (btoa(currentPassword) !== currentUser.passwordHash) {
-      setPasswordFeedback({ type: 'error', message: 'Current password provided is incorrect.' });
-      return;
-    }
 
     if (newPassword.length < 6) {
       setPasswordFeedback({ type: 'error', message: 'New password must be at least 6 characters.' });
@@ -85,12 +80,16 @@ export default function SettingsModal({
       return;
     }
 
-    onUpdateCurrentUser({ passwordHash: btoa(newPassword) });
-
-    setPasswordFeedback({ type: 'success', message: 'Security password changed successfully!' });
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmNewPassword('');
+    try {
+      const { api } = await import('../api');
+      await api.auth.changePassword(currentPassword, newPassword);
+      setPasswordFeedback({ type: 'success', message: 'Password changed successfully!' });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (err: any) {
+      setPasswordFeedback({ type: 'error', message: err.message || 'Failed to change password.' });
+    }
   };
 
   return (

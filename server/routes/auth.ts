@@ -494,6 +494,50 @@ router.get('/users', async (_req: Request, res: Response) => {
   }
 });
 
+// POST /api/auth/change-password
+// Authenticated route — requires a valid JWT. Verifies the current password
+// with bcrypt, then updates the DB hash and syncs to Supabase if configured.
+router.post('/change-password', async (req: Request, res: Response) => {
+  try {
+    const account = await getAuthenticatedAccount(req);
+    if (!account) return res.status(401).json({ error: 'You must be logged in to change your password.' });
+
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || typeof currentPassword !== 'string') {
+      return res.status(400).json({ error: 'Current password is required.' });
+    }
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters.' });
+    }
+
+    // Fetch the stored bcrypt hash
+    const result = await pool.query(
+      'SELECT id, password_hash, email, supabase_user_id FROM users WHERE id = $1',
+      [account.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Account not found.' });
+    const user = result.rows[0];
+
+    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Current password is incorrect.' });
+
+    // Update local DB
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, account.id]);
+
+    // Best-effort Supabase sync — failure never blocks the response
+    if (supabaseAdmin && user.email && user.supabase_user_id) {
+      supabaseAdmin.auth.admin.updateUserById(user.supabase_user_id, { password: newPassword })
+        .catch((e: any) => console.warn('[supabase] change-password sync failed:', e?.message || e));
+    }
+
+    res.json({ message: 'Password changed successfully.' });
+  } catch (err) {
+    console.error('change-password error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 router.patch('/user/:username', async (req: Request, res: Response) => {
   try {
     const account = await getAuthenticatedAccount(req);
