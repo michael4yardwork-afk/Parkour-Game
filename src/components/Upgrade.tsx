@@ -115,7 +115,6 @@ export default function Upgrade({ isLoggedIn, onRequireLogin, isPlatinum, plan, 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<Awaited<ReturnType<typeof api.billing.getHistory>>['history']>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [portalUrl, setPortalUrl] = useState(BUILD_TIME_PORTAL_URL);
   const [portalConfigLoaded, setPortalConfigLoaded] = useState(false);
 
@@ -174,41 +173,18 @@ export default function Upgrade({ isLoggedIn, onRequireLogin, isPlatinum, plan, 
     }
 
     let cancelled = false;
-    setHistoryLoading(true);
     api.billing.getHistory()
       .then(({ history }) => {
         if (!cancelled) setPaymentHistory(history);
       })
       .catch(() => {
         if (!cancelled) setPaymentHistory([]);
-      })
-      .finally(() => {
-        if (!cancelled) setHistoryLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
   }, [isLoggedIn, isPlatinum, currentPeriodEnd]);
-
-  const formatEventType = (eventType: string): string => {
-    const labels: Record<string, string> = {
-      checkout_completed: 'Initial payment',
-      subscription_created: 'Subscription started',
-      subscription_renewed: 'Renewal payment',
-      subscription_updated: 'Subscription updated',
-      subscription_cancelled: 'Subscription cancelled',
-    };
-    return labels[eventType] || eventType.replaceAll('_', ' ');
-  };
-
-  const formatAmount = (amountCents: number | null, currency: string | null): string => {
-    if (amountCents === null || !currency) return '—';
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency: currency.toUpperCase(),
-    }).format(amountCents / 100);
-  };
 
   return (
     <div className="relative min-h-full overflow-hidden">
@@ -277,7 +253,7 @@ export default function Upgrade({ isLoggedIn, onRequireLogin, isPlatinum, plan, 
         )}
 
         {/* Pricing cards */}
-        <div className="grid md:grid-cols-2 gap-5 max-w-3xl mx-auto mb-14">
+        <div className="grid md:grid-cols-2 gap-5 max-w-3xl mx-auto mb-6">
           {/* Free plan (reference) */}
           <div className="bg-white/90 backdrop-blur-sm rounded-2xl border border-white/40 p-6 flex flex-col shadow-lg">
             <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">Regular</span>
@@ -391,6 +367,27 @@ export default function Upgrade({ isLoggedIn, onRequireLogin, isPlatinum, plan, 
           </div>
         </div>
 
+        {/* Manage Payments — only visible after first purchase */}
+        {isLoggedIn && paymentHistory.length > 0 && portalConfigLoaded && portalUrl && (
+          <div className="flex justify-center max-w-3xl mx-auto mb-14">
+            <a
+              href={portalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 backdrop-blur-sm px-5 py-2.5 text-sm font-bold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 shadow"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Manage Payments
+            </a>
+          </div>
+        )}
+        {isLoggedIn && paymentHistory.length > 0 && portalConfigLoaded && !portalUrl && (
+          <div className="mb-14" />
+        )}
+        {(!isLoggedIn || paymentHistory.length === 0) && (
+          <div className="mb-14" />
+        )}
+
         {/* Platinum sneak peek — real in-game screenshots of what unlocks */}
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-6">
@@ -433,55 +430,6 @@ export default function Upgrade({ isLoggedIn, onRequireLogin, isPlatinum, plan, 
         <p className="text-center text-white/70 text-xs font-medium mt-10">
           Subscriptions renew automatically until cancelled. Payments securely processed by Stripe.
         </p>
-
-        {isLoggedIn && (
-          <section className="max-w-4xl mx-auto mt-12 bg-black/20 backdrop-blur-sm border border-white/20 rounded-2xl p-5 md:p-6">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <div>
-                <h2 className="text-lg font-black text-white">Your payment history</h2>
-                <p className="text-xs text-white/65 mt-1">Only payments and subscription events for this account.</p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                {!portalConfigLoaded ? (
-                  <span className="text-xs font-medium text-white/50">Loading payment management…</span>
-                ) : portalUrl ? (
-                  <a
-                    href={portalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    Manage Payments
-                  </a>
-                ) : (
-                  <span className="text-xs font-medium text-white/50">Payment management unavailable</span>
-                )}
-                <BadgeCheck className="w-5 h-5 text-emerald-300" />
-              </div>
-            </div>
-
-            {historyLoading ? (
-              <p className="text-xs text-white/65">Loading payment history…</p>
-            ) : paymentHistory.length === 0 ? (
-              <p className="text-xs text-white/65">No payment history for this account yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {paymentHistory.map(entry => (
-                  <div key={entry.id} className="flex flex-wrap items-center justify-between gap-3 bg-white/10 border border-white/10 rounded-xl px-3.5 py-3">
-                    <div>
-                      <div className="text-sm font-bold text-white capitalize">{formatEventType(entry.eventType)}</div>
-                      <div className="text-[11px] text-white/60 mt-0.5">
-                        {new Date(entry.recordedAt).toLocaleDateString()} · {entry.plan ? `${entry.plan} plan` : 'Platinum'}
-                      </div>
-                    </div>
-                    <div className="text-sm font-black text-white">{formatAmount(entry.amountCents, entry.currency)}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
       </div>
     </div>
   );
