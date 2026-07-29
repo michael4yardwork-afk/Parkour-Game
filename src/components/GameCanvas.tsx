@@ -1181,8 +1181,9 @@ export default function GameCanvas({
 
           await Promise.all(
             opponentMeshes.filter(o => o.isNpc).map(async (opp) => {
-              // Pick a random entry; each NPC gets an independent pick
-              const pick = frameableEntries[Math.floor(Math.random() * frameableEntries.length)];
+              // Pick deterministically using the bot's seeded RNG so all clients
+              // assign the same ghost replay to the same NPC.
+              const pick = frameableEntries[Math.floor(opp.seededRng() * frameableEntries.length)];
               const result = await apiModule.leaderboard.getEntryFrames(level.id, pick.id);
               if (result && result.frames && result.frames.length > 0) {
                 opp.frames = result.frames;
