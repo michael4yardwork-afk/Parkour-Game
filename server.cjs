@@ -60500,6 +60500,36 @@ router.get("/users", async (_req, res) => {
     res.status(500).json({ error: "Server error." });
   }
 });
+router.post("/change-password", async (req, res) => {
+  try {
+    const account = await getAuthenticatedAccount(req);
+    if (!account) return res.status(401).json({ error: "You must be logged in to change your password." });
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || typeof currentPassword !== "string") {
+      return res.status(400).json({ error: "Current password is required." });
+    }
+    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+      return res.status(400).json({ error: "New password must be at least 6 characters." });
+    }
+    const result = await db_default.query(
+      "SELECT id, password_hash, email, supabase_user_id FROM users WHERE id = $1",
+      [account.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Account not found." });
+    const user = result.rows[0];
+    const valid = await bcryptjs_default.compare(currentPassword, user.password_hash);
+    if (!valid) return res.status(401).json({ error: "Current password is incorrect." });
+    const newHash = await bcryptjs_default.hash(newPassword, 10);
+    await db_default.query("UPDATE users SET password_hash = $1 WHERE id = $2", [newHash, account.id]);
+    if (supabaseAdmin && user.email && user.supabase_user_id) {
+      supabaseAdmin.auth.admin.updateUserById(user.supabase_user_id, { password: newPassword }).catch((e) => console.warn("[supabase] change-password sync failed:", e?.message || e));
+    }
+    res.json({ message: "Password changed successfully." });
+  } catch (err) {
+    console.error("change-password error:", err);
+    res.status(500).json({ error: "Internal server error." });
+  }
+});
 router.patch("/user/:username", async (req, res) => {
   try {
     const account = await getAuthenticatedAccount(req);
@@ -79147,7 +79177,8 @@ function broadcastQueueUpdate() {
     username: q.username,
     color: q.color,
     avatar: q.avatar,
-    avatarBg: q.avatarBg
+    avatarBg: q.avatarBg,
+    rating: q.rating
   }));
   for (const entry of queue) {
     send(entry.ws, {
@@ -79237,14 +79268,24 @@ function setupWebSocketServer(httpServer2) {
           if (!username) break;
           let avatar = msg.avatar || "\u{1F3C3}";
           let avatarBg = msg.avatarBg || "";
+          let rating = 200;
           try {
-            const result = await db_default.query(
-              "SELECT avatar, avatar_bg FROM users WHERE LOWER(username) = LOWER($1)",
-              [username]
-            );
-            if (result.rows.length > 0) {
-              avatar = result.rows[0].avatar || avatar;
-              avatarBg = result.rows[0].avatar_bg || avatarBg;
+            const [profileResult, ratingResult] = await Promise.all([
+              db_default.query(
+                "SELECT avatar, avatar_bg FROM users WHERE LOWER(username) = LOWER($1)",
+                [username]
+              ),
+              db_default.query(
+                "SELECT rating FROM user_ratings WHERE LOWER(username) = LOWER($1)",
+                [username]
+              )
+            ]);
+            if (profileResult.rows.length > 0) {
+              avatar = profileResult.rows[0].avatar || avatar;
+              avatarBg = profileResult.rows[0].avatar_bg || avatarBg;
+            }
+            if (ratingResult.rows.length > 0) {
+              rating = ratingResult.rows[0].rating ?? rating;
             }
           } catch {
           }
@@ -79267,7 +79308,8 @@ function setupWebSocketServer(httpServer2) {
             username,
             color: color || "#3b82f6",
             avatar,
-            avatarBg
+            avatarBg,
+            rating
           });
           if (queue.length >= MAX_PLAYERS) {
             stopQueueCountdown();
