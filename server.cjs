@@ -61021,6 +61021,57 @@ var community_default = router3;
 
 // server/routes/users.ts
 var import_express4 = __toESM(require_express2(), 1);
+
+// server/supabaseRaceHistory.ts
+var SETUP_SQL = `
+  CREATE TABLE IF NOT EXISTS race_history (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL,
+    level_id TEXT NOT NULL,
+    level_name TEXT NOT NULL,
+    player_color TEXT,
+    place INTEGER NOT NULL,
+    time REAL NOT NULL,
+    rating_change INTEGER NOT NULL DEFAULT 0,
+    new_rating INTEGER NOT NULL DEFAULT 200,
+    date BIGINT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_race_history_username ON race_history(username);
+`.trim();
+var tableWarningLogged = false;
+function backupRaceHistoryToSupabase(row) {
+  if (!supabaseAdmin) return;
+  const promise = supabaseAdmin.from("race_history").upsert(
+    {
+      id: row.id,
+      username: row.username,
+      level_id: row.levelId,
+      level_name: row.levelName,
+      player_color: row.playerColor,
+      place: row.place,
+      time: row.time,
+      rating_change: row.ratingChange,
+      new_rating: row.newRating,
+      date: row.date
+    },
+    { onConflict: "id" }
+  );
+  Promise.resolve(promise).then(({ error }) => {
+    if (error && !tableWarningLogged) {
+      console.warn("[supabase backup] race_history upsert failed:", error.message);
+      if (error.message.toLowerCase().includes("does not exist") || error.code === "42P01") {
+        console.warn("[supabase backup] The race_history table is missing from your Supabase project.");
+        console.warn("[supabase backup] Run this SQL in the Supabase SQL editor to create it:");
+        console.warn(SETUP_SQL);
+        tableWarningLogged = true;
+      }
+    }
+  }).catch((err) => {
+    console.warn("[supabase backup] race_history upsert exception:", err.message);
+  });
+}
+
+// server/routes/users.ts
 var router4 = (0, import_express4.Router)();
 function getAuth3(req) {
   return getVerifiedToken(req)?.username ?? null;
@@ -61193,7 +61244,7 @@ router4.patch("/:username/notifications/read", async (req, res) => {
 router4.get("/:username/race-history", async (req, res) => {
   try {
     const result = await db_default.query(
-      `SELECT * FROM race_history WHERE LOWER(username) = LOWER($1) ORDER BY date DESC LIMIT 100`,
+      `SELECT * FROM race_history WHERE LOWER(username) = LOWER($1) ORDER BY date DESC`,
       [req.params.username]
     );
     res.json(result.rows.map((r) => ({
@@ -61204,7 +61255,6 @@ router4.get("/:username/race-history", async (req, res) => {
       playerColor: r.player_color,
       place: r.place,
       time: r.time,
-      opponents: r.opponents,
       ratingChange: r.rating_change,
       newRating: r.new_rating,
       date: parseInt(r.date)
@@ -61219,11 +61269,12 @@ router4.post("/:username/race-result", async (req, res) => {
     if (!viewer || viewer.toLowerCase() !== req.params.username.toLowerCase()) {
       return res.status(401).json({ error: "Unauthorized." });
     }
-    const { id, levelId, levelName, playerColor, place, time, opponents, ratingChange, newRating, date } = req.body;
+    const { id, levelId, levelName, playerColor, place, time, ratingChange, newRating, date } = req.body;
     const clampedRating = Math.max(100, newRating || 200);
+    const recordDate = date || Date.now();
     await db_default.query(
-      `INSERT INTO race_history (id, username, level_id, level_name, player_color, place, time, opponents, rating_change, new_rating, date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO race_history (id, username, level_id, level_name, player_color, place, time, rating_change, new_rating, date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (id) DO NOTHING`,
       [
         id,
@@ -61233,10 +61284,9 @@ router4.post("/:username/race-result", async (req, res) => {
         playerColor || "#3b82f6",
         place,
         time,
-        JSON.stringify(opponents || []),
         ratingChange || 0,
         clampedRating,
-        date || Date.now()
+        recordDate
       ]
     );
     await db_default.query(
@@ -61244,6 +61294,18 @@ router4.post("/:username/race-result", async (req, res) => {
        ON CONFLICT (username) DO UPDATE SET rating = $2, color = $3`,
       [req.params.username, Math.max(100, newRating || 200), playerColor || "#3b82f6"]
     );
+    backupRaceHistoryToSupabase({
+      id,
+      username: req.params.username,
+      levelId,
+      levelName,
+      playerColor: playerColor || "#3b82f6",
+      place,
+      time,
+      ratingChange: ratingChange || 0,
+      newRating: clampedRating,
+      date: recordDate
+    });
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -61336,8 +61398,8 @@ router5.post("/dnf", async (req, res) => {
     const now = Date.now();
     await db_default.query(
       `INSERT INTO race_history
-         (id, username, level_id, level_name, player_color, place, time, opponents, rating_change, new_rating, date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         (id, username, level_id, level_name, player_color, place, time, rating_change, new_rating, date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (id) DO NOTHING`,
       [
         id,
@@ -61349,12 +61411,23 @@ router5.post("/dnf", async (req, res) => {
         // sentinel: DNF
         999999,
         // sentinel: DNF
-        JSON.stringify([]),
         -10,
         newRating,
         now
       ]
     );
+    backupRaceHistoryToSupabase({
+      id,
+      username,
+      levelId: levelId || "unknown",
+      levelName: levelName || "Unknown",
+      playerColor: color,
+      place: 99,
+      time: 999999,
+      ratingChange: -10,
+      newRating,
+      date: now
+    });
     await db_default.query(
       `INSERT INTO user_ratings (username, rating, color) VALUES ($1, $2, $3)
        ON CONFLICT (username) DO UPDATE SET rating = $2`,

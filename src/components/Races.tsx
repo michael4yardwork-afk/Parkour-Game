@@ -82,7 +82,6 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
   const [worldRank, setWorldRank] = useState<number | null>(null);
   const [history, setHistory] = useState<RaceHistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
-  const [showAllHistory, setShowAllHistory] = useState(false);
   // ELO leaderboard modal
   const [showEloLeaderboard, setShowEloLeaderboard] = useState(false);
   const [eloLeaderboard, setEloLeaderboard] = useState<EloLeaderboardEntry[]>([]);
@@ -585,51 +584,35 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
           ) : (
             <>
             <div className="bg-neutral-900 border border-neutral-800 rounded-3xl overflow-hidden divide-y divide-neutral-800">
-              {(showAllHistory ? history : history.slice(0, 5)).map((entry) => (
+              {history.map((entry) => (
                 <div key={entry.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs font-mono">
-                  
+
                   {/* Place and Level */}
                   <div className="flex items-center gap-3.5">
                     <div
                       className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black border ${
-                        entry.place === 1 
-                          ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' 
-                          : entry.place === 2 
-                          ? 'bg-neutral-200/10 text-neutral-300 border-neutral-300/20' 
-                          : entry.place === 3 
+                        entry.place === 1
+                          ? 'bg-amber-500/10 text-amber-500 border-amber-500/30'
+                          : entry.place === 2
+                          ? 'bg-neutral-200/10 text-neutral-300 border-neutral-300/20'
+                          : entry.place === 3
                           ? 'bg-amber-700/10 text-amber-700 border-amber-700/20'
                           : 'bg-neutral-950 text-neutral-500 border-neutral-800'
                       }`}
                     >
-                      {entry.place === 1 ? '🥇' : entry.place === 2 ? '🥈' : entry.place === 3 ? '🥉' : `${entry.place}th`}
+                      {entry.place === 1 ? '🥇' : entry.place === 2 ? '🥈' : entry.place === 3 ? '🥉' : entry.place === 99 ? 'DNF' : `${entry.place}th`}
                     </div>
-                    
+
                     <div>
                       <div className="font-bold text-neutral-100 font-sans text-sm">{entry.levelName}</div>
                       <div className="text-[10px] text-neutral-500 flex items-center gap-1.5 mt-0.5">
-                        <span>Elapsed: {entry.time.toFixed(3)}s</span>
-                        <span>•</span>
+                        {entry.place !== 99 && <><span>Elapsed: {entry.time.toFixed(3)}s</span><span>•</span></>}
                         <span>{new Date(entry.date).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Opponent list summary capsules */}
-                  <div className="flex items-center gap-1.5 max-w-xs overflow-x-auto py-1">
-                    {entry.opponents.map((opp, idx) => (
-                      <div
-                        key={idx}
-                        className="px-2 py-0.5 rounded bg-neutral-950 text-[9px] border text-neutral-400 flex items-center gap-1 shrink-0"
-                        style={{ borderColor: opp.color + '30' }}
-                        title={`${opp.username} (${opp.finished && opp.time ? opp.time.toFixed(3) + 's' : 'DNF'})`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: opp.color }} />
-                        <span className="truncate max-w-[50px]">{opp.username}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Rating Points Change bubble */}
+                  {/* Rating Points Change */}
                   <div className="flex items-center gap-3 sm:text-right">
                     <div className="flex flex-col sm:items-end">
                       <span className={`font-bold text-xs ${entry.ratingChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -642,18 +625,6 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
                 </div>
               ))}
             </div>
-            {history.length > 5 && (
-              <button
-                onClick={() => setShowAllHistory(v => !v)}
-                className="w-full mt-3 py-2.5 text-xs font-semibold text-neutral-400 hover:text-neutral-200 border border-neutral-800 hover:border-neutral-700 rounded-2xl bg-neutral-900/60 hover:bg-neutral-900 transition flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                {showAllHistory ? (
-                  <>Show less <span className="text-neutral-500">↑</span></>
-                ) : (
-                  <>Show {history.length - 5} more {history.length - 5 === 1 ? 'race' : 'races'} <span className="text-neutral-500">↓</span></>
-                )}
-              </button>
-            )}
             </>
           )}
         </div>

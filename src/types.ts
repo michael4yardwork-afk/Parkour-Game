@@ -119,7 +119,6 @@ export interface RaceHistoryEntry {
   playerColor: string;
   place: number;
   time: number;
-  opponents: { username: string; time?: number; finished: boolean; isNpc: boolean; color: string }[];
   ratingChange: number;
   newRating: number;
   date: number;

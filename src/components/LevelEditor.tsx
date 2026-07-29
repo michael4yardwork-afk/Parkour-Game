@@ -554,15 +554,21 @@ export default function LevelEditor({ initialLevel, onSave, onExit, onTest, isPl
               <input
                 type="text"
                 value={levelName}
-                onChange={(e) => setLevelName(e.target.value)}
+                onChange={(e) => setLevelName(e.target.value.slice(0, 50))}
                 placeholder="Level Title"
+                maxLength={50}
                 className="w-full mt-1.5 p-2 bg-neutral-950 border border-neutral-800 rounded-lg text-xs text-neutral-100 focus:border-indigo-500 focus:outline-none"
               />
-              {hasVulgarLanguage(levelName) && (
-                <p className="text-rose-500 text-[10px] mt-1 pl-0.5">
-                  Explicit or vulgar language is prohibited.
-                </p>
-              )}
+              <div className="flex items-center justify-between mt-1 pl-0.5">
+                {hasVulgarLanguage(levelName) ? (
+                  <p className="text-rose-500 text-[10px]">Explicit or vulgar language is prohibited.</p>
+                ) : (
+                  <span />
+                )}
+                <span className={`text-[10px] font-mono tabular-nums ${levelName.length >= 50 ? 'text-amber-400' : 'text-neutral-600'}`}>
+                  {levelName.length}/50
+                </span>
+              </div>
             </div>
 
             <div>

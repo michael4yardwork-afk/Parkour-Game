@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
 import jwt from 'jsonwebtoken';
+import { backupRaceHistoryToSupabase } from '../supabaseRaceHistory';
 
 const router = Router();
 
@@ -44,8 +45,8 @@ router.post('/dnf', async (req: Request, res: Response) => {
     // Record the DNF in race history (place 99, time 999999 are sentinel values for DNF)
     await pool.query(
       `INSERT INTO race_history
-         (id, username, level_id, level_name, player_color, place, time, opponents, rating_change, new_rating, date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         (id, username, level_id, level_name, player_color, place, time, rating_change, new_rating, date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (id) DO NOTHING`,
       [
         id, username,
@@ -54,12 +55,23 @@ router.post('/dnf', async (req: Request, res: Response) => {
         color,
         99,       // sentinel: DNF
         999999,   // sentinel: DNF
-        JSON.stringify([]),
         -10,
         newRating,
         now,
       ]
     );
+
+    backupRaceHistoryToSupabase({
+      id, username,
+      levelId: levelId || 'unknown',
+      levelName: levelName || 'Unknown',
+      playerColor: color,
+      place: 99,
+      time: 999999,
+      ratingChange: -10,
+      newRating,
+      date: now,
+    });
 
     // Apply the -10 ELO
     await pool.query(

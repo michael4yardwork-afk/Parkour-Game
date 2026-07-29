@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { getAuthenticatedAccount, getVerifiedToken } from '../authIdentity';
+import { backupRaceHistoryToSupabase } from '../supabaseRaceHistory';
 
 const router = Router();
 function getAuth(req: Request): string | null {
@@ -197,7 +198,7 @@ router.patch('/:username/notifications/read', async (req: Request, res: Response
 router.get('/:username/race-history', async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      `SELECT * FROM race_history WHERE LOWER(username) = LOWER($1) ORDER BY date DESC LIMIT 100`,
+      `SELECT * FROM race_history WHERE LOWER(username) = LOWER($1) ORDER BY date DESC`,
       [req.params.username]
     );
 
@@ -209,7 +210,6 @@ router.get('/:username/race-history', async (req: Request, res: Response) => {
       playerColor: r.player_color,
       place: r.place,
       time: r.time,
-      opponents: r.opponents,
       ratingChange: r.rating_change,
       newRating: r.new_rating,
       date: parseInt(r.date)
@@ -226,16 +226,17 @@ router.post('/:username/race-result', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized.' });
     }
 
-    const { id, levelId, levelName, playerColor, place, time, opponents, ratingChange, newRating, date } = req.body;
+    const { id, levelId, levelName, playerColor, place, time, ratingChange, newRating, date } = req.body;
 
     const clampedRating = Math.max(100, newRating || 200);
+    const recordDate = date || Date.now();
 
     await pool.query(
-      `INSERT INTO race_history (id, username, level_id, level_name, player_color, place, time, opponents, rating_change, new_rating, date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO race_history (id, username, level_id, level_name, player_color, place, time, rating_change, new_rating, date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (id) DO NOTHING`,
       [id, req.params.username, levelId, levelName, playerColor || '#3b82f6',
-       place, time, JSON.stringify(opponents || []), ratingChange || 0, clampedRating, date || Date.now()]
+       place, time, ratingChange || 0, clampedRating, recordDate]
     );
 
     await pool.query(
@@ -243,6 +244,12 @@ router.post('/:username/race-result', async (req: Request, res: Response) => {
        ON CONFLICT (username) DO UPDATE SET rating = $2, color = $3`,
       [req.params.username, Math.max(100, newRating || 200), playerColor || '#3b82f6']
     );
+
+    backupRaceHistoryToSupabase({
+      id, username: req.params.username, levelId, levelName,
+      playerColor: playerColor || '#3b82f6', place, time,
+      ratingChange: ratingChange || 0, newRating: clampedRating, date: recordDate,
+    });
 
     res.json({ success: true });
   } catch (err) {
