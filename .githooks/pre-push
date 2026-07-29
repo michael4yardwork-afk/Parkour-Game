@@ -1,7 +1,9 @@
 #!/bin/sh
 # Pre-push hook:
 # 1. Auto-rebase on top of remote to prevent push rejection from divergence.
-# 2. Rebuild dist/ and amend the last commit if anything changed.
+# 2. Rebuild dist/ and add a new commit if anything changed.
+#    (amending is intentionally avoided — it rewrites the SHA already resolved
+#     by git, causing intermittent non-fast-forward push failures)
 
 REMOTE="$1"
 
@@ -27,16 +29,16 @@ else
   echo "[pre-push] Could not fetch from remote — proceeding without rebase."
 fi
 
-# ── Step 2: rebuild dist/ and amend if changed ───────────────────────────────
+# ── Step 2: rebuild dist/ and commit separately if changed ───────────────────
 echo "[pre-push] Building dist/ to keep deployed files in sync..."
 npm run build
 
 git add -f dist/ server.cjs
 
 if ! git diff --cached --quiet; then
-  echo "[pre-push] dist/ changed after build — amending commit to include it..."
-  git commit --amend --no-edit
+  echo "[pre-push] dist/ changed after build — creating build commit..."
+  git commit -m "build: update dist for deployment"
   echo "[pre-push] Done."
 else
-  echo "[pre-push] dist/ already up to date — no amend needed."
+  echo "[pre-push] dist/ already up to date — no commit needed."
 fi
