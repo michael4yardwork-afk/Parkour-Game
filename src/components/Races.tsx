@@ -171,7 +171,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
         // Play tick sound whenever countdown advances
         if (msg.timerActive) synths.playTick();
         setLobbyPlayers(
-          (msg.players as { username: string; color: string; avatar: string; avatarBg?: string }[]).map(p => ({
+          (msg.players as { username: string; color: string; avatar: string; avatarBg?: string; rating?: number }[]).map(p => ({
             username: p.username,
             color: p.color,
             avatar: p.avatar || '🏃',
@@ -179,6 +179,7 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
             isNpc: false,
             baseSpeed: 10 + Math.random() * 2,
             seed: Math.random(),
+            rating: p.rating,
           }))
         );
       } else if (msg.type === 'RACE_START') {
@@ -480,10 +481,15 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
                             </div>
                             <div className="text-[8px] font-mono text-neutral-500">
                               {player ? (
-                                player.isNpc ? 'SpeedBot' : 
+                                player.isNpc ? 'SpeedBot' :
                                 player.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim() ? 'You' : 'Opponent'
                               ) : 'Waiting'}
                             </div>
+                            {player && !player.isNpc && player.rating != null && (
+                              <div className="text-[8px] font-mono text-amber-400 font-bold mt-0.5">
+                                {player.rating} ELO
+                              </div>
+                            )}
                           </div>
                         </div>
                       );

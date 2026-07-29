@@ -79147,7 +79147,8 @@ function broadcastQueueUpdate() {
     username: q.username,
     color: q.color,
     avatar: q.avatar,
-    avatarBg: q.avatarBg
+    avatarBg: q.avatarBg,
+    rating: q.rating
   }));
   for (const entry of queue) {
     send(entry.ws, {
@@ -79237,14 +79238,24 @@ function setupWebSocketServer(httpServer2) {
           if (!username) break;
           let avatar = msg.avatar || "\u{1F3C3}";
           let avatarBg = msg.avatarBg || "";
+          let rating = 200;
           try {
-            const result = await db_default.query(
-              "SELECT avatar, avatar_bg FROM users WHERE LOWER(username) = LOWER($1)",
-              [username]
-            );
-            if (result.rows.length > 0) {
-              avatar = result.rows[0].avatar || avatar;
-              avatarBg = result.rows[0].avatar_bg || avatarBg;
+            const [profileResult, ratingResult] = await Promise.all([
+              db_default.query(
+                "SELECT avatar, avatar_bg FROM users WHERE LOWER(username) = LOWER($1)",
+                [username]
+              ),
+              db_default.query(
+                "SELECT rating FROM user_ratings WHERE LOWER(username) = LOWER($1)",
+                [username]
+              )
+            ]);
+            if (profileResult.rows.length > 0) {
+              avatar = profileResult.rows[0].avatar || avatar;
+              avatarBg = profileResult.rows[0].avatar_bg || avatarBg;
+            }
+            if (ratingResult.rows.length > 0) {
+              rating = ratingResult.rows[0].rating ?? rating;
             }
           } catch {
           }
@@ -79267,7 +79278,8 @@ function setupWebSocketServer(httpServer2) {
             username,
             color: color || "#3b82f6",
             avatar,
-            avatarBg
+            avatarBg,
+            rating
           });
           if (queue.length >= MAX_PLAYERS) {
             stopQueueCountdown();

@@ -12,6 +12,7 @@ interface QueueEntry {
   color: string;
   avatar: string;
   avatarBg: string;
+  rating: number;
 }
 
 interface RoomPlayer {
@@ -62,6 +63,7 @@ function broadcastQueueUpdate() {
     color: q.color,
     avatar: q.avatar,
     avatarBg: q.avatarBg,
+    rating: q.rating,
   }));
   for (const entry of queue) {
     send(entry.ws, {
@@ -175,21 +177,31 @@ export function setupWebSocketServer(httpServer: Server) {
           const { username, color } = msg;
           if (!username) break;
 
-          // Fetch canonical avatar/avatarBg from DB so the lobby always
-          // shows the player's real profile icon, not a stale client value.
+          // Fetch canonical avatar/avatarBg/rating from DB so the lobby always
+          // shows the player's real profile icon and current ELO, not stale client values.
           let avatar = msg.avatar || '🏃';
           let avatarBg = msg.avatarBg || '';
+          let rating = 200;
           try {
-            const result = await pool.query(
-              'SELECT avatar, avatar_bg FROM users WHERE LOWER(username) = LOWER($1)',
-              [username]
-            );
-            if (result.rows.length > 0) {
-              avatar = result.rows[0].avatar || avatar;
-              avatarBg = result.rows[0].avatar_bg || avatarBg;
+            const [profileResult, ratingResult] = await Promise.all([
+              pool.query(
+                'SELECT avatar, avatar_bg FROM users WHERE LOWER(username) = LOWER($1)',
+                [username]
+              ),
+              pool.query(
+                'SELECT rating FROM user_ratings WHERE LOWER(username) = LOWER($1)',
+                [username]
+              ),
+            ]);
+            if (profileResult.rows.length > 0) {
+              avatar = profileResult.rows[0].avatar || avatar;
+              avatarBg = profileResult.rows[0].avatar_bg || avatarBg;
+            }
+            if (ratingResult.rows.length > 0) {
+              rating = ratingResult.rows[0].rating ?? rating;
             }
           } catch {
-            // DB unavailable — fall back to client-supplied values
+            // DB unavailable — fall back to defaults
           }
 
           // Remove stale entry for the same connection
@@ -218,6 +230,7 @@ export function setupWebSocketServer(httpServer: Server) {
             color: color || '#3b82f6',
             avatar,
             avatarBg,
+            rating,
           });
 
           // 6 real players — start immediately, no need to wait

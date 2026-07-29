@@ -108,6 +108,7 @@ export interface RaceParticipant {
   isNpc: boolean;
   baseSpeed: number;
   seed: number;
+  rating?: number;
 }
 
 export interface RaceHistoryEntry {
