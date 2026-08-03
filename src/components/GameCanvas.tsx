@@ -2074,6 +2074,25 @@ export default function GameCanvas({
     const isSolid = (type: string) =>
       type !== 'hazard' && type !== 'end' && type !== 'climb';
 
+    // Checkpoints should activate on any physical contact, not only when the
+    // player lands on their top face. X/Z collision passes can resolve a side
+    // contact before the Y pass runs, so centralize the effect and call it
+    // from every solid-contact pass.
+    const activateCheckpoint = (block: typeof level.blocks[number]) => {
+      if (block.type !== 'checkpoint') return;
+
+      const chId = `ch_${block.id}`;
+      const cpPos = new THREE.Vector3(block.x, block.y + 1.2, block.z);
+      if (!activeCheckpointRef.current || !activeCheckpointRef.current.equals(cpPos)) {
+        activeCheckpointRef.current = cpPos;
+        const now = Date.now();
+        if (now - (checkpointSoundCoolRef.current[chId] || 0) > 4000) {
+          synths.playCheckpoint();
+          checkpointSoundCoolRef.current[chId] = now;
+        }
+      }
+    };
+
     // Shared wall-contact state accumulated across both X and Z passes.
     // adjacentWallContact is set whenever the player is pushed off a wall-run
     // or normal block in either axis while airborne, so X-facing and Z-facing
@@ -2094,6 +2113,8 @@ export default function GameCanvas({
         if (!(px + r > minX && px - r < maxX &&
               py + h > minY && py   < maxY   &&
               pz + r > minZ && pz - r < maxZ)) continue;
+
+        activateCheckpoint(block);
 
         // Determine push side before modifying position
         const pushLeft = px < (minX + maxX) * 0.5;
@@ -2150,6 +2171,8 @@ export default function GameCanvas({
         if (!(px + r > minX && px - r < maxX &&
               py + h > minY && py   < maxY   &&
               pz + r > minZ && pz - r < maxZ)) continue;
+
+        activateCheckpoint(block);
 
         const pushNeg = pz < (minZ + maxZ) * 0.5;
 
@@ -2234,16 +2257,7 @@ export default function GameCanvas({
         }
 
         if (block.type === 'checkpoint') {
-          const chId = `ch_${block.id}`;
-          const cpPos = new THREE.Vector3(block.x, block.y + 1.2, block.z);
-          if (!activeCheckpointRef.current || !activeCheckpointRef.current.equals(cpPos)) {
-            activeCheckpointRef.current = cpPos;
-            const now = Date.now();
-            if (now - (checkpointSoundCoolRef.current[chId] || 0) > 4000) {
-              synths.playCheckpoint();
-              checkpointSoundCoolRef.current[chId] = now;
-            }
-          }
+          activateCheckpoint(block);
           // Checkpoint blocks are physical — fall through to Y resolution below
         }
 
