@@ -648,11 +648,11 @@ export default function App() {
       {/* Primary Navigation Shell */}
       {tab !== 'play' && tab !== 'editor' && (
         <header className="border-b border-neutral-200 bg-white sticky top-0 z-40">
-          <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="app-header-inner max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
             {/* Logo */}
             <div 
               onClick={() => { setTab('home'); synths.playTick(); }}
-              className="flex items-center gap-2 cursor-pointer group"
+              className="app-header-brand flex items-center gap-2 cursor-pointer group"
             >
               <div className="w-8 h-8 bg-neutral-900 text-white rounded-lg group-hover:bg-indigo-600 transition duration-200 flex items-center justify-center">
                 <span className="text-lg font-black font-sans leading-none select-none">Δ</span>
@@ -664,7 +664,7 @@ export default function App() {
             </div>
 
             {/* Nav Tabs */}
-            <nav className="flex gap-1 md:gap-2">
+            <nav className="app-primary-nav flex gap-1 md:gap-2">
               <button
                 id="dashboard-tab-trigger"
                 onClick={() => { setTab('home'); synths.playTick(); }}

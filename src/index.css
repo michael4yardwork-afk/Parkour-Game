@@ -19,6 +19,40 @@ body,
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
+/* Keep the phone navigation inside the viewport without changing the
+   single-row tablet and desktop navigation layout. */
+@media (max-width: 639px) {
+  .app-header-inner {
+    height: auto;
+    min-height: 4rem;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .app-header-brand {
+    align-self: center;
+  }
+
+  .app-primary-nav {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.25rem;
+  }
+
+  .app-primary-nav > button {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    white-space: nowrap;
+  }
+}
+
 @keyframes gradient-flow {
   0% {
     background-position: 0% 50%;
