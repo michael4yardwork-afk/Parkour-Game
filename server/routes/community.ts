@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
 import { getVerifiedToken } from '../authIdentity';
+import { deleteRaceHistoryForLevel } from '../supabaseRaceHistory';
 
 const router = Router();
 function getAuth(req: Request): string | null {
@@ -168,23 +169,54 @@ router.delete('/courses/:id', async (req: Request, res: Response) => {
 });
 
 router.patch('/courses/:id/unpublish', async (req: Request, res: Response) => {
+  let client;
   try {
     const username = getAuth(req);
     if (!username) return res.status(401).json({ error: 'Unauthorized.' });
 
-    const result = await pool.query(
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `UPDATE community_courses SET is_published = FALSE
-       WHERE id = $1 AND LOWER(creator) = LOWER($2) RETURNING id`,
+       WHERE id = $1 AND LOWER(creator) = LOWER($2) AND is_published = TRUE RETURNING id`,
       [req.params.id, username]
     );
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(403).json({ error: 'Not found or not authorized.' });
+    }
+
+    // A published course's leaderboard and race-history data is tied to that
+    // published version. Remove all run records when it leaves the workshop.
+    await client.query(
+      'DELETE FROM leaderboard_entries WHERE level_id = $1',
+      [req.params.id]
+    );
+    await client.query(
+      'DELETE FROM race_history WHERE level_id = $1',
+      [req.params.id]
+    );
+    await client.query('COMMIT');
+
+    // Supabase is an optional backup for race history. Do not turn a
+    // successful primary cleanup into a failed unpublish if that backup is
+    // unavailable, but make any backup cleanup failure visible in logs.
+    try {
+      await deleteRaceHistoryForLevel(req.params.id);
+    } catch (backupErr) {
+      console.error('[community/unpublish] Failed to clean up Supabase race history:', backupErr);
     }
 
     res.json({ success: true });
   } catch (err) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch { /* transaction may be closed */ }
+    }
     res.status(500).json({ error: 'Server error.' });
+  } finally {
+    if (client) client.release();
   }
 });
 

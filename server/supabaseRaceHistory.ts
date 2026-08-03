@@ -72,3 +72,19 @@ export function backupRaceHistoryToSupabase(row: RaceHistoryBackupRow): void {
       console.warn('[supabase backup] race_history upsert exception:', err.message);
     });
 }
+
+/**
+ * Remove the optional Supabase backup rows for a course when that course is
+ * unpublished. The local PostgreSQL database remains the source of truth; a
+ * backup cleanup failure is surfaced to the caller for logging.
+ */
+export async function deleteRaceHistoryForLevel(levelId: string): Promise<void> {
+  if (!supabaseAdmin) return;
+
+  const { error } = await supabaseAdmin
+    .from('race_history')
+    .delete()
+    .eq('level_id', levelId);
+
+  if (error) throw error;
+}

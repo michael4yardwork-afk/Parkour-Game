@@ -60682,6 +60682,62 @@ var leaderboard_default = router2;
 
 // server/routes/community.ts
 var import_express3 = __toESM(require_express2(), 1);
+
+// server/supabaseRaceHistory.ts
+var SETUP_SQL = `
+  CREATE TABLE IF NOT EXISTS race_history (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL,
+    level_id TEXT NOT NULL,
+    level_name TEXT NOT NULL,
+    player_color TEXT,
+    place INTEGER NOT NULL,
+    time REAL NOT NULL,
+    rating_change INTEGER NOT NULL DEFAULT 0,
+    new_rating INTEGER NOT NULL DEFAULT 200,
+    date BIGINT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_race_history_username ON race_history(username);
+`.trim();
+var tableWarningLogged = false;
+function backupRaceHistoryToSupabase(row) {
+  if (!supabaseAdmin) return;
+  const promise = supabaseAdmin.from("race_history").upsert(
+    {
+      id: row.id,
+      username: row.username,
+      level_id: row.levelId,
+      level_name: row.levelName,
+      player_color: row.playerColor,
+      place: row.place,
+      time: row.time,
+      rating_change: row.ratingChange,
+      new_rating: row.newRating,
+      date: row.date
+    },
+    { onConflict: "id" }
+  );
+  Promise.resolve(promise).then(({ error }) => {
+    if (error && !tableWarningLogged) {
+      console.warn("[supabase backup] race_history upsert failed:", error.message);
+      if (error.message.toLowerCase().includes("does not exist") || error.code === "42P01") {
+        console.warn("[supabase backup] The race_history table is missing from your Supabase project.");
+        console.warn("[supabase backup] Run this SQL in the Supabase SQL editor to create it:");
+        console.warn(SETUP_SQL);
+        tableWarningLogged = true;
+      }
+    }
+  }).catch((err) => {
+    console.warn("[supabase backup] race_history upsert exception:", err.message);
+  });
+}
+async function deleteRaceHistoryForLevel(levelId) {
+  if (!supabaseAdmin) return;
+  const { error } = await supabaseAdmin.from("race_history").delete().eq("level_id", levelId);
+  if (error) throw error;
+}
+
+// server/routes/community.ts
 var router3 = (0, import_express3.Router)();
 function getAuth2(req) {
   return getVerifiedToken(req)?.username ?? null;
@@ -60817,20 +60873,46 @@ router3.delete("/courses/:id", async (req, res) => {
   }
 });
 router3.patch("/courses/:id/unpublish", async (req, res) => {
+  let client;
   try {
     const username = getAuth2(req);
     if (!username) return res.status(401).json({ error: "Unauthorized." });
-    const result = await db_default.query(
+    client = await db_default.connect();
+    await client.query("BEGIN");
+    const result = await client.query(
       `UPDATE community_courses SET is_published = FALSE
-       WHERE id = $1 AND LOWER(creator) = LOWER($2) RETURNING id`,
+       WHERE id = $1 AND LOWER(creator) = LOWER($2) AND is_published = TRUE RETURNING id`,
       [req.params.id, username]
     );
     if (result.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(403).json({ error: "Not found or not authorized." });
+    }
+    await client.query(
+      "DELETE FROM leaderboard_entries WHERE level_id = $1",
+      [req.params.id]
+    );
+    await client.query(
+      "DELETE FROM race_history WHERE level_id = $1",
+      [req.params.id]
+    );
+    await client.query("COMMIT");
+    try {
+      await deleteRaceHistoryForLevel(req.params.id);
+    } catch (backupErr) {
+      console.error("[community/unpublish] Failed to clean up Supabase race history:", backupErr);
     }
     res.json({ success: true });
   } catch (err) {
+    if (client) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+      }
+    }
     res.status(500).json({ error: "Server error." });
+  } finally {
+    if (client) client.release();
   }
 });
 router3.post("/courses/:id/like", async (req, res) => {
@@ -61021,57 +61103,6 @@ var community_default = router3;
 
 // server/routes/users.ts
 var import_express4 = __toESM(require_express2(), 1);
-
-// server/supabaseRaceHistory.ts
-var SETUP_SQL = `
-  CREATE TABLE IF NOT EXISTS race_history (
-    id TEXT PRIMARY KEY,
-    username TEXT NOT NULL,
-    level_id TEXT NOT NULL,
-    level_name TEXT NOT NULL,
-    player_color TEXT,
-    place INTEGER NOT NULL,
-    time REAL NOT NULL,
-    rating_change INTEGER NOT NULL DEFAULT 0,
-    new_rating INTEGER NOT NULL DEFAULT 200,
-    date BIGINT NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS idx_race_history_username ON race_history(username);
-`.trim();
-var tableWarningLogged = false;
-function backupRaceHistoryToSupabase(row) {
-  if (!supabaseAdmin) return;
-  const promise = supabaseAdmin.from("race_history").upsert(
-    {
-      id: row.id,
-      username: row.username,
-      level_id: row.levelId,
-      level_name: row.levelName,
-      player_color: row.playerColor,
-      place: row.place,
-      time: row.time,
-      rating_change: row.ratingChange,
-      new_rating: row.newRating,
-      date: row.date
-    },
-    { onConflict: "id" }
-  );
-  Promise.resolve(promise).then(({ error }) => {
-    if (error && !tableWarningLogged) {
-      console.warn("[supabase backup] race_history upsert failed:", error.message);
-      if (error.message.toLowerCase().includes("does not exist") || error.code === "42P01") {
-        console.warn("[supabase backup] The race_history table is missing from your Supabase project.");
-        console.warn("[supabase backup] Run this SQL in the Supabase SQL editor to create it:");
-        console.warn(SETUP_SQL);
-        tableWarningLogged = true;
-      }
-    }
-  }).catch((err) => {
-    console.warn("[supabase backup] race_history upsert exception:", err.message);
-  });
-}
-
-// server/routes/users.ts
 var router4 = (0, import_express4.Router)();
 function getAuth3(req) {
   return getVerifiedToken(req)?.username ?? null;

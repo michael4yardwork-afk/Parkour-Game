@@ -26,6 +26,8 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
   const [gate, setGate] = useState<{ feature: string; description?: string } | null>(null);
   const [customLevels, setCustomLevels] = useState<LevelConfig[]>([]);
   const [deletingLevel, setDeletingLevel] = useState<LevelConfig | null>(null);
+  const [unpublishingLevel, setUnpublishingLevel] = useState<LevelConfig | null>(null);
+  const [unpublishing, setUnpublishing] = useState(false);
   const [publishingLevel, setPublishingLevel] = useState<LevelConfig | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,26 +110,58 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
     });
   }, [customLevels]);
 
-  const handleUnpublish = async (level: LevelConfig, e: React.MouseEvent) => {
+  const requestUnpublish = (level: LevelConfig, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Unpublish "${level.name}"? It will be removed from the community workshop but kept in your saved courses.`)) return;
+    setUnpublishingLevel(level);
+    synths.playTick();
+  };
+
+  const confirmUnpublish = async () => {
+    if (!unpublishingLevel) return;
+    const { id } = unpublishingLevel;
+    setUnpublishing(true);
     try {
-      await api.community.unpublishCourse(level.id);
+      await api.community.unpublishCourse(id);
       // Mark as unpublished in state so the Publish button reappears
-      setCustomLevels(prev => prev.map(l => l.id === level.id ? { ...l, isPublished: false } : l));
+      setCustomLevels(prev => prev.map(l => l.id === id ? { ...l, isPublished: false } : l));
       // Persist the unpublished state to localStorage
       const stored = localStorage.getItem('custom_parkour_levels');
       if (stored) {
         try {
           const local: LevelConfig[] = JSON.parse(stored);
-          const updated = local.map(l => l.id === level.id ? { ...l, isPublished: false } : l);
+          const updated = local.map(l => l.id === id ? { ...l, isPublished: false } : l);
           localStorage.setItem('custom_parkour_levels', JSON.stringify(updated));
         } catch { /* ignore parse errors */ }
       }
+      // The server has permanently removed this course's run records. Clear
+      // cached local run data too so it cannot reappear in the UI.
+      localStorage.removeItem(`best_time_${id}`);
+      localStorage.removeItem(`ghost_replay_${id}`);
+      localStorage.removeItem(`leaderboard_${id}`);
+      try {
+        const pendingRaw = localStorage.getItem('delta_rush_pending_submissions');
+        if (pendingRaw) {
+          const pending = JSON.parse(pendingRaw);
+          if (Array.isArray(pending)) {
+            localStorage.setItem(
+              'delta_rush_pending_submissions',
+              JSON.stringify(pending.filter((submission: { levelId?: string }) => submission.levelId !== id))
+            );
+          }
+        }
+      } catch { /* ignore malformed local cache */ }
+      setWrMap(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setUnpublishingLevel(null);
       synths.playTick();
     } catch (err: any) {
       console.error('Failed to unpublish course:', err);
       alert(err.message || 'Failed to unpublish course.');
+    } finally {
+      setUnpublishing(false);
     }
   };
 
@@ -412,7 +446,7 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
                     )}
                     {isCreator && level.isPublished && (
                       <button
-                        onClick={(e) => handleUnpublish(level, e)}
+                        onClick={(e) => requestUnpublish(level, e)}
                         className="flex items-center gap-1 px-3 py-1 text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 rounded-lg text-xs font-bold transition cursor-pointer"
                         title="Remove from the community workshop"
                       >
@@ -482,6 +516,32 @@ export default function SavedCourses({ onSelectLevel, onCreateNewCustom, onEditC
               <button onClick={confirmPublishLevel} disabled={publishing}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition flex-1 cursor-pointer">
                 {publishing ? 'Publishing...' : 'Publish Now'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {unpublishingLevel && (
+        <div className="fixed inset-0 z-50 bg-neutral-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl border border-neutral-200/80 animate-in fade-in zoom-in duration-200 text-center">
+            <div className="w-12 h-12 bg-rose-50 border border-rose-100 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-600">
+              <EyeOff className="w-5 h-5" />
+            </div>
+            <h3 className="text-base font-black tracking-tight">Unpublish course?</h3>
+            <p className="text-xs text-neutral-500 mt-2.5 leading-relaxed">
+              Remove <span className="font-bold">"{unpublishingLevel.name}"</span> from the community workshop?
+            </p>
+            <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-100 rounded-lg p-3 mt-3 font-medium leading-relaxed">
+              This will permanently delete all leaderboard times, ghost runs, and race history for this course. The course itself will remain in your saved courses.
+            </p>
+            <div className="flex gap-2.5 justify-center mt-5">
+              <button onClick={() => { setUnpublishingLevel(null); synths.playTick(); }} disabled={unpublishing}
+                className="px-4 py-2 bg-neutral-100 hover:bg-neutral-150 text-neutral-700 text-xs font-bold rounded-xl transition flex-1 cursor-pointer disabled:opacity-60">
+                Keep Published
+              </button>
+              <button onClick={confirmUnpublish} disabled={unpublishing}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition flex-1 cursor-pointer">
+                {unpublishing ? 'Unpublishing...' : 'Unpublish'}
               </button>
             </div>
           </div>
