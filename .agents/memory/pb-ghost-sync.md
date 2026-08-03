@@ -22,6 +22,19 @@ un-tracked ref (`sceneRef.current`) is a recurring source of "sometimes doesn't 
 bugs — any future feature touching `ghostMeshRef`/`sceneRef` in GameCanvas.tsx should
 route through a tracked readiness signal, not just check the ref inline.
 
+## Personal-best sync ordering
+
+Personal-best server synchronization and ghost activation must stay in the same effect
+without an early return between them. A signed-in user's server PB request is asynchronous;
+its cleanup should only cancel the request, not skip `showGhostRef` synchronization or local
+ghost replay loading.
+
+**Why:** An early return after starting the server PB request caused signed-in users to
+occasionally have the toggle on while the replay frames and ghost mesh were never activated.
+
+**How to apply:** Keep remote PB reconciliation and local ghost setup as separate sequential
+sections of the effect, and return only a cleanup function that cancels stale remote responses.
+
 ## Known remaining limitation (not a bug, tracked as follow-up)
 The camera in GameCanvas is forward-only (no mouse-look). The ghost is positioned by
 matching elapsed time, not course progress, so if the current run's pace differs from

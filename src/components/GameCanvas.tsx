@@ -290,6 +290,7 @@ export default function GameCanvas({
   useEffect(() => {
     hasCountdownStartedRef.current = false;
     setRaceCountdown(null);
+    let personalBestSyncCancelled = false;
 
     const score = localStorage.getItem(`best_time_${level.id}`);
     if (score) {
@@ -302,10 +303,9 @@ export default function GameCanvas({
     // into localStorage so a new device/session cannot treat a slower run as
     // a new PR simply because its browser has no local baseline.
     if (currentUser && !demoMode && level.id !== 'test_level_active') {
-      let cancelled = false;
       api.leaderboard.get(level.id)
         .then(entries => {
-          if (cancelled) return;
+          if (personalBestSyncCancelled) return;
           const username = currentUser.username.toLowerCase().trim();
           const serverTimes = entries
             .filter(entry => entry.playerName.toLowerCase().trim() === username)
@@ -322,10 +322,6 @@ export default function GameCanvas({
         .catch(() => {
           // Keep the local baseline when the server is temporarily unavailable.
         });
-
-      return () => {
-        cancelled = true;
-      };
     }
 
     // Keep the showGhostRef in sync whenever showGhost or level changes
@@ -374,6 +370,9 @@ export default function GameCanvas({
     };
     checkMobile();
 
+    return () => {
+      personalBestSyncCancelled = true;
+    };
   }, [level.id, settings.showGhost, raceMode, demoMode, sceneReady]);
 
   const handleExitAttempt = () => {

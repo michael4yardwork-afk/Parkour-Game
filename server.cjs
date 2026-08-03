@@ -79305,7 +79305,18 @@ var queueTimeLeft = 10;
 var timerActive = false;
 function send(ws, data) {
   if (ws.readyState === import_websocket.default.OPEN) {
-    ws.send(JSON.stringify(data));
+    try {
+      ws.send(JSON.stringify(data));
+    } catch {
+    }
+  }
+}
+function sendRaw(ws, payload) {
+  if (ws.readyState === import_websocket.default.OPEN) {
+    try {
+      ws.send(payload);
+    } catch {
+    }
   }
 }
 function broadcastQueueUpdate() {
@@ -79502,9 +79513,7 @@ function setupWebSocketServer(httpServer2) {
             time
           });
           for (const p of senderRoom.players) {
-            if (p.ws !== ws && p.ws.readyState === import_websocket.default.OPEN) {
-              p.ws.send(payload);
-            }
+            if (p.ws !== ws) sendRaw(p.ws, payload);
           }
           break;
         }
@@ -79527,9 +79536,7 @@ function setupWebSocketServer(httpServer2) {
             time
           });
           for (const p of senderRoom.players) {
-            if (p.ws !== ws && p.ws.readyState === import_websocket.default.OPEN) {
-              p.ws.send(payload);
-            }
+            if (p.ws !== ws) sendRaw(p.ws, payload);
           }
           break;
         }
@@ -79556,7 +79563,7 @@ function setupWebSocketServer(httpServer2) {
               username: disconnectedUsername
             });
             for (const p of room.players) {
-              if (p.ws.readyState === import_websocket.default.OPEN) p.ws.send(dnfPayload);
+              sendRaw(p.ws, dnfPayload);
             }
           } else {
             rooms.delete(roomId);
