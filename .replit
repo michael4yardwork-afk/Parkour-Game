@@ -99,7 +99,7 @@ run = ["node", "./dist/index.cjs"]
 [userenv]
 
 [userenv.shared]
-STRIPE_PRICE_MONTHLY = "price_1Tt9CfCaCz8fOQEhMUTNALy2"
-STRIPE_PRICE_YEARLY = "price_1Tt9CfCaCz8fOQEhTeuHjyJs"
 SUPABASE_URL = "https://yxhkdbocswagfbrrvfcr.supabase.co"
 APP_URL = "https://grey-wildcat-481714.hostingersite.com/"
+STRIPE_PAYMENT_LINK_MONTHLY = "https://buy.stripe.com/3cI14mau09QN8se7TDb7y00"
+STRIPE_PAYMENT_LINK_YEARLY = "https://buy.stripe.com/bJe6oGgSo5AxbEq8XHb7y01"
