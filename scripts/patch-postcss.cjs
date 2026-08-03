@@ -24,6 +24,18 @@ if (!fs.existsSync(target)) {
 
 let src = fs.readFileSync(target, 'utf8');
 
+// PostCSS 8.5.18+ includes the traversal guard upstream. Keep this
+// postinstall script compatible with that implementation and do not attempt
+// to rewrite it using the older patch shape below.
+if (
+  src.includes("relative(dirname(cssFile), path)") &&
+  src.includes("isAbsolute(rel)") &&
+  src.includes("rel.startsWith('..' + sep)")
+) {
+  console.log('[patch-postcss] PostCSS includes the upstream path-traversal fix, nothing to do.');
+  process.exit(0);
+}
+
 // ── Patch 1: add resolve + sep to the path import ─────────────────────────
 const OLD_IMPORT = `let { dirname, join } = require('path')`;
 const NEW_IMPORT = `let { dirname, join, resolve, sep } = require('path')`;
