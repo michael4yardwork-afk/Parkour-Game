@@ -317,321 +317,369 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
   }, []);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 space-y-12 font-sans text-neutral-800 select-none">
-      
-      {/* Top Welcome Ribbon / Profile Widget */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between p-6 bg-neutral-50 rounded-3xl border border-neutral-200/80 gap-6">
-        <div className="flex items-center gap-4">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shadow-md border border-neutral-200 ${currentUser.avatarBg || 'bg-indigo-600'}`}>
-            {currentUser.avatar}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-neutral-950 tracking-tight">Greetings, {currentUser.username}</h2>
-              {isPlatinum ? (
-                <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-bold rounded-full font-mono uppercase tracking-wider">Platinum Plan</span>
-              ) : (
-                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full font-mono uppercase tracking-wider">Regular Plan</span>
+    <div className="min-h-full bg-neutral-950 text-neutral-100 font-sans select-none">
+      <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+
+        {/* ── Profile ribbon ─────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-4 bg-neutral-900 border border-neutral-800 rounded-2xl">
+          <div className="flex items-center gap-4">
+            {/* Avatar with glow ring */}
+            <div className="relative">
+              <div
+                className={`w-13 h-13 w-[52px] h-[52px] rounded-xl flex items-center justify-center text-2xl shadow-lg border border-white/10 ${currentUser.avatarBg || 'bg-indigo-600'}`}
+                style={{ boxShadow: '0 0 18px rgba(99,102,241,0.35)' }}
+              >
+                {currentUser.avatar}
+              </div>
+              {isPlatinum && (
+                <span className="absolute -bottom-1.5 -right-1.5 w-5 h-5 bg-amber-400 rounded-full flex items-center justify-center text-[9px]">👑</span>
               )}
             </div>
-            <p className="text-xs text-neutral-500 mt-0.5 font-mono">
-              Registrant Since: {currentUser.createdAt ? new Date(currentUser.createdAt).toLocaleDateString() : 'Active Session'}
-            </p>
-          </div>
-        </div>
-
-        {/* Quick profile stats */}
-        <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
-          {followers !== null && (
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-neutral-200 rounded-xl shadow-sm">
-              <Users className="w-3.5 h-3.5 text-indigo-500" />
-              <span className="text-neutral-500 uppercase tracking-wider text-[10px]">Followers</span>
-              <span className="font-bold text-neutral-800">{followers.toLocaleString()}</span>
-            </div>
-          )}
-          {rating !== null && (
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-neutral-200 rounded-xl shadow-sm">
-              <Star className="w-3.5 h-3.5" style={{ color: ratingColor }} />
-              <span className="text-neutral-500 uppercase tracking-wider text-[10px]">Rating</span>
-              <span className="font-bold" style={{ color: ratingColor }}>{Math.round(rating)}</span>
-            </div>
-          )}
-          <button
-            onClick={() => {
-              synths.playTick();
-              setShowLogoutConfirm(true);
-            }}
-            className="px-4 py-2 bg-neutral-900 text-white rounded-xl hover:bg-neutral-800 transition flex items-center gap-2 cursor-pointer font-semibold uppercase text-[10px]"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Sign Out
-          </button>
-        </div>
-      </div>
-
-      {/* Title Hero */}
-      <div 
-        ref={bannerRef}
-        className="relative rounded-3xl overflow-hidden bg-neutral-900 text-white p-8 md:p-12 shadow-2xl flex flex-col justify-between min-h-[340px] border border-neutral-800 cursor-crosshair hover:border-indigo-500/40 hover:shadow-indigo-500/5 active:scale-[0.99] transition-all duration-300 select-none"
-      >
-        {/* Sky glow effect */}
-        <div className="absolute inset-x-0 bottom-0 top-1/2 bg-gradient-to-t from-indigo-500/10 via-transparent to-transparent pointer-events-none" />
-
-        {/* Dynamic Sparkle Canvas */}
-        <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-10" />
-
-        <div className="max-w-xl relative z-20 pointer-events-none">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/15 border border-indigo-500/20 text-indigo-400 rounded-full text-[10px] font-mono uppercase font-bold tracking-wider mb-5">
-            <span className="text-sm font-black text-indigo-400 font-sans leading-none">Δ</span>
-            V0.4 Community Release
-          </span>
-          <style dangerouslySetInnerHTML={{__html: `
-            @keyframes rainbow-flow {
-              0% { background-position: 0% 50%; }
-              50% { background-position: 100% 50%; }
-              100% { background-position: 0% 50%; }
-            }
-            .rainbow-text {
-              background: linear-gradient(
-                90deg,
-                #ff3366, #ff9933, #33cc66, #3399ff, #9933ff, #ff3366
-              );
-              background-size: 300% 100%;
-              -webkit-background-clip: text;
-              -webkit-text-fill-color: transparent;
-              background-clip: text;
-              text-fill-color: transparent;
-              animation: rainbow-flow 6s linear infinite;
-              display: inline-block;
-            }
-          `}} />
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-none text-white">
-            <span className="rainbow-text">Delta Rush</span>
-          </h1>
-          <p className="text-sm text-neutral-300 mt-4 leading-relaxed max-w-lg">
-            A high-skill 3D parkour time-trial racer focused on flow, momentum preservation, and precision routing. Run, wall-run, leap off rails, and shave precious milliseconds off your runs as <span className="text-indigo-400 font-bold">{currentUser.username}</span>.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-3 mt-8 pt-6 border-t border-neutral-800/60 relative z-20">
-          <button
-            onClick={() => onNavigate('levels')}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs transition duration-200 shadow-lg hover:shadow-indigo-500/10 hover:scale-102 cursor-pointer"
-          >
-            Select Course
-            <ArrowRight className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => onNavigate('editor')}
-            className="flex items-center gap-2 px-6 py-3 bg-neutral-850 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 rounded-2xl font-semibold text-xs transition duration-200 cursor-pointer"
-          >
-            <Code className="w-4 h-4" />
-            Sandbox Builder
-          </button>
-        </div>
-      </div>
-
-      {/* Personal Records Panel */}
-      <div className="bg-neutral-50 rounded-3xl p-6 md:p-8 border border-neutral-200/80">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-amber-500/10 text-amber-500 rounded-xl">
-            <Trophy className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-neutral-900 tracking-tight">Your Personal Records</h2>
-            <p className="text-xs text-neutral-500">Track your best times across the handcrafted courses</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {DEFAULT_LEVELS.map(lvl => {
-            const score = localStorage.getItem(`best_time_${lvl.id}`);
-            let time = score ? parseFloat(score) : null;
-            if (time !== null && time <= 0.05) {
-              localStorage.removeItem(`best_time_${lvl.id}`);
-              time = null;
-            }
-            return (
-              <div 
-                key={lvl.id} 
-                className="bg-white border border-neutral-200/60 p-4.5 rounded-2xl flex flex-col justify-between shadow-sm hover:border-neutral-300 transition duration-200"
-              >
-                <span className="text-[10px] font-mono font-bold text-neutral-400 block uppercase tracking-wider">{lvl.name}</span>
-                <div className="mt-2.5 flex items-baseline gap-1.55">
-                  {time !== null ? (
-                    <>
-                      <span className="text-2xl font-black font-mono text-neutral-800">
-                        {(() => {
-                          const totalMilliseconds = Math.round(time * 1000);
-                          const m = Math.floor(totalMilliseconds / 60000);
-                          const s = Math.floor((totalMilliseconds % 60000) / 1000);
-                          const ms = totalMilliseconds % 1000;
-                          return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${ms.toString().padStart(3, '0')}s`;
-                        })()}
-                      </span>
-                      <span className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded uppercase font-mono">PB</span>
-                    </>
-                  ) : (
-                    <span className="text-xs font-semibold text-neutral-400 font-mono italic">No record yet</span>
-                  )}
-                </div>
-
-                {time !== null && (
-                  <div id={`standing-percentile-lvl-${lvl.id}`} className="mt-3 text-[10px] font-mono flex items-center justify-between text-neutral-500 border-t border-neutral-100/60 pt-2.5">
-                    {(() => {
-                      const ranking = courseStandings[lvl.id];
-                      return (
-                        <>
-                          <span className="uppercase tracking-wider">
-                            World Rank: <span className="font-bold text-neutral-700">#{ranking?.rank ?? 'N/A'}</span>
-                            {ranking && <span className="text-neutral-400 font-normal font-sans"> / {ranking.total}</span>}
-                          </span>
-                          {ranking && (
-                            <span className="font-bold font-sans text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded text-[10px]">
-                              Top {formatPercentile(ranking.percentile)}%
-                            </span>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-black text-white tracking-tight">
+                  {currentUser.username}
+                </h2>
+                {isPlatinum ? (
+                  <span className="px-2 py-0.5 bg-amber-500/15 text-amber-400 text-[9px] font-bold rounded-full font-mono uppercase tracking-wider border border-amber-500/25">Platinum</span>
+                ) : (
+                  <span className="px-2 py-0.5 bg-neutral-800 text-neutral-500 text-[9px] font-bold rounded-full font-mono uppercase tracking-wider border border-neutral-700">Free</span>
                 )}
               </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Activity Statistics */}
-      <div className="bg-neutral-50 rounded-3xl p-6 md:p-8 border border-neutral-200/80">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-indigo-500/10 text-indigo-500 rounded-xl">
-            <Zap className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-neutral-900 tracking-tight">Activity Statistics</h2>
-            <p className="text-xs text-neutral-500">A snapshot of your overall Delta Rush career</p>
-          </div>
-        </div>
-
-        {isPlatinum ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* Total Completions */}
-          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-amber-300/60 hover:shadow-amber-500/5 transition duration-200 group">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Total Completions</span>
-              <Flag className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <span className="text-3xl font-black font-mono text-neutral-800 leading-none">{totalCompletions}</span>
-            <span className="text-[10px] text-neutral-400 font-mono">runs finished</span>
-          </div>
-
-          {/* Most Liked Course */}
-          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-pink-300/60 hover:shadow-pink-500/5 transition duration-200 group">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Most Liked</span>
-              <Star className="w-3.5 h-3.5 text-pink-400 group-hover:scale-110 transition-transform" />
-            </div>
-            {mostLikedCourse !== null ? (
-              <>
-                <span className="text-2xl font-black font-mono text-neutral-800 leading-none">{mostLikedCourse.likes}</span>
-                <span className="text-[10px] text-neutral-400 font-mono truncate" title={mostLikedCourse.name}>
-                  ♥ {mostLikedCourse.name}
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="text-sm font-semibold text-neutral-400 font-mono italic leading-none">—</span>
-                <span className="text-[10px] text-neutral-400 font-mono">no published courses</span>
-              </>
-            )}
-          </div>
-
-          {/* Best World Rank */}
-          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-indigo-300/60 hover:shadow-indigo-500/5 transition duration-200 group">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Best Rank</span>
-              <Medal className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <span className="text-3xl font-black font-mono text-neutral-800 leading-none">
-              {bestRank !== null ? `#${bestRank}` : '—'}
-            </span>
-            <span className="text-[10px] text-neutral-400 font-mono">world leaderboard</span>
-          </div>
-
-          {/* Total Races */}
-          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-purple-300/60 hover:shadow-purple-500/5 transition duration-200 group">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Total Races</span>
-              <Swords className="w-3.5 h-3.5 text-purple-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <span className="text-3xl font-black font-mono text-neutral-800 leading-none">{totalRaces}</span>
-            <span className="text-[10px] text-neutral-400 font-mono">multiplayer bouts</span>
-          </div>
-
-          {/* Race Wins */}
-          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-rose-300/60 hover:shadow-rose-500/5 transition duration-200 group">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Race Wins</span>
-              <Trophy className="w-3.5 h-3.5 text-rose-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <span className="text-3xl font-black font-mono text-neutral-800 leading-none">{raceWins}</span>
-            <span className="text-[10px] text-neutral-400 font-mono">
-              {totalRaces > 0 ? `${Math.round((raceWins / totalRaces) * 100)}% win rate` : 'no races yet'}
-            </span>
-          </div>
-
-          {/* Courses Built */}
-          <div className="bg-white border border-neutral-200/60 rounded-2xl p-4 flex flex-col gap-2 shadow-sm hover:border-cyan-300/60 hover:shadow-cyan-500/5 transition duration-200 group">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold text-neutral-400 uppercase tracking-wider">Courses Built</span>
-              <Hammer className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
-            </div>
-            <span className="text-3xl font-black font-mono text-neutral-800 leading-none">{coursesBuilt}</span>
-            <span className="text-[10px] text-neutral-400 font-mono">in sandbox builder</span>
-          </div>
-        </div>
-        ) : (
-        <button
-          onClick={() => setGate({ feature: 'Activity Statistics', description: 'Track your race wins, completions, world rank, and full career performance data.' })}
-          className="w-full rounded-2xl border-2 border-dashed border-yellow-400/20 bg-yellow-500/5 hover:bg-yellow-500/10 transition p-8 text-center cursor-pointer"
-        >
-          <Crown className="w-7 h-7 text-yellow-400/60 mx-auto mb-2.5" />
-          <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-yellow-500/70 mb-1">Platinum Feature</p>
-          <p className="text-sm font-semibold text-neutral-400">Activity Statistics</p>
-          <p className="text-xs text-neutral-600 mt-1">Upgrade to Platinum to see your career stats</p>
-        </button>
-        )}
-      </div>
-
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 z-[100] bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-neutral-200/90 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative space-y-4 animate-in fade-in duration-200 text-center">
-            <div className="h-12 w-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mx-auto">
-              <LogOut className="w-5 h-5" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-base font-bold text-neutral-900 tracking-tight">Sign Out of Delta Rush?</h3>
-              <p className="text-xs text-neutral-500 leading-relaxed">
-                Are you sure you want to exit your active runner session? You will need to authenticate again to access your custom levels and stats.
+              <p className="text-[11px] text-neutral-500 mt-0.5 font-mono">
+                Member since {currentUser.createdAt ? new Date(currentUser.createdAt).toLocaleDateString() : 'active session'}
               </p>
             </div>
-            <div className="flex gap-3 pt-2 font-mono text-[11px]">
+          </div>
+
+          {/* Quick stats row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {followers !== null && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800/80 border border-neutral-700/60 rounded-xl">
+                <Users className="w-3 h-3 text-indigo-400" />
+                <span className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider">Followers</span>
+                <span className="text-xs font-black text-white font-mono">{followers.toLocaleString()}</span>
+              </div>
+            )}
+            {rating !== null && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800/80 border border-neutral-700/60 rounded-xl">
+                <Star className="w-3 h-3" style={{ color: ratingColor }} />
+                <span className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider">Rating</span>
+                <span className="text-xs font-black font-mono" style={{ color: ratingColor }}>{Math.round(rating)}</span>
+              </div>
+            )}
+            <button
+              onClick={() => {
+                synths.playTick();
+                setShowLogoutConfirm(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-red-500/15 border border-neutral-700 hover:border-red-500/40 text-neutral-400 hover:text-red-400 rounded-xl transition duration-200 cursor-pointer text-[10px] font-bold font-mono uppercase tracking-wider"
+            >
+              <LogOut className="w-3 h-3" />
+              Sign Out
+            </button>
+          </div>
+        </div>
+
+        {/* ── Hero banner ─────────────────────────────────────────────────── */}
+        <div
+          ref={bannerRef}
+          className="relative rounded-3xl overflow-hidden cursor-crosshair select-none min-h-[300px] flex flex-col justify-between"
+          style={{
+            background: 'linear-gradient(135deg, #0a0a14 0%, #0f0f1e 40%, #0e0a20 100%)',
+            border: '1px solid rgba(99,102,241,0.2)',
+            boxShadow: '0 0 60px rgba(99,102,241,0.08), inset 0 1px 0 rgba(255,255,255,0.04)',
+          }}
+        >
+          {/* Speed-line grid */}
+          <div
+            className="absolute inset-0 pointer-events-none opacity-[0.035]"
+            style={{
+              backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 1px, transparent 1px, transparent 80px), repeating-linear-gradient(0deg, rgba(255,255,255,1) 0px, rgba(255,255,255,1) 1px, transparent 1px, transparent 80px)',
+            }}
+          />
+          {/* Radial glow */}
+          <div className="absolute top-0 right-0 w-80 h-80 rounded-full pointer-events-none"
+            style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)', transform: 'translate(30%, -30%)' }} />
+          <div className="absolute bottom-0 left-1/3 w-96 h-60 pointer-events-none"
+            style={{ background: 'radial-gradient(ellipse, rgba(168,85,247,0.07) 0%, transparent 70%)' }} />
+
+          {/* Particle canvas */}
+          <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-10" />
+
+          <div className="relative z-20 pointer-events-none p-8 md:p-12">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-full text-[9px] font-mono uppercase font-bold tracking-widest mb-4">
+              <span className="text-xs font-black text-indigo-300 leading-none">Δ</span>
+              V0.4 Community Release
+            </span>
+            <style dangerouslySetInnerHTML={{__html: `
+              @keyframes rainbow-flow {
+                0% { background-position: 0% 50%; }
+                50% { background-position: 100% 50%; }
+                100% { background-position: 0% 50%; }
+              }
+              .rainbow-text {
+                background: linear-gradient(
+                  90deg,
+                  #ff3366, #ff9933, #33cc66, #3399ff, #9933ff, #ff3366
+                );
+                background-size: 300% 100%;
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                text-fill-color: transparent;
+                animation: rainbow-flow 6s linear infinite;
+                display: inline-block;
+              }
+            `}} />
+            <h1 className="text-5xl md:text-6xl font-black tracking-tighter leading-none text-white mb-1">
+              <span className="rainbow-text">Delta Rush</span>
+            </h1>
+            <p className="text-sm text-neutral-400 mt-4 leading-relaxed max-w-md">
+              High-skill 3D parkour time-trial racing. Flow, momentum, precision routing.
+              Run as <span className="text-indigo-400 font-bold">{currentUser.username}</span> and shave milliseconds off every run.
+            </p>
+          </div>
+
+          <div className="relative z-20 flex flex-wrap gap-3 px-8 md:px-12 pb-8 md:pb-10">
+            <button
+              onClick={() => onNavigate('levels')}
+              className="flex items-center gap-2 px-6 py-3 text-white rounded-xl font-bold text-xs transition duration-200 cursor-pointer"
+              style={{
+                background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                boxShadow: '0 4px 20px rgba(99,102,241,0.4)',
+              }}
+            >
+              Select Course
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => onNavigate('editor')}
+              className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-neutral-300 rounded-xl font-semibold text-xs transition duration-200 cursor-pointer backdrop-blur-sm"
+            >
+              <Code className="w-4 h-4" />
+              Sandbox Builder
+            </button>
+          </div>
+        </div>
+
+        {/* ── Personal Records ─────────────────────────────────────────────── */}
+        <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 md:p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 rounded-xl" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <Trophy className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-white tracking-tight">Personal Records</h2>
+              <p className="text-[11px] text-neutral-500 font-mono">Best times across all handcrafted courses</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {DEFAULT_LEVELS.map((lvl, i) => {
+              const score = localStorage.getItem(`best_time_${lvl.id}`);
+              let time = score ? parseFloat(score) : null;
+              if (time !== null && time <= 0.05) {
+                localStorage.removeItem(`best_time_${lvl.id}`);
+                time = null;
+              }
+              // Cycle through accent colors per course
+              const accents = [
+                { glow: 'rgba(99,102,241,0.15)', border: 'rgba(99,102,241,0.3)', text: '#818cf8' },
+                { glow: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.25)', text: '#34d399' },
+                { glow: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.25)', text: '#fbbf24' },
+                { glow: 'rgba(236,72,153,0.12)', border: 'rgba(236,72,153,0.25)', text: '#f472b6' },
+                { glow: 'rgba(139,92,246,0.12)', border: 'rgba(139,92,246,0.25)', text: '#a78bfa' },
+                { glow: 'rgba(6,182,212,0.12)', border: 'rgba(6,182,212,0.25)', text: '#22d3ee' },
+              ];
+              const accent = accents[i % accents.length];
+              return (
+                <div
+                  key={lvl.id}
+                  className="relative rounded-2xl p-4 flex flex-col justify-between overflow-hidden transition duration-200 hover:scale-[1.01]"
+                  style={{
+                    background: time ? `linear-gradient(135deg, ${accent.glow}, rgba(15,15,25,0.9))` : 'rgba(255,255,255,0.02)',
+                    border: `1px solid ${time ? accent.border : 'rgba(255,255,255,0.07)'}`,
+                  }}
+                >
+                  <span className="text-[9px] font-mono font-bold text-neutral-500 block uppercase tracking-widest">{lvl.name}</span>
+                  <div className="mt-3 flex items-baseline gap-1.5">
+                    {time !== null ? (
+                      <>
+                        <span className="text-2xl font-black font-mono text-white">
+                          {(() => {
+                            const totalMilliseconds = Math.round(time * 1000);
+                            const m = Math.floor(totalMilliseconds / 60000);
+                            const s = Math.floor((totalMilliseconds % 60000) / 1000);
+                            const ms = totalMilliseconds % 1000;
+                            return `${m > 0 ? `${m}:` : ''}${s.toString().padStart(m > 0 ? 2 : 1, '0')}.${ms.toString().padStart(3, '0')}s`;
+                          })()}
+                        </span>
+                        <span className="text-[9px] font-bold font-mono px-1.5 py-0.5 rounded uppercase" style={{ color: accent.text, background: accent.glow, border: `1px solid ${accent.border}` }}>PB</span>
+                      </>
+                    ) : (
+                      <span className="text-xs font-semibold text-neutral-600 font-mono italic">No record yet</span>
+                    )}
+                  </div>
+
+                  {time !== null && (
+                    <div className="mt-3 pt-2.5 border-t border-white/5 text-[9px] font-mono flex items-center justify-between text-neutral-500">
+                      {(() => {
+                        const ranking = courseStandings[lvl.id];
+                        return (
+                          <>
+                            <span className="uppercase tracking-wider">
+                              Rank: <span className="font-bold text-neutral-300">#{ranking?.rank ?? 'N/A'}</span>
+                              {ranking && <span className="text-neutral-600"> / {ranking.total}</span>}
+                            </span>
+                            {ranking && (
+                              <span className="font-bold rounded px-1.5 py-0.5" style={{ color: accent.text, background: accent.glow }}>
+                                Top {formatPercentile(ranking.percentile)}%
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Activity Statistics ──────────────────────────────────────────── */}
+        <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 md:p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 rounded-xl" style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)' }}>
+              <Zap className="w-4 h-4 text-indigo-400" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-white tracking-tight">Activity Statistics</h2>
+              <p className="text-[11px] text-neutral-500 font-mono">Your overall Delta Rush career snapshot</p>
+            </div>
+          </div>
+
+          {isPlatinum ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* Total Completions */}
+              <div className="rounded-2xl p-4 flex flex-col gap-3 transition duration-200 group hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.04))', border: '1px solid rgba(245,158,11,0.2)' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-widest">Completions</span>
+                  <Flag className="w-3 h-3 text-amber-400" />
+                </div>
+                <span className="text-3xl font-black font-mono text-white leading-none">{totalCompletions}</span>
+                <span className="text-[9px] text-neutral-600 font-mono">runs finished</span>
+              </div>
+
+              {/* Most Liked Course */}
+              <div className="rounded-2xl p-4 flex flex-col gap-3 transition duration-200 group hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, rgba(236,72,153,0.1), rgba(236,72,153,0.04))', border: '1px solid rgba(236,72,153,0.2)' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-widest">Most Liked</span>
+                  <Star className="w-3 h-3 text-pink-400" />
+                </div>
+                {mostLikedCourse !== null ? (
+                  <>
+                    <span className="text-3xl font-black font-mono text-white leading-none">{mostLikedCourse.likes}</span>
+                    <span className="text-[9px] text-neutral-600 font-mono truncate" title={mostLikedCourse.name}>♥ {mostLikedCourse.name}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-lg font-semibold text-neutral-600 font-mono leading-none">—</span>
+                    <span className="text-[9px] text-neutral-600 font-mono">no published courses</span>
+                  </>
+                )}
+              </div>
+
+              {/* Best World Rank */}
+              <div className="rounded-2xl p-4 flex flex-col gap-3 transition duration-200 group hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(99,102,241,0.04))', border: '1px solid rgba(99,102,241,0.2)' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-widest">Best Rank</span>
+                  <Medal className="w-3 h-3 text-indigo-400" />
+                </div>
+                <span className="text-3xl font-black font-mono text-white leading-none">{bestRank !== null ? `#${bestRank}` : '—'}</span>
+                <span className="text-[9px] text-neutral-600 font-mono">world leaderboard</span>
+              </div>
+
+              {/* Total Races */}
+              <div className="rounded-2xl p-4 flex flex-col gap-3 transition duration-200 group hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.1), rgba(139,92,246,0.04))', border: '1px solid rgba(139,92,246,0.2)' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-widest">Total Races</span>
+                  <Swords className="w-3 h-3 text-violet-400" />
+                </div>
+                <span className="text-3xl font-black font-mono text-white leading-none">{totalRaces}</span>
+                <span className="text-[9px] text-neutral-600 font-mono">multiplayer bouts</span>
+              </div>
+
+              {/* Race Wins */}
+              <div className="rounded-2xl p-4 flex flex-col gap-3 transition duration-200 group hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(16,185,129,0.04))', border: '1px solid rgba(16,185,129,0.2)' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-widest">Race Wins</span>
+                  <Trophy className="w-3 h-3 text-emerald-400" />
+                </div>
+                <span className="text-3xl font-black font-mono text-emerald-400 leading-none">{raceWins}</span>
+                <span className="text-[9px] text-neutral-600 font-mono">
+                  {totalRaces > 0 ? `${Math.round((raceWins / totalRaces) * 100)}% win rate` : 'no races yet'}
+                </span>
+              </div>
+
+              {/* Courses Built */}
+              <div className="rounded-2xl p-4 flex flex-col gap-3 transition duration-200 group hover:scale-[1.02]"
+                style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.1), rgba(6,182,212,0.04))', border: '1px solid rgba(6,182,212,0.2)' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono font-bold text-neutral-500 uppercase tracking-widest">Courses Built</span>
+                  <Hammer className="w-3 h-3 text-cyan-400" />
+                </div>
+                <span className="text-3xl font-black font-mono text-white leading-none">{coursesBuilt}</span>
+                <span className="text-[9px] text-neutral-600 font-mono">in sandbox builder</span>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setGate({ feature: 'Activity Statistics', description: 'Track your race wins, completions, world rank, and full career performance data.' })}
+              className="w-full rounded-2xl p-8 text-center cursor-pointer transition duration-200 hover:scale-[1.005]"
+              style={{ background: 'rgba(245,158,11,0.04)', border: '1.5px dashed rgba(245,158,11,0.2)' }}
+            >
+              <Crown className="w-7 h-7 text-amber-400/50 mx-auto mb-3" />
+              <p className="text-[9px] font-mono font-bold uppercase tracking-widest text-amber-500/60 mb-1">Platinum Feature</p>
+              <p className="text-sm font-bold text-neutral-400">Activity Statistics</p>
+              <p className="text-xs text-neutral-600 mt-1">Upgrade to Platinum to see your career stats</p>
+            </button>
+          )}
+        </div>
+
+      </div>
+
+      {/* ── Logout confirm modal ──────────────────────────────────────────── */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[100] bg-neutral-950/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl max-w-sm w-full p-7 shadow-2xl relative space-y-5 text-center"
+            style={{ boxShadow: '0 0 60px rgba(0,0,0,0.6)' }}>
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mx-auto">
+              <LogOut className="w-5 h-5" />
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-base font-black text-white tracking-tight">Sign Out of Delta Rush?</h3>
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                Your session will end. Re-authenticate to access your levels and stats.
+              </p>
+            </div>
+            <div className="flex gap-3 font-mono text-[11px]">
               <button
-                onClick={() => {
-                  synths.playTick();
-                  setShowLogoutConfirm(false);
-                }}
-                className="flex-1 py-2.5 bg-neutral-100 hover:bg-neutral-200/80 border border-neutral-200 text-neutral-700 font-bold rounded-xl transition cursor-pointer uppercase tracking-wider"
+                onClick={() => { synths.playTick(); setShowLogoutConfirm(false); }}
+                className="flex-1 py-2.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 font-bold rounded-xl transition cursor-pointer uppercase tracking-wider"
               >
                 No, Stay
               </button>
               <button
-                onClick={() => {
-                  setShowLogoutConfirm(false);
-                  onLogout();
-                }}
-                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md shadow-indigo-600/15 transition cursor-pointer uppercase tracking-wider"
+                onClick={() => { setShowLogoutConfirm(false); onLogout(); }}
+                className="flex-1 py-2.5 text-white font-bold rounded-xl transition cursor-pointer uppercase tracking-wider"
+                style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', boxShadow: '0 4px 16px rgba(99,102,241,0.3)' }}
               >
                 Yes, Sign Out
               </button>
