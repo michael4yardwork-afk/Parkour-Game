@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import jwt from 'jsonwebtoken';
+import crypto from 'node:crypto';
 
 let stripeClient: Stripe | null = null;
 
@@ -25,7 +25,18 @@ export function isStripeConfigured(): boolean {
 }
 
 export function isPaymentLinksConfigured(): boolean {
-  return Boolean(process.env.STRIPE_PAYMENT_LINK_MONTHLY && process.env.STRIPE_PAYMENT_LINK_YEARLY);
+  return (['monthly', 'yearly'] as const).every(cycle => {
+    const link = cycle === 'monthly'
+      ? process.env.STRIPE_PAYMENT_LINK_MONTHLY
+      : process.env.STRIPE_PAYMENT_LINK_YEARLY;
+    if (!link) return false;
+    try {
+      const parsed = new URL(link);
+      return parsed.protocol === 'https:' && parsed.hostname === 'buy.stripe.com';
+    } catch {
+      return false;
+    }
+  });
 }
 
 export function getPaymentLink(cycle: 'monthly' | 'yearly'): string {
@@ -52,25 +63,53 @@ function paymentLinkReferenceSecret(): string {
   return process.env.JWT_SECRET || process.env.SESSION_SECRET || '';
 }
 
-export function createPaymentLinkReference(userId: number): string {
+type PaymentLinkReference = {
+  userId: number;
+  cycle: 'monthly' | 'yearly';
+};
+
+export function createPaymentLinkReference(userId: number, cycle: PaymentLinkReference['cycle']): string {
   const secret = paymentLinkReferenceSecret();
   if (!secret) throw new Error('JWT_SECRET or SESSION_SECRET is not configured.');
-  return jwt.sign(
-    { purpose: 'stripe_payment_link', userId: String(userId) },
-    secret,
-    { expiresIn: '30m' }
-  );
+  const expiresAt = Math.floor(Date.now() / 1000) + 30 * 60;
+  const payload = `${userId}:${cycle}:${expiresAt}`;
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+  // Stripe accepts only alphanumeric characters, dashes, and underscores in
+  // client_reference_id. Keep the reference compact and independently signed.
+  return `${userId}_${cycle}_${expiresAt}_${signature}`;
 }
 
-export function verifyPaymentLinkReference(reference: string): number | null {
+export function verifyPaymentLinkReference(reference: string): PaymentLinkReference | null {
   const secret = paymentLinkReferenceSecret();
   if (!secret) return null;
+
+  const parts = reference.split('_');
+  if (parts.length !== 4) return null;
+  const [userIdText, cycle, expiresAtText, signature] = parts;
+  if (
+    !/^\d+$/.test(userIdText) ||
+    (cycle !== 'monthly' && cycle !== 'yearly') ||
+    !/^\d+$/.test(expiresAtText) ||
+    !/^[A-Za-z0-9]+$/.test(signature)
+  ) {
+    return null;
+  }
+
+  const userId = Number(userIdText);
+  const expiresAt = Number(expiresAtText);
+  if (!Number.isSafeInteger(userId) || !Number.isSafeInteger(expiresAt) || expiresAt < Math.floor(Date.now() / 1000)) {
+    return null;
+  }
+
   try {
-    const payload = jwt.verify(reference, secret) as { purpose?: string; userId?: string };
-    if (payload.purpose !== 'stripe_payment_link' || !payload.userId || !/^\d+$/.test(payload.userId)) {
+    const payload = `${userId}:${cycle}:${expiresAt}`;
+    const expectedSignature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+    const provided = Buffer.from(signature);
+    const expected = Buffer.from(expectedSignature);
+    if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
       return null;
     }
-    return Number(payload.userId);
+    return { userId, cycle };
   } catch {
     return null;
   }

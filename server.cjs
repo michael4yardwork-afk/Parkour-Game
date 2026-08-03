@@ -48,7 +48,7 @@ var require_main = __commonJS({
     var fs2 = require("fs");
     var path2 = require("path");
     var os2 = require("os");
-    var crypto4 = require("crypto");
+    var crypto5 = require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -292,7 +292,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto4.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto5.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error) {
@@ -20438,14 +20438,14 @@ var require_etag = __commonJS({
   "node_modules/etag/index.js"(exports2, module2) {
     "use strict";
     module2.exports = etag;
-    var crypto4 = require("crypto");
+    var crypto5 = require("crypto");
     var Stats = require("fs").Stats;
     var toString = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash2 = crypto4.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash2 = crypto5.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash2 + '"';
     }
@@ -23338,11 +23338,11 @@ var require_request = __commonJS({
 // node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "node_modules/cookie-signature/index.js"(exports2) {
-    var crypto4 = require("crypto");
+    var crypto5 = require("crypto");
     exports2.sign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto4.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto5.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports2.unsign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Signed cookie string must be provided.");
@@ -23351,7 +23351,7 @@ var require_cookie_signature = __commonJS({
       return sha1(mac) == sha1(val) ? str : false;
     };
     function sha1(str) {
-      return crypto4.createHash("sha1").update(str).digest("hex");
+      return crypto5.createHash("sha1").update(str).digest("hex");
     }
   }
 });
@@ -25636,7 +25636,7 @@ var require_cert_signatures = __commonJS({
 var require_sasl = __commonJS({
   "node_modules/pg/lib/crypto/sasl.js"(exports2, module2) {
     "use strict";
-    var crypto4 = require_utils4();
+    var crypto5 = require_utils4();
     var { signatureAlgorithmHashFromCertificate } = require_cert_signatures();
     function saslprep(password) {
       const nonAsciiSpace = /[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]/g;
@@ -25654,7 +25654,7 @@ var require_sasl = __commonJS({
       if (mechanism === "SCRAM-SHA-256-PLUS" && typeof stream.getPeerCertificate !== "function") {
         throw new Error("SASL: Mechanism SCRAM-SHA-256-PLUS requires a certificate");
       }
-      const clientNonce = crypto4.randomBytes(18).toString("base64");
+      const clientNonce = crypto5.randomBytes(18).toString("base64");
       const gs2Header = mechanism === "SCRAM-SHA-256-PLUS" ? "p=tls-server-end-point" : stream ? "y" : "n";
       return {
         mechanism,
@@ -25696,20 +25696,20 @@ var require_sasl = __commonJS({
         const peerCert = stream.getPeerCertificate().raw;
         let hashName = signatureAlgorithmHashFromCertificate(peerCert);
         if (hashName === "MD5" || hashName === "SHA-1") hashName = "SHA-256";
-        const certHash = await crypto4.hashByName(hashName, peerCert);
+        const certHash = await crypto5.hashByName(hashName, peerCert);
         const bindingData = Buffer.concat([Buffer.from("p=tls-server-end-point,,"), Buffer.from(certHash)]);
         channelBinding = bindingData.toString("base64");
       }
       const clientFinalMessageWithoutProof = "c=" + channelBinding + ",r=" + sv.nonce;
       const authMessage = clientFirstMessageBare + "," + serverFirstMessage + "," + clientFinalMessageWithoutProof;
       const saltBytes = Buffer.from(sv.salt, "base64");
-      const saltedPassword = await crypto4.deriveKey(saslprep(password), saltBytes, sv.iteration);
-      const clientKey = await crypto4.hmacSha256(saltedPassword, "Client Key");
-      const storedKey = await crypto4.sha256(clientKey);
-      const clientSignature = await crypto4.hmacSha256(storedKey, authMessage);
+      const saltedPassword = await crypto5.deriveKey(saslprep(password), saltBytes, sv.iteration);
+      const clientKey = await crypto5.hmacSha256(saltedPassword, "Client Key");
+      const storedKey = await crypto5.sha256(clientKey);
+      const clientSignature = await crypto5.hmacSha256(storedKey, authMessage);
       const clientProof = xorBuffers(Buffer.from(clientKey), Buffer.from(clientSignature)).toString("base64");
-      const serverKey = await crypto4.hmacSha256(saltedPassword, "Server Key");
-      const serverSignatureBytes = await crypto4.hmacSha256(serverKey, authMessage);
+      const serverKey = await crypto5.hmacSha256(saltedPassword, "Server Key");
+      const serverSignatureBytes = await crypto5.hmacSha256(serverKey, authMessage);
       session.message = "SASLResponse";
       session.serverSignature = Buffer.from(serverSignatureBytes).toString("base64");
       session.response = clientFinalMessageWithoutProof + ",p=" + clientProof;
@@ -27939,7 +27939,7 @@ var require_client = __commonJS({
     var Query2 = require_query2();
     var defaults2 = require_defaults();
     var Connection2 = require_connection();
-    var crypto4 = require_utils4();
+    var crypto5 = require_utils4();
     var activeQueryDeprecationNotice = nodeUtils.deprecate(
       () => {
       },
@@ -28190,7 +28190,7 @@ var require_client = __commonJS({
       _handleAuthMD5Password(msg) {
         this._getPassword(async () => {
           try {
-            const hashedPassword = await crypto4.postgresMd5PasswordHash(this.user, this.password, msg.salt);
+            const hashedPassword = await crypto5.postgresMd5PasswordHash(this.user, this.password, msg.salt);
             this.connection.password(hashedPassword);
           } catch (e) {
             this.emit("error", e);
@@ -35620,14 +35620,14 @@ var require_GoTrueAdminApi = __commonJS({
        * @category Auth
        * @subcategory Auth Admin
        */
-      async signOut(jwt4, scope = types_1.SIGN_OUT_SCOPES[0]) {
+      async signOut(jwt3, scope = types_1.SIGN_OUT_SCOPES[0]) {
         if (types_1.SIGN_OUT_SCOPES.indexOf(scope) < 0) {
           throw new Error(`@supabase/auth-js: Parameter scope must be one of ${types_1.SIGN_OUT_SCOPES.join(", ")}`);
         }
         try {
           await (0, fetch_1._request)(this.fetch, "POST", `${this.url}/logout?scope=${scope}`, {
             headers: this.headers,
-            jwt: jwt4,
+            jwt: jwt3,
             noResolveJson: true
           });
           return { data: null, error: null };
@@ -40082,9 +40082,9 @@ var require_GoTrueClient = __commonJS({
        * const { data: { user } } = await supabase.auth.getUser(jwt)
        * ```
        */
-      async getUser(jwt4) {
-        if (jwt4) {
-          return await this._getUser(jwt4);
+      async getUser(jwt3) {
+        if (jwt3) {
+          return await this._getUser(jwt3);
         }
         await this.initializePromise;
         let result;
@@ -40100,12 +40100,12 @@ var require_GoTrueClient = __commonJS({
         }
         return result;
       }
-      async _getUser(jwt4) {
+      async _getUser(jwt3) {
         try {
-          if (jwt4) {
+          if (jwt3) {
             return await (0, fetch_1._request)(this.fetch, "GET", `${this.url}/user`, {
               headers: this.headers,
-              jwt: jwt4,
+              jwt: jwt3,
               xform: fetch_1._userResponse
             });
           }
@@ -42140,17 +42140,17 @@ var require_GoTrueClient = __commonJS({
       /**
        * {@see GoTrueMFAApi#getAuthenticatorAssuranceLevel}
        */
-      async _getAuthenticatorAssuranceLevel(jwt4) {
+      async _getAuthenticatorAssuranceLevel(jwt3) {
         var _a, _b, _c, _d;
-        if (jwt4) {
+        if (jwt3) {
           try {
-            const { payload: payload2 } = (0, helpers_1.decodeJWT)(jwt4);
+            const { payload: payload2 } = (0, helpers_1.decodeJWT)(jwt3);
             let currentLevel2 = null;
             if (payload2.aal) {
               currentLevel2 = payload2.aal;
             }
             let nextLevel2 = currentLevel2;
-            const { data: { user }, error: userError } = await this.getUser(jwt4);
+            const { data: { user }, error: userError } = await this.getUser(jwt3);
             if (userError) {
               return this._returnResult({ data: null, error: userError });
             }
@@ -42437,9 +42437,9 @@ var require_GoTrueClient = __commonJS({
        * }
        * ```
        */
-      async getClaims(jwt4, options = {}) {
+      async getClaims(jwt3, options = {}) {
         try {
-          let token = jwt4;
+          let token = jwt3;
           if (!token) {
             const { data, error } = await this.getSession();
             if (error || !data.session) {
@@ -46799,14 +46799,14 @@ var require_buffer_equal_constant_time = __commonJS({
 var require_jwa = __commonJS({
   "node_modules/jwa/index.js"(exports2, module2) {
     var Buffer2 = require_safe_buffer().Buffer;
-    var crypto4 = require("crypto");
+    var crypto5 = require("crypto");
     var formatEcdsa = require_ecdsa_sig_formatter();
     var util = require("util");
     var MSG_INVALID_ALGORITHM = '"%s" is not a valid algorithm.\n  Supported algorithms are:\n  "HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512" and "none".';
     var MSG_INVALID_SECRET = "secret must be a string or buffer";
     var MSG_INVALID_VERIFIER_KEY = "key must be a string or a buffer";
     var MSG_INVALID_SIGNER_KEY = "key must be a string, a buffer or an object";
-    var supportsKeyObjects = typeof crypto4.createPublicKey === "function";
+    var supportsKeyObjects = typeof crypto5.createPublicKey === "function";
     if (supportsKeyObjects) {
       MSG_INVALID_VERIFIER_KEY += " or a KeyObject";
       MSG_INVALID_SECRET += "or a KeyObject";
@@ -46896,17 +46896,17 @@ var require_jwa = __commonJS({
       return function sign(thing, secret) {
         checkIsSecretKey(secret);
         thing = normalizeInput(thing);
-        var hmac = crypto4.createHmac("sha" + bits, secret);
+        var hmac = crypto5.createHmac("sha" + bits, secret);
         var sig = (hmac.update(thing), hmac.digest("base64"));
         return fromBase64(sig);
       };
     }
     var bufferEqual;
-    var timingSafeEqual2 = "timingSafeEqual" in crypto4 ? function timingSafeEqual3(a, b) {
+    var timingSafeEqual2 = "timingSafeEqual" in crypto5 ? function timingSafeEqual3(a, b) {
       if (a.byteLength !== b.byteLength) {
         return false;
       }
-      return crypto4.timingSafeEqual(a, b);
+      return crypto5.timingSafeEqual(a, b);
     } : function timingSafeEqual3(a, b) {
       if (!bufferEqual) {
         bufferEqual = require_buffer_equal_constant_time();
@@ -46923,7 +46923,7 @@ var require_jwa = __commonJS({
       return function sign(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto4.createSign("RSA-SHA" + bits);
+        var signer = crypto5.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign(privateKey, "base64"));
         return fromBase64(sig);
       };
@@ -46933,7 +46933,7 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto4.createVerify("RSA-SHA" + bits);
+        var verifier = crypto5.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify(publicKey, signature, "base64");
       };
@@ -46942,11 +46942,11 @@ var require_jwa = __commonJS({
       return function sign(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto4.createSign("RSA-SHA" + bits);
+        var signer = crypto5.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign({
           key: privateKey,
-          padding: crypto4.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto4.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto5.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto5.constants.RSA_PSS_SALTLEN_DIGEST
         }, "base64"));
         return fromBase64(sig);
       };
@@ -46956,12 +46956,12 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto4.createVerify("RSA-SHA" + bits);
+        var verifier = crypto5.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify({
           key: publicKey,
-          padding: crypto4.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto4.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto5.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto5.constants.RSA_PSS_SALTLEN_DIGEST
         }, signature, "base64");
       };
     }
@@ -47260,9 +47260,9 @@ var require_jws = __commonJS({
 var require_decode = __commonJS({
   "node_modules/jsonwebtoken/decode.js"(exports2, module2) {
     var jws = require_jws();
-    module2.exports = function(jwt4, options) {
+    module2.exports = function(jwt3, options) {
       options = options || {};
-      var decoded = jws.decode(jwt4, options);
+      var decoded = jws.decode(jwt3, options);
       if (!decoded) {
         return null;
       }
@@ -78923,7 +78923,7 @@ Stripe.initialize(new NodePlatformFunctions());
 var stripe_esm_node_default = Stripe;
 
 // server/stripe.ts
-var import_jsonwebtoken3 = __toESM(require_jsonwebtoken(), 1);
+var import_node_crypto = __toESM(require("node:crypto"), 1);
 var stripeClient = null;
 function getStripeClient() {
   if (!stripeClient) {
@@ -78939,7 +78939,16 @@ function isStripeConfigured() {
   return !!process.env.STRIPE_SECRET_KEY;
 }
 function isPaymentLinksConfigured() {
-  return Boolean(process.env.STRIPE_PAYMENT_LINK_MONTHLY && process.env.STRIPE_PAYMENT_LINK_YEARLY);
+  return ["monthly", "yearly"].every((cycle) => {
+    const link = cycle === "monthly" ? process.env.STRIPE_PAYMENT_LINK_MONTHLY : process.env.STRIPE_PAYMENT_LINK_YEARLY;
+    if (!link) return false;
+    try {
+      const parsed = new URL(link);
+      return parsed.protocol === "https:" && parsed.hostname === "buy.stripe.com";
+    } catch {
+      return false;
+    }
+  });
 }
 function getPaymentLink(cycle) {
   const link = cycle === "monthly" ? process.env.STRIPE_PAYMENT_LINK_MONTHLY : process.env.STRIPE_PAYMENT_LINK_YEARLY;
@@ -78959,33 +78968,46 @@ function getPaymentLink(cycle) {
 function paymentLinkReferenceSecret() {
   return process.env.JWT_SECRET || process.env.SESSION_SECRET || "";
 }
-function createPaymentLinkReference(userId) {
+function createPaymentLinkReference(userId, cycle) {
   const secret = paymentLinkReferenceSecret();
   if (!secret) throw new Error("JWT_SECRET or SESSION_SECRET is not configured.");
-  return import_jsonwebtoken3.default.sign(
-    { purpose: "stripe_payment_link", userId: String(userId) },
-    secret,
-    { expiresIn: "30m" }
-  );
+  const expiresAt = Math.floor(Date.now() / 1e3) + 30 * 60;
+  const payload = `${userId}:${cycle}:${expiresAt}`;
+  const signature = import_node_crypto.default.createHmac("sha256", secret).update(payload).digest("hex");
+  return `${userId}_${cycle}_${expiresAt}_${signature}`;
 }
 function verifyPaymentLinkReference(reference) {
   const secret = paymentLinkReferenceSecret();
   if (!secret) return null;
+  const parts = reference.split("_");
+  if (parts.length !== 4) return null;
+  const [userIdText, cycle, expiresAtText, signature] = parts;
+  if (!/^\d+$/.test(userIdText) || cycle !== "monthly" && cycle !== "yearly" || !/^\d+$/.test(expiresAtText) || !/^[A-Za-z0-9]+$/.test(signature)) {
+    return null;
+  }
+  const userId = Number(userIdText);
+  const expiresAt = Number(expiresAtText);
+  if (!Number.isSafeInteger(userId) || !Number.isSafeInteger(expiresAt) || expiresAt < Math.floor(Date.now() / 1e3)) {
+    return null;
+  }
   try {
-    const payload = import_jsonwebtoken3.default.verify(reference, secret);
-    if (payload.purpose !== "stripe_payment_link" || !payload.userId || !/^\d+$/.test(payload.userId)) {
+    const payload = `${userId}:${cycle}:${expiresAt}`;
+    const expectedSignature = import_node_crypto.default.createHmac("sha256", secret).update(payload).digest("hex");
+    const provided = Buffer.from(signature);
+    const expected = Buffer.from(expectedSignature);
+    if (provided.length !== expected.length || !import_node_crypto.default.timingSafeEqual(provided, expected)) {
       return null;
     }
-    return Number(payload.userId);
+    return { userId, cycle };
   } catch {
     return null;
   }
 }
 
 // server/billingEntitlements.ts
-async function syncSubscriptionEntitlement(subscription) {
+async function syncSubscriptionEntitlement(subscription, planOverride = null) {
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
-  const plan = subscription.metadata?.cycle || null;
+  const plan = planOverride || subscription.metadata?.cycle || null;
   const periodEndItem = subscription.items.data[0];
   const currentPeriodEnd = periodEndItem?.current_period_end ? periodEndItem.current_period_end * 1e3 : null;
   const result = await db_default.query(
@@ -78995,18 +79017,52 @@ async function syncSubscriptionEntitlement(subscription) {
          subscription_plan = COALESCE($3, subscription_plan),
          subscription_current_period_end = $4
      WHERE stripe_customer_id = $5
-     RETURNING id, username`,
+      RETURNING id, username, subscription_plan`,
     [subscription.id, subscription.status, plan, currentPeriodEnd, customerId]
   );
-  return result.rows[0] ?? null;
+  return result.rows[0] ? {
+    id: result.rows[0].id,
+    username: result.rows[0].username,
+    plan: result.rows[0].subscription_plan ?? null
+  } : null;
+}
+
+// server/billingCheckout.ts
+async function associatePaymentLinkCustomer(session, expectedUserId) {
+  if (!session.client_reference_id) return null;
+  const reference = verifyPaymentLinkReference(session.client_reference_id);
+  if (!reference || expectedUserId !== void 0 && reference.userId !== expectedUserId) {
+    return null;
+  }
+  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+  if (!customerId) return null;
+  try {
+    const result = await db_default.query(
+      `UPDATE users
+       SET stripe_customer_id = $1
+       WHERE id = $2
+         AND (
+           stripe_customer_id IS NULL
+           OR stripe_customer_id = $1
+           OR subscription_status IN ('canceled', 'incomplete_expired')
+         )
+       RETURNING id`,
+      [customerId, reference.userId]
+    );
+    if (result.rows.length === 0) return null;
+    return { userId: reference.userId, customerId, cycle: reference.cycle };
+  } catch (error) {
+    if (error?.code === "23505") return null;
+    throw error;
+  }
 }
 
 // server/routes/billing.ts
 var router6 = (0, import_express6.Router)();
 router6.post("/checkout", async (req, res) => {
   try {
-    if (!isPaymentLinksConfigured()) {
-      return res.status(503).json({ error: "Payments are not configured yet." });
+    if (!isPaymentLinksConfigured() || !isStripeConfigured() || !process.env.STRIPE_WEBHOOK_SECRET) {
+      return res.status(503).json({ error: "Payments are not fully configured yet." });
     }
     const account = await getAuthenticatedAccount(req);
     if (!account) return res.status(401).json({ error: "Unauthorized." });
@@ -79026,7 +79082,7 @@ router6.post("/checkout", async (req, res) => {
       return res.status(409).json({ error: "This account already has a billing subscription." });
     }
     const paymentLink = new URL(getPaymentLink(cycle));
-    paymentLink.searchParams.set("client_reference_id", createPaymentLinkReference(user.id));
+    paymentLink.searchParams.set("client_reference_id", createPaymentLinkReference(user.id, cycle));
     res.json({ url: paymentLink.toString() });
   } catch (err) {
     console.error("Checkout session error:", err);
@@ -79046,6 +79102,7 @@ router6.get("/checkout/confirm", async (req, res) => {
     }
     const stripe = getStripeClient();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const paymentLinkAccount = await associatePaymentLinkCustomer(session, account.id);
     const sessionCustomerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
     const owner = await db_default.query(
       "SELECT id, stripe_customer_id FROM users WHERE id = $1",
@@ -79059,7 +79116,7 @@ router6.get("/checkout/confirm", async (req, res) => {
     }
     const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-    const syncedAccount = await syncSubscriptionEntitlement(subscription);
+    const syncedAccount = await syncSubscriptionEntitlement(subscription, paymentLinkAccount?.cycle ?? null);
     if (!syncedAccount || syncedAccount.id !== account.id) {
       return res.status(409).json({ error: "Subscription ownership could not be confirmed." });
     }
@@ -79067,7 +79124,7 @@ router6.get("/checkout/confirm", async (req, res) => {
       confirmed: true,
       isPlatinum: subscription.status === "active" || subscription.status === "trialing",
       status: subscription.status,
-      plan: subscription.metadata?.cycle || null,
+      plan: syncedAccount.plan,
       currentPeriodEnd: subscription.items.data[0]?.current_period_end ? subscription.items.data[0].current_period_end * 1e3 : null
     });
   } catch (err) {
@@ -79160,9 +79217,9 @@ var billing_default = router6;
 var import_express7 = __toESM(require_express2(), 1);
 var router7 = (0, import_express7.Router)();
 async function recordPurchaseEvent(opts) {
-  const { id, userId, username, subscription, eventType, invoiceId, amountCents, currency } = opts;
+  const { id, userId, username, subscription, eventType, plan: planOverride, invoiceId, amountCents, currency } = opts;
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
-  const plan = subscription.metadata?.cycle || null;
+  const plan = planOverride ?? subscription.metadata?.cycle ?? null;
   const periodEndItem = subscription.items.data[0];
   const rawSub = subscription;
   const periodStart = rawSub.current_period_start ? rawSub.current_period_start * 1e3 : null;
@@ -79215,18 +79272,14 @@ router7.post("/", async (req, res) => {
           const stripe = getStripeClient();
           const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const paymentLinkUserId = session.client_reference_id ? verifyPaymentLinkReference(session.client_reference_id) : null;
-          if (paymentLinkUserId) {
-            const sessionCustomerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
-            if (sessionCustomerId) {
-              await db_default.query(
-                `UPDATE users SET stripe_customer_id = $1
-                 WHERE id = $2 AND (stripe_customer_id IS NULL OR subscription_status IS NULL OR subscription_status IN ('canceled', 'incomplete_expired'))`,
-                [sessionCustomerId, paymentLinkUserId]
-              );
-            }
+          const paymentLinkAccount = await associatePaymentLinkCustomer(session);
+          const hasRecognizedPaymentLinkReference = Boolean(
+            session.client_reference_id && verifyPaymentLinkReference(session.client_reference_id)
+          );
+          if (hasRecognizedPaymentLinkReference && !paymentLinkAccount) {
+            throw new Error("Could not bind Payment Link customer to its account.");
           }
-          const account = await syncSubscriptionEntitlement(subscription);
+          const account = await syncSubscriptionEntitlement(subscription, paymentLinkAccount?.cycle ?? null);
           if (account) {
             await recordPurchaseEvent({
               id: `checkout_${event.id}`,
@@ -79234,6 +79287,7 @@ router7.post("/", async (req, res) => {
               username: account.username,
               subscription,
               eventType: "checkout_completed",
+              plan: account.plan,
               invoiceId: typeof session.invoice === "string" ? session.invoice : session.invoice?.id ?? null,
               amountCents: session.amount_total,
               currency: session.currency
@@ -79251,7 +79305,8 @@ router7.post("/", async (req, res) => {
             userId: account.id,
             username: account.username,
             subscription,
-            eventType: "subscription_created"
+            eventType: "subscription_created",
+            plan: account.plan
           });
         }
         break;
@@ -79265,7 +79320,8 @@ router7.post("/", async (req, res) => {
             userId: account.id,
             username: account.username,
             subscription,
-            eventType: "subscription_updated"
+            eventType: "subscription_updated",
+            plan: account.plan
           });
         }
         break;
@@ -79279,7 +79335,8 @@ router7.post("/", async (req, res) => {
             userId: account.id,
             username: account.username,
             subscription,
-            eventType: "subscription_cancelled"
+            eventType: "subscription_cancelled",
+            plan: account.plan
           });
         }
         break;
@@ -79298,6 +79355,7 @@ router7.post("/", async (req, res) => {
               username: account.username,
               subscription,
               eventType: "subscription_renewed",
+              plan: account.plan,
               invoiceId: invoice.id,
               amountCents: invoice.amount_paid,
               currency: invoice.currency

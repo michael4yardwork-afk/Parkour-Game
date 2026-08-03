@@ -5,8 +5,9 @@
  * Usage:
  *   npx tsx scripts/seed-stripe-products.ts
  *
- * Requires STRIPE_SECRET_KEY to be set. Prints the created price IDs —
- * copy them into the STRIPE_PRICE_MONTHLY / STRIPE_PRICE_YEARLY secrets.
+ * Requires STRIPE_SECRET_KEY to be set. This helper creates reusable Stripe
+ * prices, but the app checkout uses Payment Links configured separately as
+ * STRIPE_PAYMENT_LINK_MONTHLY and STRIPE_PAYMENT_LINK_YEARLY.
  *
  * Safe to re-run: if a "Delta Rush Platinum" product already exists, it
  * reuses it and only creates prices that don't already exist yet.
@@ -72,9 +73,9 @@ async function main() {
     console.log('Reusing existing yearly price:', yearly.id);
   }
 
-  console.log('\nSet these as secrets:');
-  console.log(`STRIPE_PRICE_MONTHLY=${monthly.id}`);
-  console.log(`STRIPE_PRICE_YEARLY=${yearly.id}`);
+  console.log('\nPrices created/reused. Configure Stripe Payment Links separately:');
+  console.log(`Monthly price: ${monthly.id}`);
+  console.log(`Yearly price: ${yearly.id}`);
 }
 
 main().catch((err) => {

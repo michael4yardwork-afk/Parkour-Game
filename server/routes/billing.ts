@@ -3,21 +3,9 @@ import pool from '../db';
 import { createPaymentLinkReference, getPaymentLink, getStripeClient, isPaymentLinksConfigured, isStripeConfigured } from '../stripe';
 import { getAuthenticatedAccount } from '../authIdentity';
 import { syncSubscriptionEntitlement } from '../billingEntitlements';
+import { associatePaymentLinkCustomer } from '../billingCheckout';
 
 const router = Router();
-// Where to send the browser back to after Stripe Checkout. Never trust
-// browser-supplied Origin/Referer values for payment redirects.
-function appOrigin(req: Request): string {
-  const configured = process.env.APP_URL;
-  if (configured) {
-    try {
-      return new URL(configured).origin;
-    } catch {
-      // Ignore an invalid configured URL and use the current request host.
-    }
-  }
-  return `${req.protocol}://${req.get('host')}`;
-}
 
 /**
  * POST /api/billing/checkout
@@ -28,8 +16,8 @@ function appOrigin(req: Request): string {
  */
 router.post('/checkout', async (req: Request, res: Response) => {
   try {
-    if (!isPaymentLinksConfigured()) {
-      return res.status(503).json({ error: 'Payments are not configured yet.' });
+    if (!isPaymentLinksConfigured() || !isStripeConfigured() || !process.env.STRIPE_WEBHOOK_SECRET) {
+      return res.status(503).json({ error: 'Payments are not fully configured yet.' });
     }
 
     const account = await getAuthenticatedAccount(req);
@@ -54,7 +42,7 @@ router.post('/checkout', async (req: Request, res: Response) => {
     }
 
     const paymentLink = new URL(getPaymentLink(cycle));
-    paymentLink.searchParams.set('client_reference_id', createPaymentLinkReference(user.id));
+    paymentLink.searchParams.set('client_reference_id', createPaymentLinkReference(user.id, cycle));
     res.json({ url: paymentLink.toString() });
   } catch (err: any) {
     console.error('Checkout session error:', err);
@@ -83,6 +71,7 @@ router.get('/checkout/confirm', async (req: Request, res: Response) => {
 
     const stripe = getStripeClient();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const paymentLinkAccount = await associatePaymentLinkCustomer(session, account.id);
     const sessionCustomerId = typeof session.customer === 'string'
       ? session.customer
       : session.customer?.id;
@@ -107,7 +96,7 @@ router.get('/checkout/confirm', async (req: Request, res: Response) => {
       ? session.subscription
       : session.subscription.id;
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-    const syncedAccount = await syncSubscriptionEntitlement(subscription);
+    const syncedAccount = await syncSubscriptionEntitlement(subscription, paymentLinkAccount?.cycle ?? null);
     if (!syncedAccount || syncedAccount.id !== account.id) {
       return res.status(409).json({ error: 'Subscription ownership could not be confirmed.' });
     }
@@ -116,7 +105,7 @@ router.get('/checkout/confirm', async (req: Request, res: Response) => {
       confirmed: true,
       isPlatinum: subscription.status === 'active' || subscription.status === 'trialing',
       status: subscription.status,
-      plan: (subscription.metadata?.cycle as string) || null,
+      plan: syncedAccount.plan,
       currentPeriodEnd: subscription.items.data[0]?.current_period_end
         ? subscription.items.data[0].current_period_end * 1000
         : null,

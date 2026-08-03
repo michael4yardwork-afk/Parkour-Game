@@ -29,6 +29,17 @@ features even though Stripe has an active subscription.
 validate its customer against the authenticated account, sync the subscription,
 then keep webhook processing for renewals, cancellations, and later changes.
 
+Payment Link `client_reference_id` values must use only Stripe's permitted
+characters and be independently authenticated; a browser-editable account ID
+or a generic JWT is not safe to use directly.
+
+**Why:** Stripe silently drops invalid Payment Link URL parameters, while an
+unsigned reference could redirect a completed payment to another account.
+
+**How to apply:** Use a short-lived, compact signed reference containing the
+immutable account ID and plan, bind the Payment Link customer server-side, and
+make webhook delivery retry when that binding cannot be completed.
+
 Direct Hostinger deployments must rebuild and run the current generated bundle,
 and must provide both Stripe secrets at runtime; price IDs alone do not enable
 checkout or entitlement activation.

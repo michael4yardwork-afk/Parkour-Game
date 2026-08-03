@@ -61,8 +61,8 @@ If running the app directly on Hostinger instead of pointing DNS to Railway:
    | `JWT_SECRET` | Long random JWT signing secret |
    | `STRIPE_SECRET_KEY` | Stripe secret API key |
    | `STRIPE_WEBHOOK_SECRET` | Signing secret for the webhook endpoint |
-   | `STRIPE_PRICE_MONTHLY` | Monthly Platinum Price ID |
-   | `STRIPE_PRICE_YEARLY` | Yearly Platinum Price ID |
+   | `STRIPE_PAYMENT_LINK_MONTHLY` | Live monthly Platinum Payment Link |
+   | `STRIPE_PAYMENT_LINK_YEARLY` | Live yearly Platinum Payment Link |
    | `SUPABASE_URL` | Supabase project URL |
    | `SUPABASE_ANON_KEY` | Supabase public anon/publishable key used for recovery emails |
    | `APP_URL` | Public HTTPS app URL, for example `https://deltarush.win` |
@@ -85,9 +85,9 @@ must be `true`, `recovery.appUrlConfigured` must be `true`, and
 repaired because their redirect destination is already embedded in the link.
 
 Verify the Hostinger runtime before testing a purchase by opening
-`https://your-domain.example/api/health`. The response must show all four
-`billing` configuration values as `true`. If either Stripe secret is `false`,
-Platinum cannot activate.
+`https://your-domain.example/api/health`. The response must show both Payment
+Link flags and both Stripe secret flags as `true`. If either Stripe secret is
+`false`, Platinum cannot activate.
 
 ---
 
