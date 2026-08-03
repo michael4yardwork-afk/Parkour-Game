@@ -93,6 +93,8 @@ export default function App() {
   
   // Game session states
   const [activeLevel, setActiveLevel] = useState<LevelConfig | null>(null);
+  // Remember which screen launched a solo run so exit returns to that screen.
+  const [playReturnTab, setPlayReturnTab] = useState<AppTab>('levels');
   const [raceMode, setRaceMode] = useState<boolean>(false);
   const [raceOpponents, setRaceOpponents] = useState<RaceParticipant[]>([]);
   const raceWsRef = useRef<WebSocket | null>(null);
@@ -159,8 +161,9 @@ export default function App() {
     localStorage.setItem('momentum_player_settings', JSON.stringify(newSettings));
   };
 
-  const handleSelectLevel = (level: LevelConfig) => {
+  const handleSelectLevel = (level: LevelConfig, returnTab: AppTab = 'levels') => {
     setActiveLevel(level);
+    setPlayReturnTab(returnTab);
     setTab('play');
     synths.playTick();
   };
@@ -177,6 +180,7 @@ export default function App() {
     setRaceRoomId(roomId ?? null);
     setRaceStartTime(startTime ?? null);
     setActiveLevel(level);
+    setPlayReturnTab('races');
     setRaceMode(racesMode);
     setRaceOpponents(opponents);
     setTab('play');
@@ -821,7 +825,7 @@ export default function App() {
 
         {tab === 'levels' && (
           <LevelSelector
-            onSelectLevel={handleSelectLevel}
+            onSelectLevel={(level) => handleSelectLevel(level, 'levels')}
             onCreateNewCustom={handleStartBuilder}
             currentUser={currentUser}
           />
@@ -829,7 +833,7 @@ export default function App() {
 
         {tab === 'saved' && (
           <SavedCourses
-            onSelectLevel={handleSelectLevel}
+            onSelectLevel={(level) => handleSelectLevel(level, 'saved')}
             onCreateNewCustom={handleStartBuilder}
             onEditCustom={handleEditCustomLevel}
             currentUser={currentUser}
@@ -840,7 +844,7 @@ export default function App() {
 
         {tab === 'community' && (
           <CommunityCourses
-            onSelectLevel={handleSelectLevel}
+            onSelectLevel={(level) => handleSelectLevel(level, 'community')}
             currentUser={currentUser}
             onViewProfile={handleViewProfile}
             isPlatinum={isPlatinum}
@@ -890,7 +894,7 @@ export default function App() {
             username={viewingProfileUsername}
             currentUser={currentUser}
             onBack={() => setTab(previousTab)}
-            onSelectLevel={handleSelectLevel}
+            onSelectLevel={(level) => handleSelectLevel(level, 'profile')}
             onUpdateCurrentUser={handleUpdateCurrentUser}
             isPlatinum={isPlatinum}
             onUpgrade={handleGoToUpgrade}
@@ -900,7 +904,7 @@ export default function App() {
         {tab === 'notifications' && currentUser && (
           <NotificationsTab
             currentUser={currentUser}
-            onSelectLevel={handleSelectLevel}
+            onSelectLevel={(level) => handleSelectLevel(level, 'notifications')}
             onViewProfile={handleViewProfile}
             onNotificationsChanged={checkUnreadNotifications}
           />
@@ -930,7 +934,7 @@ export default function App() {
               localStorage.setItem('momentum_builder_draft', JSON.stringify(updatedDraft));
               
               // Proceed to launch the testing experience
-              handleSelectLevel(testLevel);
+              handleSelectLevel(testLevel, 'editor');
             }}
           />
         )}
@@ -983,12 +987,10 @@ export default function App() {
 
               if (activeLevel.id === 'test_level_active') {
                 setTab('editor'); // return back to editor sandbox
-              } else if (activeLevel.isCustom) {
-                setTab('saved'); // return back to saved custom levels
               } else if (wasRaces) {
                 setTab('races'); // return back to races tab
               } else {
-                setTab('levels'); // return to levels list
+                setTab(playReturnTab);
               }
             }}
             onShowLeaderboard={() => handleLaunchLeaderboard(activeLevel.id, activeLevel.name)}
