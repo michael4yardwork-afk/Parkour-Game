@@ -12,7 +12,7 @@ import raceRoutes from './routes/race';
 import billingRoutes from './routes/billing';
 import stripeWebhookRoutes from './routes/stripeWebhook';
 import { setupWebSocketServer } from './ws';
-import { isStripeConfigured } from './stripe';
+import { isPaymentLinksConfigured, isStripeConfigured } from './stripe';
 import { supabasePublicConfigured } from './supabase';
 
 // ── Diagnostics: write crash info to startup.log so it is readable
@@ -42,8 +42,8 @@ log(
   `DATABASE_URL=${process.env.DATABASE_URL ? 'set' : 'NOT SET'} ` +
   `STRIPE_SECRET_KEY=${isStripeConfigured() ? 'set' : 'NOT SET'} ` +
   `STRIPE_WEBHOOK_SECRET=${process.env.STRIPE_WEBHOOK_SECRET ? 'set' : 'NOT SET'} ` +
-  `STRIPE_PRICE_MONTHLY=${process.env.STRIPE_PRICE_MONTHLY ? 'set' : 'NOT SET'} ` +
-  `STRIPE_PRICE_YEARLY=${process.env.STRIPE_PRICE_YEARLY ? 'set' : 'NOT SET'}`
+  `STRIPE_PAYMENT_LINK_MONTHLY=${process.env.STRIPE_PAYMENT_LINK_MONTHLY ? 'set' : 'NOT SET'} ` +
+  `STRIPE_PAYMENT_LINK_YEARLY=${process.env.STRIPE_PAYMENT_LINK_YEARLY ? 'set' : 'NOT SET'}`
 );
 
 // Stripe webhook must be registered BEFORE express.json() — Stripe's
@@ -80,8 +80,9 @@ app.get('/api/health', (_req, res) => res.json({
   billing: {
     stripeSecretConfigured: isStripeConfigured(),
     webhookSecretConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
-    monthlyPriceConfigured: Boolean(process.env.STRIPE_PRICE_MONTHLY),
-    yearlyPriceConfigured: Boolean(process.env.STRIPE_PRICE_YEARLY),
+    paymentLinksConfigured: isPaymentLinksConfigured(),
+    monthlyPaymentLinkConfigured: Boolean(process.env.STRIPE_PAYMENT_LINK_MONTHLY),
+    yearlyPaymentLinkConfigured: Boolean(process.env.STRIPE_PAYMENT_LINK_YEARLY),
   },
 }));
 

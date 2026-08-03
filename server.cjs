@@ -35620,14 +35620,14 @@ var require_GoTrueAdminApi = __commonJS({
        * @category Auth
        * @subcategory Auth Admin
        */
-      async signOut(jwt3, scope = types_1.SIGN_OUT_SCOPES[0]) {
+      async signOut(jwt4, scope = types_1.SIGN_OUT_SCOPES[0]) {
         if (types_1.SIGN_OUT_SCOPES.indexOf(scope) < 0) {
           throw new Error(`@supabase/auth-js: Parameter scope must be one of ${types_1.SIGN_OUT_SCOPES.join(", ")}`);
         }
         try {
           await (0, fetch_1._request)(this.fetch, "POST", `${this.url}/logout?scope=${scope}`, {
             headers: this.headers,
-            jwt: jwt3,
+            jwt: jwt4,
             noResolveJson: true
           });
           return { data: null, error: null };
@@ -40082,9 +40082,9 @@ var require_GoTrueClient = __commonJS({
        * const { data: { user } } = await supabase.auth.getUser(jwt)
        * ```
        */
-      async getUser(jwt3) {
-        if (jwt3) {
-          return await this._getUser(jwt3);
+      async getUser(jwt4) {
+        if (jwt4) {
+          return await this._getUser(jwt4);
         }
         await this.initializePromise;
         let result;
@@ -40100,12 +40100,12 @@ var require_GoTrueClient = __commonJS({
         }
         return result;
       }
-      async _getUser(jwt3) {
+      async _getUser(jwt4) {
         try {
-          if (jwt3) {
+          if (jwt4) {
             return await (0, fetch_1._request)(this.fetch, "GET", `${this.url}/user`, {
               headers: this.headers,
-              jwt: jwt3,
+              jwt: jwt4,
               xform: fetch_1._userResponse
             });
           }
@@ -42140,17 +42140,17 @@ var require_GoTrueClient = __commonJS({
       /**
        * {@see GoTrueMFAApi#getAuthenticatorAssuranceLevel}
        */
-      async _getAuthenticatorAssuranceLevel(jwt3) {
+      async _getAuthenticatorAssuranceLevel(jwt4) {
         var _a, _b, _c, _d;
-        if (jwt3) {
+        if (jwt4) {
           try {
-            const { payload: payload2 } = (0, helpers_1.decodeJWT)(jwt3);
+            const { payload: payload2 } = (0, helpers_1.decodeJWT)(jwt4);
             let currentLevel2 = null;
             if (payload2.aal) {
               currentLevel2 = payload2.aal;
             }
             let nextLevel2 = currentLevel2;
-            const { data: { user }, error: userError } = await this.getUser(jwt3);
+            const { data: { user }, error: userError } = await this.getUser(jwt4);
             if (userError) {
               return this._returnResult({ data: null, error: userError });
             }
@@ -42437,9 +42437,9 @@ var require_GoTrueClient = __commonJS({
        * }
        * ```
        */
-      async getClaims(jwt3, options = {}) {
+      async getClaims(jwt4, options = {}) {
         try {
-          let token = jwt3;
+          let token = jwt4;
           if (!token) {
             const { data, error } = await this.getSession();
             if (error || !data.session) {
@@ -47260,9 +47260,9 @@ var require_jws = __commonJS({
 var require_decode = __commonJS({
   "node_modules/jsonwebtoken/decode.js"(exports2, module2) {
     var jws = require_jws();
-    module2.exports = function(jwt3, options) {
+    module2.exports = function(jwt4, options) {
       options = options || {};
-      var decoded = jws.decode(jwt3, options);
+      var decoded = jws.decode(jwt4, options);
       if (!decoded) {
         return null;
       }
@@ -78923,6 +78923,7 @@ Stripe.initialize(new NodePlatformFunctions());
 var stripe_esm_node_default = Stripe;
 
 // server/stripe.ts
+var import_jsonwebtoken3 = __toESM(require_jsonwebtoken(), 1);
 var stripeClient = null;
 function getStripeClient() {
   if (!stripeClient) {
@@ -78937,12 +78938,48 @@ function getStripeClient() {
 function isStripeConfigured() {
   return !!process.env.STRIPE_SECRET_KEY;
 }
-function getPriceId(cycle) {
-  const id = cycle === "monthly" ? process.env.STRIPE_PRICE_MONTHLY : process.env.STRIPE_PRICE_YEARLY;
-  if (!id) {
-    throw new Error(`STRIPE_PRICE_${cycle.toUpperCase()} is not set \u2014 run scripts/seed-stripe-products.ts first.`);
+function isPaymentLinksConfigured() {
+  return Boolean(process.env.STRIPE_PAYMENT_LINK_MONTHLY && process.env.STRIPE_PAYMENT_LINK_YEARLY);
+}
+function getPaymentLink(cycle) {
+  const link = cycle === "monthly" ? process.env.STRIPE_PAYMENT_LINK_MONTHLY : process.env.STRIPE_PAYMENT_LINK_YEARLY;
+  if (!link) {
+    throw new Error(`STRIPE_PAYMENT_LINK_${cycle.toUpperCase()} is not set.`);
   }
-  return id;
+  try {
+    const parsed = new URL(link);
+    if (parsed.protocol !== "https:" || parsed.hostname !== "buy.stripe.com") {
+      throw new Error("Payment link must be a Stripe Payment Link URL.");
+    }
+  } catch {
+    throw new Error(`STRIPE_PAYMENT_LINK_${cycle.toUpperCase()} must be a valid https://buy.stripe.com/ URL.`);
+  }
+  return link;
+}
+function paymentLinkReferenceSecret() {
+  return process.env.JWT_SECRET || process.env.SESSION_SECRET || "";
+}
+function createPaymentLinkReference(userId) {
+  const secret = paymentLinkReferenceSecret();
+  if (!secret) throw new Error("JWT_SECRET or SESSION_SECRET is not configured.");
+  return import_jsonwebtoken3.default.sign(
+    { purpose: "stripe_payment_link", userId: String(userId) },
+    secret,
+    { expiresIn: "30m" }
+  );
+}
+function verifyPaymentLinkReference(reference) {
+  const secret = paymentLinkReferenceSecret();
+  if (!secret) return null;
+  try {
+    const payload = import_jsonwebtoken3.default.verify(reference, secret);
+    if (payload.purpose !== "stripe_payment_link" || !payload.userId || !/^\d+$/.test(payload.userId)) {
+      return null;
+    }
+    return Number(payload.userId);
+  } catch {
+    return null;
+  }
 }
 
 // server/billingEntitlements.ts
@@ -78966,19 +79003,9 @@ async function syncSubscriptionEntitlement(subscription) {
 
 // server/routes/billing.ts
 var router6 = (0, import_express6.Router)();
-function appOrigin(req) {
-  const configured = process.env.APP_URL;
-  if (configured) {
-    try {
-      return new URL(configured).origin;
-    } catch {
-    }
-  }
-  return `${req.protocol}://${req.get("host")}`;
-}
 router6.post("/checkout", async (req, res) => {
   try {
-    if (!isStripeConfigured()) {
+    if (!isPaymentLinksConfigured()) {
       return res.status(503).json({ error: "Payments are not configured yet." });
     }
     const account = await getAuthenticatedAccount(req);
@@ -78987,10 +79014,8 @@ router6.post("/checkout", async (req, res) => {
     if (cycle !== "monthly" && cycle !== "yearly") {
       return res.status(400).json({ error: "Invalid billing cycle." });
     }
-    const stripe = getStripeClient();
     const userRes = await db_default.query(
-      `SELECT id, username, email, stripe_customer_id
-              , subscription_status
+      `SELECT id, subscription_status
        FROM users
        WHERE id = $1`,
       [account.id]
@@ -79000,47 +79025,9 @@ router6.post("/checkout", async (req, res) => {
     if (["active", "trialing", "past_due", "incomplete"].includes(user.subscription_status)) {
       return res.status(409).json({ error: "This account already has a billing subscription." });
     }
-    let customerId = user.stripe_customer_id;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        name: user.username,
-        email: user.email || void 0,
-        metadata: { userId: String(user.id), username: user.username }
-      });
-      customerId = customer.id;
-      try {
-        const saved = await db_default.query(
-          `UPDATE users
-           SET stripe_customer_id = $1
-           WHERE id = $2 AND stripe_customer_id IS NULL
-           RETURNING stripe_customer_id`,
-          [customerId, user.id]
-        );
-        if (saved.rows.length === 0) {
-          customerId = user.stripe_customer_id;
-        }
-      } catch (saveError) {
-        if (saveError?.code !== "23505") throw saveError;
-        const current = await db_default.query(
-          "SELECT stripe_customer_id FROM users WHERE id = $1",
-          [user.id]
-        );
-        customerId = current.rows[0]?.stripe_customer_id;
-      }
-    }
-    if (!customerId) return res.status(409).json({ error: "Could not assign a payment account. Please try again." });
-    const origin = appOrigin(req);
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: customerId,
-      line_items: [{ price: getPriceId(cycle), quantity: 1 }],
-      success_url: `${origin}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/?checkout=cancelled`,
-      client_reference_id: String(user.id),
-      metadata: { userId: String(user.id), username: user.username, cycle },
-      subscription_data: { metadata: { userId: String(user.id), username: user.username, cycle } }
-    });
-    res.json({ url: session.url });
+    const paymentLink = new URL(getPaymentLink(cycle));
+    paymentLink.searchParams.set("client_reference_id", createPaymentLinkReference(user.id));
+    res.json({ url: paymentLink.toString() });
   } catch (err) {
     console.error("Checkout session error:", err);
     res.status(500).json({ error: err.message || "Server error." });
@@ -79228,6 +79215,17 @@ router7.post("/", async (req, res) => {
           const stripe = getStripeClient();
           const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription.id;
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          const paymentLinkUserId = session.client_reference_id ? verifyPaymentLinkReference(session.client_reference_id) : null;
+          if (paymentLinkUserId) {
+            const sessionCustomerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+            if (sessionCustomerId) {
+              await db_default.query(
+                `UPDATE users SET stripe_customer_id = $1
+                 WHERE id = $2 AND (stripe_customer_id IS NULL OR subscription_status IS NULL OR subscription_status IN ('canceled', 'incomplete_expired'))`,
+                [sessionCustomerId, paymentLinkUserId]
+              );
+            }
+          }
           const account = await syncSubscriptionEntitlement(subscription);
           if (account) {
             await recordPurchaseEvent({
@@ -79629,7 +79627,7 @@ var app = (0, import_express8.default)();
 var httpServer = (0, import_http.createServer)(app);
 var PORT = Number(process.env.PORT) || 3001;
 log(
-  `Starting Delta Rush \u2014 PORT=${PORT} NODE_ENV=${process.env.NODE_ENV ?? "(not set)"} DATABASE_URL=${process.env.DATABASE_URL ? "set" : "NOT SET"} STRIPE_SECRET_KEY=${isStripeConfigured() ? "set" : "NOT SET"} STRIPE_WEBHOOK_SECRET=${process.env.STRIPE_WEBHOOK_SECRET ? "set" : "NOT SET"} STRIPE_PRICE_MONTHLY=${process.env.STRIPE_PRICE_MONTHLY ? "set" : "NOT SET"} STRIPE_PRICE_YEARLY=${process.env.STRIPE_PRICE_YEARLY ? "set" : "NOT SET"}`
+  `Starting Delta Rush \u2014 PORT=${PORT} NODE_ENV=${process.env.NODE_ENV ?? "(not set)"} DATABASE_URL=${process.env.DATABASE_URL ? "set" : "NOT SET"} STRIPE_SECRET_KEY=${isStripeConfigured() ? "set" : "NOT SET"} STRIPE_WEBHOOK_SECRET=${process.env.STRIPE_WEBHOOK_SECRET ? "set" : "NOT SET"} STRIPE_PAYMENT_LINK_MONTHLY=${process.env.STRIPE_PAYMENT_LINK_MONTHLY ? "set" : "NOT SET"} STRIPE_PAYMENT_LINK_YEARLY=${process.env.STRIPE_PAYMENT_LINK_YEARLY ? "set" : "NOT SET"}`
 );
 app.use("/api/billing/webhook", import_express8.default.raw({ type: "application/json" }), stripeWebhook_default);
 app.use(import_express8.default.json({ limit: "5mb" }));
@@ -79659,8 +79657,9 @@ app.get("/api/health", (_req, res) => res.json({
   billing: {
     stripeSecretConfigured: isStripeConfigured(),
     webhookSecretConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
-    monthlyPriceConfigured: Boolean(process.env.STRIPE_PRICE_MONTHLY),
-    yearlyPriceConfigured: Boolean(process.env.STRIPE_PRICE_YEARLY)
+    paymentLinksConfigured: isPaymentLinksConfigured(),
+    monthlyPaymentLinkConfigured: Boolean(process.env.STRIPE_PAYMENT_LINK_MONTHLY),
+    yearlyPaymentLinkConfigured: Boolean(process.env.STRIPE_PAYMENT_LINK_YEARLY)
   }
 }));
 app.get("/api/config", (_req, res) => {

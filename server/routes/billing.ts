@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
-import { getStripeClient, isStripeConfigured, getPriceId } from '../stripe';
+import { createPaymentLinkReference, getPaymentLink, getStripeClient, isPaymentLinksConfigured, isStripeConfigured } from '../stripe';
 import { getAuthenticatedAccount } from '../authIdentity';
 import { syncSubscriptionEntitlement } from '../billingEntitlements';
 
@@ -22,13 +22,13 @@ function appOrigin(req: Request): string {
 /**
  * POST /api/billing/checkout
  * Body: { cycle: 'monthly' | 'yearly' }
- * Creates (or reuses) a Stripe customer for the logged-in user and starts a
- * Checkout Session for the Platinum subscription. Returns the Checkout URL
- * to redirect the browser to.
+ * Returns the configured Stripe Payment Link for the selected plan. The
+ * signed client reference lets the webhook securely associate the completed
+ * Payment Link subscription with this authenticated account.
  */
 router.post('/checkout', async (req: Request, res: Response) => {
   try {
-    if (!isStripeConfigured()) {
+    if (!isPaymentLinksConfigured()) {
       return res.status(503).json({ error: 'Payments are not configured yet.' });
     }
 
@@ -40,11 +40,8 @@ router.post('/checkout', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid billing cycle.' });
     }
 
-    const stripe = getStripeClient();
-
     const userRes = await pool.query(
-      `SELECT id, username, email, stripe_customer_id
-              , subscription_status
+      `SELECT id, subscription_status
        FROM users
        WHERE id = $1`,
       [account.id]
@@ -56,51 +53,9 @@ router.post('/checkout', async (req: Request, res: Response) => {
       return res.status(409).json({ error: 'This account already has a billing subscription.' });
     }
 
-    let customerId = user.stripe_customer_id as string | null;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        name: user.username,
-        email: user.email || undefined,
-        metadata: { userId: String(user.id), username: user.username },
-      });
-      customerId = customer.id;
-      try {
-        const saved = await pool.query(
-          `UPDATE users
-           SET stripe_customer_id = $1
-           WHERE id = $2 AND stripe_customer_id IS NULL
-           RETURNING stripe_customer_id`,
-          [customerId, user.id]
-        );
-        if (saved.rows.length === 0) {
-          customerId = user.stripe_customer_id;
-        }
-      } catch (saveError: any) {
-        // A concurrent checkout may have won the unique customer claim.
-        if (saveError?.code !== '23505') throw saveError;
-        const current = await pool.query(
-          'SELECT stripe_customer_id FROM users WHERE id = $1',
-          [user.id]
-        );
-        customerId = current.rows[0]?.stripe_customer_id;
-      }
-    }
-
-    if (!customerId) return res.status(409).json({ error: 'Could not assign a payment account. Please try again.' });
-
-    const origin = appOrigin(req);
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      customer: customerId,
-      line_items: [{ price: getPriceId(cycle), quantity: 1 }],
-      success_url: `${origin}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/?checkout=cancelled`,
-      client_reference_id: String(user.id),
-      metadata: { userId: String(user.id), username: user.username, cycle },
-      subscription_data: { metadata: { userId: String(user.id), username: user.username, cycle } },
-    });
-
-    res.json({ url: session.url });
+    const paymentLink = new URL(getPaymentLink(cycle));
+    paymentLink.searchParams.set('client_reference_id', createPaymentLinkReference(user.id));
+    res.json({ url: paymentLink.toString() });
   } catch (err: any) {
     console.error('Checkout session error:', err);
     res.status(500).json({ error: err.message || 'Server error.' });

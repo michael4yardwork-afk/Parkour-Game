@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import jwt from 'jsonwebtoken';
 
 let stripeClient: Stripe | null = null;
 
@@ -23,12 +24,54 @@ export function isStripeConfigured(): boolean {
   return !!process.env.STRIPE_SECRET_KEY;
 }
 
-// Price IDs for the Platinum plan, created once in the merchant's Stripe
-// account (see scripts/seed-stripe-products.ts) and stored as secrets.
-export function getPriceId(cycle: 'monthly' | 'yearly'): string {
-  const id = cycle === 'monthly' ? process.env.STRIPE_PRICE_MONTHLY : process.env.STRIPE_PRICE_YEARLY;
-  if (!id) {
-    throw new Error(`STRIPE_PRICE_${cycle.toUpperCase()} is not set — run scripts/seed-stripe-products.ts first.`);
+export function isPaymentLinksConfigured(): boolean {
+  return Boolean(process.env.STRIPE_PAYMENT_LINK_MONTHLY && process.env.STRIPE_PAYMENT_LINK_YEARLY);
+}
+
+export function getPaymentLink(cycle: 'monthly' | 'yearly'): string {
+  const link = cycle === 'monthly'
+    ? process.env.STRIPE_PAYMENT_LINK_MONTHLY
+    : process.env.STRIPE_PAYMENT_LINK_YEARLY;
+  if (!link) {
+    throw new Error(`STRIPE_PAYMENT_LINK_${cycle.toUpperCase()} is not set.`);
   }
-  return id;
+
+  try {
+    const parsed = new URL(link);
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'buy.stripe.com') {
+      throw new Error('Payment link must be a Stripe Payment Link URL.');
+    }
+  } catch {
+    throw new Error(`STRIPE_PAYMENT_LINK_${cycle.toUpperCase()} must be a valid https://buy.stripe.com/ URL.`);
+  }
+
+  return link;
+}
+
+function paymentLinkReferenceSecret(): string {
+  return process.env.JWT_SECRET || process.env.SESSION_SECRET || '';
+}
+
+export function createPaymentLinkReference(userId: number): string {
+  const secret = paymentLinkReferenceSecret();
+  if (!secret) throw new Error('JWT_SECRET or SESSION_SECRET is not configured.');
+  return jwt.sign(
+    { purpose: 'stripe_payment_link', userId: String(userId) },
+    secret,
+    { expiresIn: '30m' }
+  );
+}
+
+export function verifyPaymentLinkReference(reference: string): number | null {
+  const secret = paymentLinkReferenceSecret();
+  if (!secret) return null;
+  try {
+    const payload = jwt.verify(reference, secret) as { purpose?: string; userId?: string };
+    if (payload.purpose !== 'stripe_payment_link' || !payload.userId || !/^\d+$/.test(payload.userId)) {
+      return null;
+    }
+    return Number(payload.userId);
+  } catch {
+    return null;
+  }
 }
