@@ -30,8 +30,17 @@ const DEFAULT_SETTINGS: GameSettings = {
   sfxVolume: 0.5,
   showGhost: true,
   invertY: false,
-  showJoystick: true,
-  showJumpButton: true
+  showJoystick: false,
+  showJumpButton: false
+};
+
+const isMobileBrowser = () => {
+  if (typeof window === 'undefined') return false;
+  const userAgent = navigator.userAgent;
+  const isPhoneOrTablet = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(userAgent);
+  const isSmallTouchScreen = navigator.maxTouchPoints > 0
+    && Math.min(window.innerWidth, window.innerHeight) <= 1024;
+  return isPhoneOrTablet || isSmallTouchScreen;
 };
 
 type AppTab = 'home' | 'levels' | 'saved' | 'community' | 'editor' | 'play' | 'races' | 'profile' | 'notifications' | 'upgrade';
@@ -60,7 +69,14 @@ export default function App() {
   });
 
   const [tab, setTab] = useState<AppTab>('home');
-  const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<GameSettings>(() => {
+    const touchControls = isMobileBrowser();
+    return {
+      ...DEFAULT_SETTINGS,
+      showJoystick: touchControls,
+      showJumpButton: touchControls,
+    };
+  });
 
   // Tracks the in-flight race result save so we can await it before returning to the
   // Races tab — otherwise the stats fetched on remount can race ahead of the save.

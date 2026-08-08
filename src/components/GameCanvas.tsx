@@ -365,7 +365,18 @@ export default function GameCanvas({
 
     // Detect mobile device
     const checkMobile = () => {
-      const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      // A computer can have a touch-capable screen, but computer users still
+      // use the keyboard/mouse control scheme by default. Account device
+      // selection takes precedence over browser touch capability.
+      const isPhoneOrTablet = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent);
+      const isSmallTouchScreen = navigator.maxTouchPoints > 0
+        && Math.min(window.innerWidth, window.innerHeight) <= 1024;
+      const detectedMobile = isPhoneOrTablet || isSmallTouchScreen;
+      const isTouch = currentUser?.device === 'computer'
+        ? false
+        : currentUser?.device === 'phone' || currentUser?.device === 'tablet'
+          ? true
+          : detectedMobile;
       isMobileRef.current = isTouch;
     };
     checkMobile();
@@ -373,7 +384,7 @@ export default function GameCanvas({
     return () => {
       personalBestSyncCancelled = true;
     };
-  }, [level.id, settings.showGhost, raceMode, demoMode, sceneReady]);
+  }, [level.id, settings.showGhost, raceMode, demoMode, sceneReady, currentUser?.device]);
 
   const handleExitAttempt = () => {
     if (raceMode && !isCompleted) {
