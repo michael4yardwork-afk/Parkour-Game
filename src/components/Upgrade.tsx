@@ -5,7 +5,8 @@ import { api } from '../api';
 
 type BillingCycle = 'monthly' | 'yearly';
 
-const BUILD_TIME_PORTAL_URL = import.meta.env.VITE_STRIPE_CUSTOMER_PORTAL_URL?.trim() || '';
+const DEFAULT_CUSTOMER_PORTAL_URL = 'https://billing.stripe.com/p/login/3cI14mau09QN8se7TDb7y00';
+const BUILD_TIME_PORTAL_URL = import.meta.env.VITE_STRIPE_CUSTOMER_PORTAL_URL?.trim() || DEFAULT_CUSTOMER_PORTAL_URL;
 
 const FEATURES: { icon: React.ReactNode; title: string; free: string; platinum: string }[] = [
   {

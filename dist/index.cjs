@@ -79721,7 +79721,7 @@ app.get("/api/health", (_req, res) => res.json({
   }
 }));
 app.get("/api/config", (_req, res) => {
-  const portalUrl = process.env.STRIPE_CUSTOMER_PORTAL_URL || process.env.VITE_STRIPE_CUSTOMER_PORTAL_URL || "";
+  const portalUrl = process.env.STRIPE_CUSTOMER_PORTAL_URL || process.env.VITE_STRIPE_CUSTOMER_PORTAL_URL || "https://billing.stripe.com/p/login/3cI14mau09QN8se7TDb7y00";
   res.json({
     stripeCustomerPortalUrl: /^https:\/\/billing\.stripe\.com\/.+/i.test(portalUrl.trim()) ? portalUrl.trim() : ""
   });
