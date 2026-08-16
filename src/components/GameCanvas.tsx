@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as THREE from 'three';
-import { RotateCcw, Award, CheckCircle, Flame, Clock, LogOut } from 'lucide-react';
+import { RotateCcw, Award, CheckCircle, Flame, Clock, LogOut, Maximize2, Minimize2 } from 'lucide-react';
 
 const formatPercentile = (p: number): string => {
   if (p < 1) return p.toFixed(2);
@@ -20,6 +20,24 @@ function makeBotRng(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 0x100000000;
   };
 }
+
+function isTouchGameplayDevice(device?: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const isPhoneOrTablet = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent);
+  const isSmallTouchScreen = navigator.maxTouchPoints > 0
+    && Math.min(window.innerWidth, window.innerHeight) <= 1024;
+  const detectedMobile = isPhoneOrTablet || isSmallTouchScreen;
+
+  // Respect the device choice saved on the account. This prevents a
+  // touch-capable laptop selected as "computer" from entering mobile mode.
+  if (device === 'computer') return false;
+  if (device === 'phone' || device === 'tablet') return true;
+  return detectedMobile;
+}
+
+type FullscreenContainer = HTMLDivElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+};
 import { LevelConfig, GhostFrame, RunReplay, GameSettings, UserAccount, RaceParticipant } from '../types';
 import { synths } from '../audio';
 import { api } from '../api';
@@ -106,6 +124,150 @@ export default function GameCanvas({
   // Canvas ref
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenSupported, setFullscreenSupported] = useState(false);
+
+  // Mobile gameplay uses an explicit fullscreen request because browsers only
+  // allow fullscreen after a user gesture. The first touch/click and the
+  // visible fullscreen button both call this same handler.
+  const requestGameplayFullscreen = useCallback(async () => {
+    if (!isMobileDevice) return;
+    const element = canvasContainerRef.current as FullscreenContainer | null;
+    if (!element) return;
+
+    const activeElement =
+      document.fullscreenElement
+      || (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement;
+    if (activeElement === element) {
+      setIsFullscreen(true);
+      return;
+    }
+
+    try {
+      if (element.requestFullscreen) {
+        await element.requestFullscreen();
+      } else if (element.webkitRequestFullscreen) {
+        await element.webkitRequestFullscreen();
+      }
+      setIsFullscreen(true);
+    } catch (error) {
+      // Fullscreen is optional on some mobile browsers (notably iOS Safari).
+      // A failed request must never interrupt the course or race.
+      console.debug('[GameCanvas] Mobile fullscreen unavailable:', error);
+    }
+  }, [isMobileDevice]);
+
+  const exitGameplayFullscreen = useCallback(async () => {
+    const element = canvasContainerRef.current;
+    const activeElement =
+      document.fullscreenElement
+      || (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement;
+    if (activeElement !== element) {
+      setIsFullscreen(false);
+      return;
+    }
+
+    try {
+      const webkitDocument = document as Document & {
+        webkitExitFullscreen?: () => Promise<void> | void;
+      };
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      } else if (webkitDocument.webkitExitFullscreen) {
+        await webkitDocument.webkitExitFullscreen();
+      }
+    } catch (error) {
+      console.debug('[GameCanvas] Could not exit mobile fullscreen:', error);
+    } finally {
+      setIsFullscreen(false);
+    }
+  }, []);
+
+  // Keep the fullscreen button in sync when the user exits with the browser
+  // gesture or system back button.
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      const activeElement =
+        document.fullscreenElement
+        || (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement;
+      setIsFullscreen(activeElement === canvasContainerRef.current);
+    };
+
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    document.addEventListener('webkitfullscreenchange', syncFullscreenState);
+    syncFullscreenState();
+
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreenState);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreenState);
+    };
+  }, []);
+
+  // Disable browser zoom only while a gameplay screen is mounted. The
+  // dashboard, leaderboard, settings, and auth screens retain normal zoom.
+  useEffect(() => {
+    if (!isTouchGameplayDevice(currentUser?.device)) return;
+
+    setIsMobileDevice(true);
+    const viewport = document.querySelector('meta[name="viewport"]');
+    const previousViewportContent = viewport?.getAttribute('content') ?? null;
+    if (viewport) {
+      viewport.setAttribute(
+        'content',
+        'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'
+      );
+    }
+
+    // Safari's gesture events can bypass the viewport setting. Scope the
+    // prevention to this mounted gameplay screen and restore everything on
+    // exit so the rest of the app remains accessible.
+    const preventBrowserGestureZoom = (event: Event) => event.preventDefault();
+    document.addEventListener('gesturestart', preventBrowserGestureZoom, { passive: false });
+    document.addEventListener('gesturechange', preventBrowserGestureZoom, { passive: false });
+    document.addEventListener('gestureend', preventBrowserGestureZoom, { passive: false });
+
+    return () => {
+      document.removeEventListener('gesturestart', preventBrowserGestureZoom);
+      document.removeEventListener('gesturechange', preventBrowserGestureZoom);
+      document.removeEventListener('gestureend', preventBrowserGestureZoom);
+      if (viewport) {
+        if (previousViewportContent === null) {
+          viewport.removeAttribute('content');
+        } else {
+          viewport.setAttribute('content', previousViewportContent);
+        }
+      }
+      setIsMobileDevice(false);
+    };
+  }, [currentUser?.device]);
+
+  useEffect(() => {
+    const element = canvasContainerRef.current as FullscreenContainer | null;
+    const supported = Boolean(
+      document.fullscreenEnabled
+      || (document as Document & { webkitFullscreenEnabled?: boolean }).webkitFullscreenEnabled
+      || element?.requestFullscreen
+      || element?.webkitRequestFullscreen
+    );
+    setFullscreenSupported(supported);
+
+    return () => {
+      const activeElement =
+        document.fullscreenElement
+        || (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement;
+      if (activeElement !== element) return;
+
+      const webkitDocument = document as Document & {
+        webkitExitFullscreen?: () => Promise<void> | void;
+      };
+      if (document.exitFullscreen) {
+        void document.exitFullscreen().catch(() => undefined);
+      } else if (webkitDocument.webkitExitFullscreen) {
+        void Promise.resolve(webkitDocument.webkitExitFullscreen()).catch(() => undefined);
+      }
+    };
+  }, []);
 
   // Keyboard state
   const keysRef = useRef<{ [key: string]: boolean }>({});
@@ -1794,6 +1956,7 @@ export default function GameCanvas({
 
   // Touch listener hooks setup (Mobile look & touch coordinates lookup)
   const handleTouchStart = (e: React.TouchEvent) => {
+    void requestGameplayFullscreen();
     const halfWidth = window.innerWidth / 2;
     const changedTouches = e.changedTouches;
 
@@ -1908,7 +2071,9 @@ export default function GameCanvas({
 
   // Pointer lock callback trigger for desktops
   const handleCanvasClick = () => {
-    if (!isMobileRef.current && canvasRef.current) {
+    if (isMobileRef.current) {
+      void requestGameplayFullscreen();
+    } else if (canvasRef.current) {
       canvasRef.current.requestPointerLock();
     }
   };
@@ -2751,12 +2916,19 @@ export default function GameCanvas({
   };
 
   return (
-    <div ref={canvasContainerRef} className="relative w-full h-full bg-neutral-950 overflow-hidden select-none">
+    <div
+      ref={canvasContainerRef}
+      className="relative w-full h-full bg-neutral-950 overflow-hidden select-none"
+      style={isMobileDevice ? { touchAction: 'none', overscrollBehavior: 'none' } : undefined}
+    >
       
       {/* 3D WebGL Canvas viewport */}
       <canvas 
         ref={canvasRef} 
         onClick={handleCanvasClick}
+        onPointerDown={() => {
+          if (isMobileRef.current) void requestGameplayFullscreen();
+        }}
         className="w-full h-full block cursor-pointer" 
       />
 
@@ -2920,6 +3092,26 @@ export default function GameCanvas({
                     <span className="text-[10px] font-mono">🔒 Sign Up</span>
                   </button>
                 )}
+                {isMobileDevice && fullscreenSupported && !isFullscreen && (
+                  <button
+                    onClick={() => void requestGameplayFullscreen()}
+                    title="Enter fullscreen"
+                    aria-label="Enter fullscreen"
+                    className="pointer-events-auto bg-neutral-900/90 border border-indigo-500/40 px-2.5 py-1.5 rounded-lg text-indigo-300 hover:text-indigo-200 hover:border-indigo-400 cursor-pointer transition"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {isMobileDevice && fullscreenSupported && isFullscreen && (
+                  <button
+                    onClick={() => void exitGameplayFullscreen()}
+                    title="Exit fullscreen"
+                    aria-label="Exit fullscreen"
+                    className="pointer-events-auto bg-neutral-900/90 border border-neutral-800 px-2.5 py-1.5 rounded-lg text-neutral-400 hover:text-neutral-200 cursor-pointer transition"
+                  >
+                    <Minimize2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   onClick={handleExitAttempt}
                   className="pointer-events-auto bg-neutral-900/90 border border-neutral-800 px-3 py-1.5 rounded-lg text-[10px] text-neutral-400 hover:text-neutral-200 cursor-pointer transition font-mono uppercase"
@@ -3005,6 +3197,7 @@ export default function GameCanvas({
                   {settings.showJumpButton !== false && (
                     <button
                       onTouchStart={(e) => {
+                        void requestGameplayFullscreen();
                         e.stopPropagation();
                         keysRef.current[' '] = true;
                       }}
