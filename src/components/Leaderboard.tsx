@@ -5,6 +5,8 @@ import { api } from '../api';
 import VelocityChart from './VelocityChart';
 import PlatinumGate from './PlatinumGate';
 
+const TOP_TIMES_LIMIT = 100;
+
 interface LeaderboardProps {
   levelId: string;
   levelName: string;
@@ -187,7 +189,7 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
       const uLower = (currentUser?.username || 'Guest').toLowerCase().trim();
       return e.id === 'user_pb' || e.playerName.toLowerCase().trim() === uLower;
     });
-    if (worldView === 'top') return rankedWorldList.slice(0, 10);
+    if (worldView === 'top') return rankedWorldList.slice(0, TOP_TIMES_LIMIT);
     if (userRankIndex === -1) return [];
     const startIndex = Math.max(0, Math.min(userRankIndex - 2, rankedWorldList.length - 5));
     return rankedWorldList.slice(startIndex, startIndex + 5);
@@ -211,7 +213,7 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
     const uLower = (currentUser?.username || 'Guest').toLowerCase().trim();
     return e.id === 'user_pb' || e.playerName.toLowerCase().trim() === uLower;
   });
-  const showUserOutOfTop10 = filter === 'world' && worldView === 'top' && userRankIndexWorld >= 10 && playerPBEntry;
+  const showUserOutOfTop100 = filter === 'world' && worldView === 'top' && userRankIndexWorld >= TOP_TIMES_LIMIT && playerPBEntry;
 
   const formatTime = (secs: number) => {
     if (secs < 0) secs = 0;
@@ -464,7 +466,7 @@ export default function Leaderboard({ levelId, levelName, localBest, onClose, cu
                 );
               })}
 
-              {showUserOutOfTop10 && playerPBEntry && (
+              {showUserOutOfTop100 && playerPBEntry && (
                 <div className="mt-2 pt-2 border-t border-neutral-800/40">
                   <div className="flex items-center justify-between p-3.5 rounded-xl border bg-emerald-500/5 border-emerald-500/20">
                     <div className="flex items-center gap-3">
