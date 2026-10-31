@@ -70,8 +70,8 @@ export default function SettingsModal({
     e.preventDefault();
     setPasswordFeedback(null);
 
-    if (newPassword.length < 6) {
-      setPasswordFeedback({ type: 'error', message: 'New password must be at least 6 characters.' });
+    if (newPassword.length < 12) {
+      setPasswordFeedback({ type: 'error', message: 'New password must be at least 12 characters.' });
       return;
     }
 

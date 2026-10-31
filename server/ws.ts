@@ -1,6 +1,15 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
+import { randomUUID } from 'node:crypto';
 import pool from './db';
+import { getAuthenticatedAccountFromToken, type AuthenticatedAccount } from './authIdentity';
+import {
+  hasRaceParticipantFinished,
+  recordRaceDnf,
+  recordRaceFinish,
+  registerRaceSession,
+} from './raceSessions';
+import { parseClientWsMessage } from './wsProtocol';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -8,6 +17,7 @@ import pool from './db';
 
 interface QueueEntry {
   ws: WebSocket;
+  accountId: number;
   username: string;
   color: string;
   avatar: string;
@@ -17,6 +27,7 @@ interface QueueEntry {
 
 interface RoomPlayer {
   ws: WebSocket;
+  accountId: number;
   username: string;
 }
 
@@ -40,8 +51,33 @@ const DEFAULT_LEVEL_IDS = [
 
 const queue: QueueEntry[] = [];
 const rooms = new Map<string, Room>();
+const authenticatedSockets = new Map<number, WebSocket>();
 
 const MAX_PLAYERS = 6;
+const MAX_CONNECTIONS = 500;
+const MAX_MESSAGES_PER_WINDOW = 300;
+const MESSAGE_WINDOW_MS = 10_000;
+const AUTH_TIMEOUT_MS = 5_000;
+const allowedWsOrigins = new Set<string>();
+for (const configured of [
+  process.env.APP_URL,
+  process.env.REPLIT_DEV_DOMAIN,
+  ...(process.env.REPLIT_DOMAINS || '').split(','),
+]) {
+  if (!configured?.trim()) continue;
+  try {
+    const value = configured.trim();
+    allowedWsOrigins.add(new URL(value.startsWith('http') ? value : `https://${value}`).origin);
+  } catch {
+    // Ignore invalid deployment configuration; it cannot widen the allowlist.
+  }
+}
+if (process.env.NODE_ENV !== 'production') {
+  for (const origin of ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5000',
+    'http://127.0.0.1:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:5000']) {
+    allowedWsOrigins.add(origin);
+  }
+}
 
 let queueTimer: ReturnType<typeof setInterval> | null = null;
 let queueTimeLeft = 10;
@@ -127,7 +163,7 @@ function startRace() {
   const levelId =
     DEFAULT_LEVEL_IDS[Math.floor(Math.random() * DEFAULT_LEVEL_IDS.length)];
   const seed = Math.random();
-  const roomId = `room_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const roomId = randomUUID();
 
   const players = queue.map(q => ({
     username: q.username,
@@ -139,7 +175,7 @@ function startRace() {
 
   const room: Room = {
     id: roomId,
-    players: queue.map(q => ({ ws: q.ws, username: q.username })),
+    players: queue.map(q => ({ ws: q.ws, accountId: q.accountId, username: q.username })),
   };
   rooms.set(roomId, room);
 
@@ -147,6 +183,12 @@ function startRace() {
   // anchored to the same instant, instead of each client starting its own
   // local countdown whenever it happens to receive the message.
   const startTime = Date.now();
+  registerRaceSession(
+    roomId,
+    levelId,
+    queue.map(q => ({ accountId: q.accountId, username: q.username, color: q.color })),
+    startTime
+  );
 
   for (const entry of queue) {
     send(entry.ws, { type: 'RACE_START', roomId, levelId, seed, players, startTime });
@@ -170,173 +212,234 @@ function removeFromQueue(ws: WebSocket): boolean {
 // ---------------------------------------------------------------------------
 
 export function setupWebSocketServer(httpServer: Server) {
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  const wss = new WebSocketServer({
+    server: httpServer,
+    path: '/ws',
+    maxPayload: 4096,
+    perMessageDeflate: false,
+  });
 
   wss.on('error', err => {
     console.error('[WS] WebSocketServer error:', err);
   });
 
-  wss.on('connection', ws => {
-    ws.on('message', async raw => {
-      let msg: any;
-      try {
-        msg = JSON.parse(raw.toString());
-      } catch {
+  wss.on('connection', (ws, request) => {
+    if (wss.clients.size > MAX_CONNECTIONS) {
+      ws.close(1013, 'Server is at capacity');
+      return;
+    }
+
+    const origin = request.headers.origin;
+    if (origin && !allowedWsOrigins.has(origin)) {
+      ws.close(1008, 'Origin not allowed');
+      return;
+    }
+
+    let account: AuthenticatedAccount | null = null;
+    let messageWindowStart = Date.now();
+    let messageCount = 0;
+    let processing = Promise.resolve();
+    let cleanupDone = false;
+
+    const authTimeout = setTimeout(() => {
+      if (!account && ws.readyState === WebSocket.OPEN) {
+        ws.close(4001, 'Authentication required');
+      }
+    }, AUTH_TIMEOUT_MS);
+
+    ws.on('message', raw => {
+      const text = raw.toString();
+      if (Buffer.byteLength(text, 'utf8') > 4096) {
+        ws.close(1009, 'Message too large');
         return;
       }
 
-      switch (msg.type) {
-        // ── Matchmaking ─────────────────────────────────────────────────────
-        case 'QUEUE_JOIN': {
-          const { username, color } = msg;
-          if (!username) break;
+      processing = processing.then(async () => {
+        const now = Date.now();
+        if (now - messageWindowStart >= MESSAGE_WINDOW_MS) {
+          messageWindowStart = now;
+          messageCount = 0;
+        }
+        if (++messageCount > MAX_MESSAGES_PER_WINDOW) {
+          ws.close(1008, 'Message rate limit exceeded');
+          return;
+        }
 
-          // Fetch canonical avatar/avatarBg/rating from DB so the lobby always
-          // shows the player's real profile icon and current ELO, not stale client values.
-          let avatar = msg.avatar || '🏃';
-          let avatarBg = msg.avatarBg || '';
-          let rating = 200;
-          try {
+        const msg = parseClientWsMessage(text);
+        if (!msg) {
+          ws.close(1008, 'Invalid message');
+          return;
+        }
+
+        if (!account) {
+          if (msg.type !== 'AUTH') {
+            ws.close(4001, 'Authentication required');
+            return;
+          }
+          const verifiedAccount = await getAuthenticatedAccountFromToken(msg.token);
+          if (!verifiedAccount) {
+            send(ws, { type: 'AUTH_ERROR', error: 'Authentication failed.' });
+            ws.close(4001, 'Authentication failed');
+            return;
+          }
+
+          const previousSocket = authenticatedSockets.get(verifiedAccount.id);
+          if (previousSocket && previousSocket !== ws && previousSocket.readyState === WebSocket.OPEN) {
+            const alreadyRacing = [...rooms.values()].some(room =>
+              room.players.some(player => player.ws === previousSocket)
+            );
+            if (alreadyRacing) {
+              send(ws, { type: 'AUTH_ERROR', error: 'This account is already in a race.' });
+              ws.close(4003, 'Account already in race');
+              return;
+            }
+            removeFromQueue(previousSocket);
+            previousSocket.close(4001, 'Session replaced');
+          }
+
+          account = verifiedAccount;
+          authenticatedSockets.set(account.id, ws);
+          clearTimeout(authTimeout);
+          send(ws, { type: 'AUTH_OK', username: account.username });
+          return;
+        }
+
+        if (msg.type === 'AUTH') {
+          ws.close(1008, 'Already authenticated');
+          return;
+        }
+
+        switch (msg.type) {
+          case 'QUEUE_JOIN': {
+            const inRoom = [...rooms.values()].some(room =>
+              room.players.some(player => player.accountId === account!.id)
+            );
+            if (inRoom || queue.some(item => item.accountId === account!.id)) {
+              send(ws, { type: 'QUEUE_ERROR', error: 'This account is already queued or racing.' });
+              break;
+            }
+
             const [profileResult, ratingResult] = await Promise.all([
               pool.query(
-                'SELECT avatar, avatar_bg FROM users WHERE LOWER(username) = LOWER($1)',
-                [username]
+                'SELECT username, avatar, avatar_bg FROM users WHERE id = $1',
+                [account.id]
               ),
               pool.query(
                 'SELECT rating FROM user_ratings WHERE LOWER(username) = LOWER($1)',
-                [username]
+                [account.username]
               ),
             ]);
-            if (profileResult.rows.length > 0) {
-              avatar = profileResult.rows[0].avatar || avatar;
-              avatarBg = profileResult.rows[0].avatar_bg || avatarBg;
+            const profile = profileResult.rows[0];
+            if (!profile) {
+              ws.close(4001, 'Account no longer exists');
+              return;
             }
-            if (ratingResult.rows.length > 0) {
-              rating = ratingResult.rows[0].rating ?? rating;
+            queue.push({
+              ws,
+              accountId: account.id,
+              username: profile.username,
+              color: msg.color || '#3b82f6',
+              avatar: profile.avatar || '🏃',
+              avatarBg: profile.avatar_bg || '',
+              rating: Number(ratingResult.rows[0]?.rating ?? 200),
+            });
+
+            if (queue.length >= MAX_PLAYERS) {
+              stopQueueCountdown();
+              startRace();
+              break;
             }
-          } catch {
-            // DB unavailable — fall back to defaults
-          }
-
-          // Remove stale entry for the same connection
-          removeFromQueue(ws);
-          // Also remove any prior entry from same username (reconnect)
-          const byName = queue.findIndex(
-            q => q.username.toLowerCase() === username.toLowerCase()
-          );
-          if (byName !== -1) queue.splice(byName, 1);
-
-          // Evict from any active room — handles the case where the player's
-          // previous race WS wasn't closed before they rejoined the queue.
-          for (const [roomId, room] of rooms.entries()) {
-            const roomIdx = room.players.findIndex(
-              p => p.username.toLowerCase() === username.toLowerCase()
-            );
-            if (roomIdx !== -1) {
-              room.players.splice(roomIdx, 1);
-              if (room.players.length === 0) rooms.delete(roomId);
+            if (queue.length >= 2) {
+              if (timerActive) resetQueueCountdown();
+              else startQueueCountdown();
+            } else {
+              broadcastQueueUpdate();
             }
-          }
-
-          queue.push({
-            ws,
-            username,
-            color: color || '#3b82f6',
-            avatar,
-            avatarBg,
-            rating,
-          });
-
-          // 6 real players — start immediately, no need to wait
-          if (queue.length >= MAX_PLAYERS) {
-            stopQueueCountdown();
-            startRace();
             break;
           }
 
-          // Each new joiner resets the countdown to give everyone fair notice
-          if (queue.length >= 2) {
-            if (timerActive) {
-              resetQueueCountdown();
-            } else {
-              startQueueCountdown();
+          case 'QUEUE_LEAVE':
+            if (removeFromQueue(ws)) {
+              if (queue.length < 2) stopQueueCountdown();
+              broadcastQueueUpdate();
             }
-          } else {
-            broadcastQueueUpdate();
-          }
-          break;
-        }
+            break;
 
-        case 'QUEUE_LEAVE': {
-          if (removeFromQueue(ws)) {
-            if (queue.length < 2) stopQueueCountdown();
-            broadcastQueueUpdate();
-          }
-          break;
-        }
+          case 'FORCE_START':
+            if (queue.some(item => item.ws === ws)) {
+              stopQueueCountdown();
+              startRace();
+            }
+            break;
 
-        case 'FORCE_START': {
-          // Only honour if the sender is in the queue
-          const inQueue = queue.some(q => q.ws === ws);
-          if (inQueue) {
-            stopQueueCountdown();
-            startRace();
+          case 'GAME_TICK': {
+            let senderRoom: Room | undefined;
+            let sender: RoomPlayer | undefined;
+            for (const room of rooms.values()) {
+              const player = room.players.find(item => item.ws === ws);
+              if (player) {
+                senderRoom = room;
+                sender = player;
+                break;
+              }
+            }
+            if (!senderRoom || !sender || sender.accountId !== account.id) break;
+            const payload = JSON.stringify({
+              type: 'GAME_TICK',
+              username: sender.username,
+              x: msg.x,
+              y: msg.y,
+              z: msg.z,
+              ry: msg.ry,
+              time: msg.time,
+            });
+            for (const player of senderRoom.players) {
+              if (player.ws !== ws) sendRaw(player.ws, payload);
+            }
+            break;
           }
-          break;
-        }
 
-        // ── In-race sync ─────────────────────────────────────────────────────
-        case 'GAME_TICK': {
-          const { x, y, z, ry, time } = msg;
-          // Verify sender is actually a member of a room and look up their
-          // server-bound identity — never trust client-supplied roomId/username.
-          let senderRoom: Room | undefined;
-          let senderUsername: string | undefined;
-          for (const room of rooms.values()) {
-            const p = room.players.find(p => p.ws === ws);
-            if (p) { senderRoom = room; senderUsername = p.username; break; }
+          case 'GAME_FINISHED': {
+            let senderRoom: Room | undefined;
+            let sender: RoomPlayer | undefined;
+            for (const room of rooms.values()) {
+              const player = room.players.find(item => item.ws === ws);
+              if (player) {
+                senderRoom = room;
+                sender = player;
+                break;
+              }
+            }
+            if (!senderRoom || !sender || sender.accountId !== account.id) break;
+            const elapsedMs = recordRaceFinish(senderRoom.id, sender.accountId);
+            if (elapsedMs === null) break;
+            const payload = JSON.stringify({
+              type: 'GAME_FINISHED',
+              username: sender.username,
+              time: elapsedMs / 1000,
+            });
+            for (const player of senderRoom.players) {
+              if (player.ws !== ws) sendRaw(player.ws, payload);
+            }
+            break;
           }
-          if (!senderRoom || !senderUsername) break;
-          const payload = JSON.stringify({
-            type: 'GAME_TICK',
-            username: senderUsername,
-            x, y, z, ry, time,
-          });
-          for (const p of senderRoom.players) {
-            if (p.ws !== ws) sendRaw(p.ws, payload);
-          }
-          break;
-        }
 
-        case 'GAME_FINISHED': {
-          const { time } = msg;
-          let senderRoom: Room | undefined;
-          let senderUsername: string | undefined;
-          for (const room of rooms.values()) {
-            const p = room.players.find(p => p.ws === ws);
-            if (p) { senderRoom = room; senderUsername = p.username; break; }
-          }
-          if (!senderRoom || !senderUsername) break;
-          const payload = JSON.stringify({
-            type: 'GAME_FINISHED',
-            username: senderUsername,
-            time,
-          });
-          for (const p of senderRoom.players) {
-            if (p.ws !== ws) sendRaw(p.ws, payload);
-          }
-          break;
+          case 'PING':
+            send(ws, { type: 'PONG' });
+            break;
         }
-
-        // ── Keepalive ────────────────────────────────────────────────────────
-        case 'PING': {
-          send(ws, { type: 'PONG' });
-          break;
-        }
-      }
+      }).catch(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.close(1011, 'Server error');
+      });
     });
 
     const cleanup = () => {
+      if (cleanupDone) return;
+      cleanupDone = true;
+      clearTimeout(authTimeout);
+      if (account && authenticatedSockets.get(account.id) === ws) {
+        authenticatedSockets.delete(account.id);
+      }
       if (removeFromQueue(ws)) {
         if (queue.length < 2) stopQueueCountdown();
         broadcastQueueUpdate();
@@ -344,14 +447,15 @@ export function setupWebSocketServer(httpServer: Server) {
       for (const [roomId, room] of rooms.entries()) {
         const idx = room.players.findIndex(p => p.ws === ws);
         if (idx !== -1) {
-          const disconnectedUsername = room.players[idx].username;
+          const disconnectedPlayer = room.players[idx];
           room.players.splice(idx, 1);
-          // Notify remaining players that this racer DNF'd so they can show
-          // DNF in their standings without waiting for the 60-second timeout.
-          if (room.players.length > 0) {
+          if (!hasRaceParticipantFinished(roomId, disconnectedPlayer.accountId)) {
+            recordRaceDnf(roomId, disconnectedPlayer.accountId);
+          }
+          if (!hasRaceParticipantFinished(roomId, disconnectedPlayer.accountId)) {
             const dnfPayload = JSON.stringify({
               type: 'PLAYER_DNF',
-              username: disconnectedUsername,
+              username: disconnectedPlayer.username,
             });
             for (const p of room.players) {
               sendRaw(p.ws, dnfPayload);

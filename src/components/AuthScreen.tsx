@@ -318,7 +318,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     setFeedback(null);
     synths.playTick();
     if (newPassword.length < 6) {
-      notifyFeedback('error', 'Password must be at least 6 characters long.');
+      notifyFeedback('error', 'Password must be at least 12 characters long.');
       return;
     }
     if (newPassword !== newPasswordConfirm) {
@@ -352,7 +352,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     const trimmedUsername = username.trim();
     if (!trimmedUsername) { notifyFeedback('error', 'Please enter a valid username.'); return; }
     if (trimmedUsername.length < 3) { notifyFeedback('error', 'Username must be at least 3 characters long.'); return; }
-    if (password.length < 6) { notifyFeedback('error', 'Password must be at least 6 characters long.'); return; }
+    if (password.length < 12) { notifyFeedback('error', 'Password must be at least 12 characters long.'); return; }
 
     setIsLoading(true);
     try {
@@ -575,7 +575,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><Lock className="w-4 h-4" /></span>
                     <input
-                      type={showNewPassword ? 'text' : 'password'} placeholder="Min. 6 characters" value={newPassword}
+                      type={showNewPassword ? 'text' : 'password'} placeholder="Min. 12 characters" value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-10 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
                       minLength={6} autoFocus required

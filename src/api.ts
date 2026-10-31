@@ -126,11 +126,13 @@ export const api = {
       });
     },
 
-    async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
-      return apiFetch<{ message: string }>('/auth/change-password', {
+    async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string; token: string }> {
+      const result = await apiFetch<{ message: string; token: string }>('/auth/change-password', {
         method: 'POST',
         body: JSON.stringify({ currentPassword, newPassword })
       });
+      localStorage.setItem('delta_rush_token', result.token);
+      return result;
     },
 
     async forgotPassword(email: string): Promise<{ message: string; method?: 'supabase-link' }> {
@@ -305,10 +307,16 @@ export const api = {
       }
     },
 
-    async saveRaceResult(username: string, result: RaceHistoryEntry): Promise<void> {
+    async saveRaceResult(username: string, result: RaceHistoryEntry & { raceId?: string | null }): Promise<void> {
+      const {
+        id: _untrustedId,
+        ratingChange: _untrustedRatingChange,
+        newRating: _untrustedNewRating,
+        ...validatedDisplayFields
+      } = result;
       await apiFetch(`/users/${encodeURIComponent(username)}/race-result`, {
         method: 'POST',
-        body: JSON.stringify(result)
+        body: JSON.stringify(validatedDisplayFields)
       });
     },
 

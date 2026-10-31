@@ -1,8 +1,22 @@
 import { Pool } from 'pg';
 
+const isProduction = process.env.NODE_ENV === 'production';
+const databaseSslDisabled = process.env.DATABASE_SSL === 'false';
+if (isProduction && databaseSslDisabled) {
+  throw new Error('DATABASE_SSL=false is not allowed in production.');
+}
+
+function databaseSslOptions() {
+  if (!process.env.DATABASE_URL || databaseSslDisabled) return false;
+  const ca = process.env.DATABASE_SSL_CA;
+  return ca
+    ? { rejectUnauthorized: true, ca }
+    : { rejectUnauthorized: true };
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+  ssl: databaseSslOptions(),
 });
 
 export async function initDb() {
@@ -11,6 +25,7 @@ export async function initDb() {
       id SERIAL PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
+      token_version INTEGER NOT NULL DEFAULT 0,
       avatar TEXT NOT NULL DEFAULT '🚀',
       avatar_bg TEXT NOT NULL DEFAULT 'bg-indigo-500',
       created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000
@@ -92,6 +107,24 @@ export async function initDb() {
       rating INTEGER NOT NULL DEFAULT 200,
       color TEXT DEFAULT '#3b82f6'
     );
+  `);
+
+  await pool.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
+
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      token_hash TEXT PRIMARY KEY,
+      created_at BIGINT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS rate_limit_entries (
+      key TEXT PRIMARY KEY,
+      total_hits INTEGER NOT NULL,
+      reset_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_rate_limit_entries_reset_at
+      ON rate_limit_entries(reset_at);
   `);
 
   await pool.query(`

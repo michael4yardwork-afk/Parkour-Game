@@ -1,16 +1,16 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
-import { getVerifiedToken } from '../authIdentity';
+import { getAuthenticatedAccount } from '../authIdentity';
 import { deleteRaceHistoryForLevel } from '../supabaseRaceHistory';
 
 const router = Router();
-function getAuth(req: Request): string | null {
-  return getVerifiedToken(req)?.username ?? null;
+async function getAuth(req: Request): Promise<string | null> {
+  return (await getAuthenticatedAccount(req))?.username ?? null;
 }
 
 router.get('/courses', async (req: Request, res: Response) => {
   try {
-    const username = getAuth(req);
+    const username = await getAuth(req);
 
     const coursesResult = await pool.query(`
       SELECT c.id, c.name, c.description, c.blocks, c.theme, c.creator, c.created_at,
@@ -60,41 +60,62 @@ router.get('/courses', async (req: Request, res: Response) => {
 });
 
 router.post('/courses', async (req: Request, res: Response) => {
+  let client: Awaited<ReturnType<typeof pool.connect>> | undefined;
   try {
-    const username = getAuth(req);
+    const username = await getAuth(req);
     if (!username) return res.status(401).json({ error: 'Unauthorized.' });
 
-    const { id, name, description, blocks, theme, createdAt } = req.body;
+    const { id, name, description, blocks, theme } = req.body;
 
-    if (!id || !name || !blocks || !Array.isArray(blocks)) {
+    const validThemes = ['sky_islands', 'neon_grid', 'industrial_rust', 'mountain_sunset', 'abstract_white'];
+    if (
+      typeof id !== 'string' || id.length < 1 || id.length > 100 ||
+      typeof name !== 'string' || name.trim().length < 1 || name.length > 80 ||
+      typeof description !== 'string' || description.length > 1000 ||
+      !Array.isArray(blocks) || blocks.length > 1000 ||
+      typeof theme !== 'string' || !validThemes.includes(theme)
+    ) {
       return res.status(400).json({ error: 'Invalid course data.' });
     }
 
-    // ── Step 1: check whether this exact course is already live ──────────────
-    const existing = await pool.query(
-      'SELECT id, is_published FROM community_courses WHERE id = $1',
-      [id]
-    );
+    client = await pool.connect();
+    await client.query('BEGIN');
 
-    if (existing.rows.length > 0 && existing.rows[0].is_published) {
-      return res.status(409).json({ error: 'Course already published.' });
-    }
-
-    // ── Step 2: enforce 1-course publish limit for non-platinum users ─────────
-    // Count is taken AFTER the already-published guard so the course being
-    // re-published (is_published was FALSE) is not in the count.
-    const subRes = await pool.query(
-      'SELECT subscription_status FROM users WHERE LOWER(username) = LOWER($1)',
+    // Serialize publication checks per account, then lock the target course.
+    // The ownership predicate is repeated in the write itself to avoid TOCTOU.
+    const subRes = await client.query(
+      'SELECT subscription_status FROM users WHERE LOWER(username) = LOWER($1) FOR UPDATE',
       [username]
     );
+    if (subRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(401).json({ error: 'Account not found.' });
+    }
+    const existing = await client.query(
+      'SELECT id, creator, is_published FROM community_courses WHERE id = $1 FOR UPDATE',
+      [id]
+    );
+    if (existing.rows.length > 0 && existing.rows[0].is_published) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Course already published.' });
+    }
+    if (
+      existing.rows.length > 0 &&
+      existing.rows[0].creator.toLowerCase() !== username.toLowerCase()
+    ) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Not authorized to publish this course.' });
+    }
+
     const isPlatinum = ['active', 'trialing'].includes(subRes.rows[0]?.subscription_status ?? '');
 
     if (!isPlatinum) {
-      const publishedCount = await pool.query(
+      const publishedCount = await client.query(
         'SELECT COUNT(*) AS cnt FROM community_courses WHERE LOWER(creator) = LOWER($1) AND is_published = TRUE',
         [username]
       );
       if (parseInt(publishedCount.rows[0].cnt) >= 1) {
+        await client.query('ROLLBACK');
         return res.status(403).json({
           error: 'platinum_required',
           message: 'Free accounts can publish 1 course. Upgrade to Platinum for unlimited publishing.',
@@ -102,22 +123,26 @@ router.post('/courses', async (req: Request, res: Response) => {
       }
     }
 
-    // ── Step 3: insert or re-publish ─────────────────────────────────────────
     if (existing.rows.length > 0) {
-      // Row exists but was unpublished — re-publish it with fresh data.
-      await pool.query(
+      const updated = await client.query(
         `UPDATE community_courses
          SET name = $2, description = $3, blocks = $4, theme = $5, is_published = TRUE
-         WHERE id = $1`,
-        [id, name, description || '', JSON.stringify(blocks), theme || 'sky_islands']
+         WHERE id = $1 AND LOWER(creator) = LOWER($6) AND is_published = FALSE
+         RETURNING id`,
+        [id, name.trim(), description, JSON.stringify(blocks), theme, username]
       );
+      if (updated.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Not authorized to publish this course.' });
+      }
     } else {
-      await pool.query(
+      await client.query(
         `INSERT INTO community_courses (id, name, description, blocks, theme, creator, created_at, is_published)
          VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)`,
-        [id, name, description || '', JSON.stringify(blocks), theme || 'sky_islands', username, createdAt || Date.now()]
+        [id, name.trim(), description, JSON.stringify(blocks), theme, username, Date.now()]
       );
     }
+    await client.query('COMMIT');
 
     await pool.query(
       `INSERT INTO course_bookmarks (course_id, username) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
@@ -140,14 +165,19 @@ router.post('/courses', async (req: Request, res: Response) => {
 
     res.json({ success: true });
   } catch (err) {
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch {}
+    }
     console.error(err);
     res.status(500).json({ error: 'Server error.' });
+  } finally {
+    client?.release();
   }
 });
 
 router.delete('/courses/:id', async (req: Request, res: Response) => {
   try {
-    const username = getAuth(req);
+    const username = await getAuth(req);
     if (!username) return res.status(401).json({ error: 'Unauthorized.' });
 
     const result = await pool.query(
@@ -171,7 +201,7 @@ router.delete('/courses/:id', async (req: Request, res: Response) => {
 router.patch('/courses/:id/unpublish', async (req: Request, res: Response) => {
   let client;
   try {
-    const username = getAuth(req);
+    const username = await getAuth(req);
     if (!username) return res.status(401).json({ error: 'Unauthorized.' });
 
     client = await pool.connect();
@@ -222,7 +252,7 @@ router.patch('/courses/:id/unpublish', async (req: Request, res: Response) => {
 
 router.post('/courses/:id/like', async (req: Request, res: Response) => {
   try {
-    const username = getAuth(req);
+    const username = await getAuth(req);
     if (!username) return res.status(401).json({ error: 'Unauthorized.' });
 
     const courseId = req.params.id;
@@ -253,7 +283,7 @@ router.post('/courses/:id/like', async (req: Request, res: Response) => {
 
 router.post('/courses/:id/bookmark', async (req: Request, res: Response) => {
   try {
-    const username = getAuth(req);
+    const username = await getAuth(req);
     if (!username) return res.status(401).json({ error: 'Unauthorized.' });
 
     const courseId = req.params.id;
@@ -304,7 +334,7 @@ router.post('/courses/:id/bookmark', async (req: Request, res: Response) => {
 
 router.get('/drafts', async (req: Request, res: Response) => {
   try {
-    const username = getAuth(req);
+    const username = await getAuth(req);
     if (!username) return res.status(401).json({ error: 'Unauthorized.' });
 
     const result = await pool.query(
@@ -334,13 +364,19 @@ router.get('/drafts', async (req: Request, res: Response) => {
 
 router.put('/drafts/:id', async (req: Request, res: Response) => {
   try {
-    const username = getAuth(req);
+    const username = await getAuth(req);
     if (!username) return res.status(401).json({ error: 'Unauthorized.' });
 
     const { id } = req.params;
-    const { name, description, blocks, theme, createdAt } = req.body;
+    const { name, description, blocks, theme } = req.body;
 
-    if (!name || !blocks || !Array.isArray(blocks)) {
+    const validThemes = ['sky_islands', 'neon_grid', 'industrial_rust', 'mountain_sunset', 'abstract_white'];
+    if (
+      typeof name !== 'string' || name.trim().length < 1 || name.length > 80 ||
+      typeof description !== 'string' || description.length > 1000 ||
+      !Array.isArray(blocks) || blocks.length > 1000 ||
+      typeof theme !== 'string' || !validThemes.includes(theme)
+    ) {
       return res.status(400).json({ error: 'Invalid course data.' });
     }
 
@@ -358,17 +394,21 @@ router.put('/drafts/:id', async (req: Request, res: Response) => {
       if (row.creator.toLowerCase() !== username.toLowerCase()) {
         return res.status(403).json({ error: 'Not authorized.' });
       }
-      await pool.query(
+      const updated = await pool.query(
         `UPDATE community_courses
          SET name = $2, description = $3, blocks = $4, theme = $5
-         WHERE id = $1`,
-        [id, name, description || '', JSON.stringify(blocks), theme || 'sky_islands']
+         WHERE id = $1 AND LOWER(creator) = LOWER($6) AND is_published = FALSE
+         RETURNING id`,
+        [id, name.trim(), description, JSON.stringify(blocks), theme, username]
       );
+      if (updated.rows.length === 0) {
+        return res.status(403).json({ error: 'Not authorized.' });
+      }
     } else {
       await pool.query(
         `INSERT INTO community_courses (id, name, description, blocks, theme, creator, created_at, is_published)
          VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE)`,
-        [id, name, description || '', JSON.stringify(blocks), theme || 'sky_islands', username, createdAt || Date.now()]
+        [id, name.trim(), description, JSON.stringify(blocks), theme, username, Date.now()]
       );
     }
 
@@ -381,7 +421,7 @@ router.put('/drafts/:id', async (req: Request, res: Response) => {
 
 router.delete('/drafts/:id', async (req: Request, res: Response) => {
   try {
-    const username = getAuth(req);
+    const username = await getAuth(req);
     if (!username) return res.status(401).json({ error: 'Unauthorized.' });
 
     const result = await pool.query(
@@ -406,7 +446,7 @@ router.delete('/drafts/:id', async (req: Request, res: Response) => {
 
 router.get('/saved', async (req: Request, res: Response) => {
   try {
-    const username = getAuth(req);
+    const username = await getAuth(req);
     if (!username) return res.status(401).json({ error: 'Unauthorized.' });
 
     const result = await pool.query(`

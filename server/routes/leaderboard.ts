@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
 import pool from '../db';
-import { getVerifiedToken } from '../authIdentity';
+import { getAuthenticatedAccount } from '../authIdentity';
 
 const router = Router();
-function getAuth(req: Request): string | null {
-  return getVerifiedToken(req)?.username ?? null;
+async function getAuth(req: Request): Promise<string | null> {
+  return (await getAuthenticatedAccount(req))?.username ?? null;
 }
 
 router.get('/:levelId', async (req: Request, res: Response) => {
@@ -52,7 +52,7 @@ router.get('/:levelId/:entryId/frames', async (req: Request, res: Response) => {
 
 router.post('/:levelId', async (req: Request, res: Response) => {
   try {
-    const username = getAuth(req);
+    const username = await getAuth(req);
     const { levelId } = req.params;
     const { time, date, device, speeds, frames } = req.body;
 
@@ -124,7 +124,7 @@ router.post('/:levelId', async (req: Request, res: Response) => {
 
 router.delete('/:levelId/my-runs', async (req: Request, res: Response) => {
   try {
-    const username = getAuth(req);
+    const username = await getAuth(req);
     if (!username) return res.status(401).json({ error: 'Unauthorized.' });
 
     const { levelId } = req.params;

@@ -1,17 +1,19 @@
 import { Router, Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
 import pool from '../db';
-import { getAuthenticatedAccount, getVerifiedToken } from '../authIdentity';
+import { getAuthenticatedAccount } from '../authIdentity';
 import { backupRaceHistoryToSupabase } from '../supabaseRaceHistory';
+import { applyRatingChange, getVerifiedRaceOutcomes, isRaceParticipant } from '../raceSessions';
 
 const router = Router();
-function getAuth(req: Request): string | null {
-  return getVerifiedToken(req)?.username ?? null;
+async function getAuth(req: Request): Promise<string | null> {
+  return (await getAuthenticatedAccount(req))?.username ?? null;
 }
 
 router.get('/:username/profile', async (req: Request, res: Response) => {
   try {
     const { username } = req.params;
-    const viewer = getAuth(req);
+    const viewer = await getAuth(req);
 
     const userRes = await pool.query(
       'SELECT username, avatar, avatar_bg, created_at, subscription_status FROM users WHERE LOWER(username) = LOWER($1)',
@@ -98,7 +100,7 @@ router.get('/:username/profile', async (req: Request, res: Response) => {
 
 router.post('/:username/follow', async (req: Request, res: Response) => {
   try {
-    const viewer = getAuth(req);
+    const viewer = await getAuth(req);
     if (!viewer) return res.status(401).json({ error: 'Unauthorized.' });
 
     const { username } = req.params;
@@ -144,7 +146,7 @@ router.post('/:username/follow', async (req: Request, res: Response) => {
 
 router.get('/:username/notifications', async (req: Request, res: Response) => {
   try {
-    const viewer = getAuth(req);
+    const viewer = await getAuth(req);
     if (!viewer || viewer.toLowerCase() !== req.params.username.toLowerCase()) {
       return res.status(401).json({ error: 'Unauthorized.' });
     }
@@ -171,7 +173,7 @@ router.get('/:username/notifications', async (req: Request, res: Response) => {
 
 router.patch('/:username/notifications/read', async (req: Request, res: Response) => {
   try {
-    const viewer = getAuth(req);
+    const viewer = await getAuth(req);
     if (!viewer || viewer.toLowerCase() !== req.params.username.toLowerCase()) {
       return res.status(401).json({ error: 'Unauthorized.' });
     }
@@ -221,37 +223,156 @@ router.get('/:username/race-history', async (req: Request, res: Response) => {
 
 router.post('/:username/race-result', async (req: Request, res: Response) => {
   try {
-    const viewer = getAuth(req);
-    if (!viewer || viewer.toLowerCase() !== req.params.username.toLowerCase()) {
+    const account = await getAuthenticatedAccount(req);
+    if (!account || account.username.toLowerCase() !== req.params.username.toLowerCase()) {
       return res.status(401).json({ error: 'Unauthorized.' });
     }
 
-    const { id, levelId, levelName, playerColor, place, time, ratingChange, newRating, date } = req.body;
+    const body = req.body;
+    const allowedFields = new Set([
+      'raceId', 'levelId', 'levelName', 'playerColor', 'place', 'time', 'date',
+    ]);
+    if (!body || typeof body !== 'object' || Array.isArray(body) ||
+      Object.keys(body).some(key => !allowedFields.has(key))) {
+      return res.status(400).json({ error: 'Invalid race result fields.' });
+    }
 
-    const clampedRating = Math.max(100, newRating || 200);
-    const recordDate = date || Date.now();
+    if (body.raceId === undefined || body.raceId === null) {
+      const { levelId, levelName, playerColor, place, time } = body;
+      if (
+        typeof levelId !== 'string' || levelId.length < 1 || levelId.length > 100 ||
+        typeof levelName !== 'string' || levelName.length < 1 || levelName.length > 120 ||
+        typeof playerColor !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(playerColor) ||
+        !Number.isInteger(place) || place < 1 || place > 99 ||
+        typeof time !== 'number' || !Number.isFinite(time) || time < 0.05 || time > 3600
+      ) {
+        return res.status(400).json({ error: 'Invalid practice result.' });
+      }
 
-    await pool.query(
-      `INSERT INTO race_history (id, username, level_id, level_name, player_color, place, time, rating_change, new_rating, date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       ON CONFLICT (id) DO NOTHING`,
-      [id, req.params.username, levelId, levelName, playerColor || '#3b82f6',
-       place, time, ratingChange || 0, clampedRating, recordDate]
-    );
+      const client = await pool.connect();
+      let practiceRecord: {
+        id: string; username: string; levelId: string; levelName: string;
+        playerColor: string; place: number; time: number; ratingChange: number;
+        newRating: number; date: number;
+      } | null = null;
+      try {
+        await client.query('BEGIN');
+        const ratingResult = await client.query(
+          'SELECT rating, color FROM user_ratings WHERE LOWER(username) = LOWER($1) FOR UPDATE',
+          [account.username]
+        );
+        const rating = Number(ratingResult.rows[0]?.rating ?? 200);
+        const color = playerColor || ratingResult.rows[0]?.color || '#3b82f6';
+        const id = `practice_${randomUUID()}`;
+        const date = Date.now();
+        await client.query(
+          `INSERT INTO race_history
+             (id, username, level_id, level_name, player_color, place, time, rating_change, new_rating, date)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, $9)`,
+          [id, account.username, levelId, levelName, color, place, time, rating, date]
+        );
+        await client.query(
+          `INSERT INTO user_ratings (username, rating, color) VALUES ($1, $2, $3)
+           ON CONFLICT (username) DO NOTHING`,
+          [account.username, rating, color]
+        );
+        await client.query('COMMIT');
+        practiceRecord = {
+          id, username: account.username, levelId, levelName, playerColor: color,
+          place, time, ratingChange: 0, newRating: rating, date,
+        };
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+      if (practiceRecord) backupRaceHistoryToSupabase(practiceRecord);
+      return res.json({ success: true, ratingChange: 0, practice: true });
+    }
 
-    await pool.query(
-      `INSERT INTO user_ratings (username, rating, color) VALUES ($1, $2, $3)
-       ON CONFLICT (username) DO UPDATE SET rating = $2, color = $3`,
-      [req.params.username, Math.max(100, newRating || 200), playerColor || '#3b82f6']
-    );
+    if (typeof body.raceId !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.raceId)) {
+      return res.status(400).json({ error: 'Invalid race session.' });
+    }
+    const raceId: string = body.raceId;
+    if (!isRaceParticipant(raceId, account.id)) {
+      return res.status(403).json({ error: 'This account did not participate in that race.' });
+    }
+    const outcomes = getVerifiedRaceOutcomes(raceId);
+    if (!outcomes) return res.status(409).json({ error: 'Race results are not final yet.' });
+    if (!outcomes.some(outcome => outcome.accountId === account.id)) {
+      return res.status(403).json({ error: 'This account did not participate in that race.' });
+    }
 
-    backupRaceHistoryToSupabase({
-      id, username: req.params.username, levelId, levelName,
-      playerColor: playerColor || '#3b82f6', place, time,
-      ratingChange: ratingChange || 0, newRating: clampedRating, date: recordDate,
+    const insertedRecords: Array<{
+      id: string; username: string; levelId: string; levelName: string;
+      playerColor: string; place: number; time: number; ratingChange: number;
+      newRating: number; date: number;
+    }> = [];
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const outcome of outcomes) {
+        const ratingResult = await client.query(
+          'SELECT rating, color FROM user_ratings WHERE LOWER(username) = LOWER($1) FOR UPDATE',
+          [outcome.username]
+        );
+        const currentRating = Number(ratingResult.rows[0]?.rating ?? 200);
+        const ratingChange = outcome.ratingChange;
+        const newRating = applyRatingChange(currentRating, ratingChange);
+        const color = outcome.playerColor || ratingResult.rows[0]?.color || '#3b82f6';
+        const id = `race_${raceId}_${outcome.accountId}`;
+        const date = Date.now();
+        const resultTime = outcome.dnf ? 999999 : Number(outcome.timeSeconds);
+        const resultPlace = outcome.dnf ? 99 : outcome.place;
+        const levelName = outcome.levelId;
+        const inserted = await client.query(
+          `INSERT INTO race_history
+             (id, username, level_id, level_name, player_color, place, time, rating_change, new_rating, date)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (id) DO NOTHING
+           RETURNING id`,
+          [
+            id, outcome.username, outcome.levelId, levelName, color, resultPlace,
+            resultTime, ratingChange, newRating, date,
+          ]
+        );
+        if (inserted.rows.length === 0) continue;
+
+        await client.query(
+          `INSERT INTO user_ratings (username, rating, color) VALUES ($1, $2, $3)
+           ON CONFLICT (username) DO UPDATE SET rating = $2, color = $3`,
+          [outcome.username, newRating, color]
+        );
+        insertedRecords.push({
+          id,
+          username: outcome.username,
+          levelId: outcome.levelId,
+          levelName,
+          playerColor: color,
+          place: resultPlace,
+          time: resultTime,
+          ratingChange,
+          newRating,
+          date,
+        });
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    for (const record of insertedRecords) backupRaceHistoryToSupabase(record);
+    const ownOutcome = outcomes.find(outcome => outcome.accountId === account.id)!;
+    res.json({
+      success: true,
+      place: ownOutcome.place,
+      time: ownOutcome.timeSeconds,
+      ratingChange: ownOutcome.ratingChange,
     });
-
-    res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error.' });

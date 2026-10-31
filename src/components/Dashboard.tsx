@@ -130,8 +130,8 @@ export default function Dashboard({ settings, onChangeSettings, onNavigate, curr
     setPasswordFeedback(null);
     synths.playTick();
 
-    if (newPassword.length < 6) {
-      setPasswordFeedback({ type: 'error', message: 'New password must be at least 6 characters.' });
+    if (newPassword.length < 12) {
+      setPasswordFeedback({ type: 'error', message: 'New password must be at least 12 characters.' });
       synths.playDeath();
       return;
     }

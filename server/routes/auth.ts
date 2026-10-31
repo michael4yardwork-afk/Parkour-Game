@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import pool from '../db';
 import { createSupabasePublicClient, supabaseAdmin, supabasePublicConfigured } from '../supabase';
 import { getAuthenticatedAccount, signAuthToken } from '../authIdentity';
@@ -144,22 +145,32 @@ router.post('/signup', async (req: Request, res: Response) => {
   try {
     const { username, password, avatar, avatarBg, device, email } = req.body;
 
-    if (!username || !password || username.length < 3 || password.length < 6) {
-      return res.status(400).json({ error: 'Invalid username or password.' });
+    if (
+      typeof username !== 'string' ||
+      username.trim().length < 3 ||
+      username.trim().length > 32 ||
+      typeof password !== 'string' ||
+      password.length < 12 ||
+      Buffer.byteLength(password, 'utf8') > 72
+    ) {
+      return res.status(400).json({ error: 'Username must be 3–32 characters and password must be 12–72 bytes.' });
     }
 
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return res.status(400).json({ error: 'A valid email address is required.' });
     }
 
+    const normalizedUsername = username.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
     // Check username uniqueness
-    const existing = await pool.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [username]);
+    const existing = await pool.query('SELECT id FROM users WHERE LOWER(username) = LOWER($1)', [normalizedUsername]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Username is already taken.' });
     }
 
     // Check email uniqueness
-    const emailCheck = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+    const emailCheck = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [normalizedEmail]);
     if (emailCheck.rows.length > 0) {
       return res.status(409).json({ error: 'An account with that email already exists.' });
     }
@@ -169,10 +180,10 @@ router.post('/signup', async (req: Request, res: Response) => {
     if (supabaseAdmin) {
       try {
         const { data: sbData, error: sbError } = await supabaseAdmin.auth.admin.createUser({
-          email: email.toLowerCase().trim(),
+          email: normalizedEmail,
           password,
           email_confirm: true, // mark as confirmed — we handle our own verification
-          user_metadata: { username }
+          user_metadata: { username: normalizedUsername }
         });
         if (sbError) {
           console.error('[supabase] createUser error:', sbError.message);
@@ -190,28 +201,29 @@ router.post('/signup', async (req: Request, res: Response) => {
       }
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 12);
     const selectedAvatarBackground =
       typeof avatarBg === 'string' && SIGNUP_AVATAR_BACKGROUNDS.includes(avatarBg as typeof SIGNUP_AVATAR_BACKGROUNDS[number])
         ? avatarBg
         : randomSignupAvatarBackground();
     const result = await pool.query(
       `INSERT INTO users (username, password_hash, avatar, avatar_bg, device, created_at, email, supabase_user_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, username, avatar, avatar_bg, device, created_at`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, username, avatar, avatar_bg, device, created_at, token_version`,
       [
-        username,
+        normalizedUsername,
         passwordHash,
         avatar || '🚀',
         selectedAvatarBackground,
         device || null,
         Date.now(),
-        email.toLowerCase().trim(),
+        normalizedEmail,
         supabaseUserId
       ]
     );
 
     const user = result.rows[0];
-    const token = signAuthToken({ id: user.id, username: user.username });
+    const token = signAuthToken({ id: user.id, username: user.username, tokenVersion: user.token_version });
 
     res.json({
       token,
@@ -233,6 +245,14 @@ router.post('/signup', async (req: Request, res: Response) => {
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
+    if (
+      typeof username !== 'string' ||
+      username.length > 64 ||
+      typeof password !== 'string' ||
+      Buffer.byteLength(password, 'utf8') > 1024
+    ) {
+      return res.status(400).json({ error: 'Invalid username or password.' });
+    }
 
     const result = await pool.query(
       'SELECT * FROM users WHERE LOWER(username) = LOWER($1)',
@@ -240,7 +260,7 @@ router.post('/login', async (req: Request, res: Response) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Account not found. Check spelling or create a new account.' });
+      return res.status(401).json({ error: 'Invalid username or password.' });
     }
 
     const user = result.rows[0];
@@ -248,7 +268,7 @@ router.post('/login', async (req: Request, res: Response) => {
     // Primary verification: bcrypt (always runs, works for all accounts)
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
-      return res.status(401).json({ error: 'Invalid password. Please inspect your inputs and try again.' });
+      return res.status(401).json({ error: 'Invalid username or password.' });
     }
 
     // Secondary: sync with Supabase auth for accounts that have an email + Supabase user
@@ -266,7 +286,7 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
-    const token = signAuthToken({ id: user.id, username: user.username });
+    const token = signAuthToken({ id: user.id, username: user.username, tokenVersion: user.token_version });
 
     res.json({
       token,
@@ -369,8 +389,12 @@ router.post('/reset-password-supabase', async (req: Request, res: Response) => {
     if (!refreshToken || typeof refreshToken !== 'string') {
       return res.status(401).json({ error: 'The recovery link is incomplete. Please request a new one.' });
     }
-    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
-      return res.status(400).json({ error: 'New password must be at least 6 characters.' });
+    if (
+      typeof newPassword !== 'string' ||
+      newPassword.length < 12 ||
+      Buffer.byteLength(newPassword, 'utf8') > 72
+    ) {
+      return res.status(400).json({ error: 'New password must be 12–72 bytes.' });
     }
     if (!supabasePublicConfigured) {
       return res.status(503).json({
@@ -394,11 +418,9 @@ router.post('/reset-password-supabase', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'The recovery link is invalid or expired. Please request a new one.' });
     }
 
-    const { data: userData, error: updateError } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-    if (updateError || !userData.user?.email) {
-      console.error('[supabase] recovery password update error:', updateError?.message || 'Missing user email');
+    const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+    if (userError || !userData.user?.email) {
+      console.warn('[supabase] recovery token user verification failed.');
       return res.status(401).json({ error: 'The recovery link is invalid or expired. Please request a new one.' });
     }
 
@@ -412,15 +434,43 @@ router.post('/reset-password-supabase', async (req: Request, res: Response) => {
     }
 
     const localUser = localResult.rows[0];
-    const passwordHash = await bcrypt.hash(newPassword, 10);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, localUser.id]);
+    const tokenHash = crypto.createHash('sha256').update(accessToken).digest('hex');
+    const consumed = await pool.query(
+      `INSERT INTO password_reset_tokens (token_hash, created_at)
+       VALUES ($1, $2)
+       ON CONFLICT (token_hash) DO NOTHING
+       RETURNING token_hash`,
+      [tokenHash, Date.now()]
+    );
+    if (consumed.rows.length === 0) {
+      return res.status(401).json({ error: 'This recovery link has already been used. Request a new one.' });
+    }
+
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+    if (updateError) {
+      console.warn('[supabase] recovery password update failed.');
+      return res.status(401).json({ error: 'The recovery link is invalid or expired. Please request a new one.' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const updatedUserResult = await pool.query(
+      `UPDATE users
+       SET password_hash = $1, token_version = token_version + 1
+       WHERE id = $2
+       RETURNING token_version`,
+      [passwordHash, localUser.id]
+    );
 
     const fullUserResult = await pool.query(
       'SELECT username, avatar, avatar_bg, device, created_at FROM users WHERE id = $1',
       [localUser.id]
     );
     const fullUser = fullUserResult.rows[0];
-    const token = signAuthToken({ id: localUser.id, username: localUser.username });
+    const token = signAuthToken({
+      id: localUser.id,
+      username: localUser.username,
+      tokenVersion: updatedUserResult.rows[0]?.token_version ?? 0,
+    });
 
     res.json({
       message: 'Password updated successfully.',
@@ -506,8 +556,12 @@ router.post('/change-password', async (req: Request, res: Response) => {
     if (!currentPassword || typeof currentPassword !== 'string') {
       return res.status(400).json({ error: 'Current password is required.' });
     }
-    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
-      return res.status(400).json({ error: 'New password must be at least 6 characters.' });
+    if (
+      typeof newPassword !== 'string' ||
+      newPassword.length < 12 ||
+      Buffer.byteLength(newPassword, 'utf8') > 72
+    ) {
+      return res.status(400).json({ error: 'New password must be 12–72 bytes.' });
     }
 
     // Fetch the stored bcrypt hash
@@ -522,8 +576,14 @@ router.post('/change-password', async (req: Request, res: Response) => {
     if (!valid) return res.status(401).json({ error: 'Current password is incorrect.' });
 
     // Update local DB
-    const newHash = await bcrypt.hash(newPassword, 10);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, account.id]);
+    const newHash = await bcrypt.hash(newPassword, 12);
+    const updateResult = await pool.query(
+      `UPDATE users
+       SET password_hash = $1, token_version = token_version + 1
+       WHERE id = $2
+       RETURNING token_version`,
+      [newHash, account.id]
+    );
 
     // Best-effort Supabase sync — failure never blocks the response
     if (supabaseAdmin && user.email && user.supabase_user_id) {
@@ -531,7 +591,14 @@ router.post('/change-password', async (req: Request, res: Response) => {
         .catch((e: any) => console.warn('[supabase] change-password sync failed:', e?.message || e));
     }
 
-    res.json({ message: 'Password changed successfully.' });
+    res.json({
+      message: 'Password changed successfully.',
+      token: signAuthToken({
+        id: account.id,
+        username: account.username,
+        tokenVersion: updateResult.rows[0]?.token_version ?? account.tokenVersion + 1,
+      }),
+    });
   } catch (err) {
     console.error('change-password error:', err);
     res.status(500).json({ error: 'Internal server error.' });
