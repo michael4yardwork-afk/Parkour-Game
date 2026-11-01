@@ -254,7 +254,10 @@ export default function App() {
     };
 
     try {
-      await api.users.saveRaceResult(currentUser.username, historyEntry as any);
+      await api.users.saveRaceResult(currentUser.username, {
+        ...historyEntry,
+        raceId: raceRoomId,
+      } as any);
     } catch (e) {
       console.error('Failed to save race result:', e);
     } finally {

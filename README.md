@@ -68,6 +68,24 @@ If running the app directly on Hostinger instead of pointing DNS to Railway:
    | `APP_URL` | Public HTTPS app URL, for example `https://deltarush.win` |
    | `NODE_ENV` | `production` |
 
+### Production security settings
+
+- `APP_URL` should be the canonical HTTPS origin and must also be allowed as a
+  redirect URL in Supabase Auth. Use `ALLOWED_ORIGINS` for any additional
+  exact origins; wildcard CORS is disabled.
+- Forwarded proxy headers are trusted only for the peer IPs listed in
+  `TRUSTED_PROXY_IPS`. Use exact addresses documented by the hosting provider;
+  do not add a wildcard. If the hosting proxy does not provide stable peer IPs,
+  leave this unset and configure rate limiting with the platform's supported
+  trusted-proxy mechanism before scaling beyond one server.
+- PostgreSQL TLS certificate verification is enabled by default.
+  `DATABASE_SSL_CA` can hold a provider CA certificate. `DATABASE_SSL=false`
+  is rejected in production and should only be used for local development.
+- The server applies idempotent, additive schema changes at startup, including
+  session versioning, reset-link replay protection, shared rate limits, and
+  Stripe webhook event receipts. No existing account or purchase rows are
+  deleted by these changes.
+
 5. In Stripe, configure the webhook URL as:
    `https://your-domain.example/api/billing/webhook`
    and enable `checkout.session.completed`, `customer.subscription.created`,

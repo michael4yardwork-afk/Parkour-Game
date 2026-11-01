@@ -4,6 +4,11 @@ import pool from '../db';
 import { getStripeClient, isStripeConfigured, verifyPaymentLinkReference } from '../stripe';
 import { syncSubscriptionEntitlement } from '../billingEntitlements';
 import { associatePaymentLinkCustomer } from '../billingCheckout';
+import {
+  claimStripeEvent,
+  markStripeEventProcessed,
+  releaseStripeEventClaim,
+} from '../stripeEventLedger';
 
 const router = Router();
 
@@ -84,11 +89,19 @@ router.post('/', async (req: Request, res: Response) => {
     const stripe = getStripeClient();
     event = stripe.webhooks.constructEvent(req.body as Buffer, signature as string, webhookSecret);
   } catch (err: any) {
-    console.error('Webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    console.warn('[Stripe webhook] Signature verification failed.');
+    return res.status(400).send('Webhook signature verification failed.');
   }
 
+  let claimedForProcessing = false;
   try {
+    const claim = await claimStripeEvent(event.id);
+    if (claim === 'processed') return res.json({ received: true, duplicate: true });
+    if (claim === 'processing') {
+      return res.status(503).send('Webhook event is already being processed.');
+    }
+    claimedForProcessing = true;
+
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -130,7 +143,8 @@ router.post('/', async (req: Request, res: Response) => {
       }
 
       case 'customer.subscription.created': {
-        const subscription = event.data.object as Stripe.Subscription;
+        const deliveredSubscription = event.data.object as Stripe.Subscription;
+        const subscription = await getStripeClient().subscriptions.retrieve(deliveredSubscription.id);
         const account = await syncSubscriptionEntitlement(subscription);
         if (account) {
           await recordPurchaseEvent({
@@ -146,7 +160,8 @@ router.post('/', async (req: Request, res: Response) => {
       }
 
       case 'customer.subscription.updated': {
-        const subscription = event.data.object as Stripe.Subscription;
+        const deliveredSubscription = event.data.object as Stripe.Subscription;
+        const subscription = await getStripeClient().subscriptions.retrieve(deliveredSubscription.id);
         const account = await syncSubscriptionEntitlement(subscription);
         if (account) {
           await recordPurchaseEvent({
@@ -162,7 +177,8 @@ router.post('/', async (req: Request, res: Response) => {
       }
 
       case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription;
+        const deliveredSubscription = event.data.object as Stripe.Subscription;
+        const subscription = await getStripeClient().subscriptions.retrieve(deliveredSubscription.id);
         const account = await syncSubscriptionEntitlement(subscription);
         if (account) {
           await recordPurchaseEvent({
@@ -206,9 +222,21 @@ router.post('/', async (req: Request, res: Response) => {
       default:
         break;
     }
+    await markStripeEventProcessed(event.id);
+    claimedForProcessing = false;
     res.json({ received: true });
   } catch (err) {
-    console.error('Webhook handling error:', err);
+    if (claimedForProcessing) {
+      try {
+        await releaseStripeEventClaim(event.id);
+      } catch {
+        // A retry can reclaim this processing lease after five minutes.
+      }
+    }
+    console.error(
+      '[Stripe webhook] Handler failed:',
+      err instanceof Error ? err.name : 'UnknownError'
+    );
     res.status(500).send('Webhook handler error.');
   }
 });

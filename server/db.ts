@@ -125,6 +125,13 @@ export async function initDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_rate_limit_entries_reset_at
       ON rate_limit_entries(reset_at);
+
+    CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+      event_id TEXT PRIMARY KEY,
+      status TEXT NOT NULL CHECK (status IN ('processing', 'processed')),
+      received_at BIGINT NOT NULL,
+      processed_at BIGINT
+    );
   `);
 
   await pool.query(`

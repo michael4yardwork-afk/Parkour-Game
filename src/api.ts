@@ -308,15 +308,17 @@ export const api = {
     },
 
     async saveRaceResult(username: string, result: RaceHistoryEntry & { raceId?: string | null }): Promise<void> {
-      const {
-        id: _untrustedId,
-        ratingChange: _untrustedRatingChange,
-        newRating: _untrustedNewRating,
-        ...validatedDisplayFields
-      } = result;
+      const safeResult = {
+        raceId: result.raceId ?? null,
+        levelId: result.levelId,
+        levelName: result.levelName,
+        playerColor: result.playerColor,
+        place: result.place,
+        time: result.time,
+      };
       await apiFetch(`/users/${encodeURIComponent(username)}/race-result`, {
         method: 'POST',
-        body: JSON.stringify(validatedDisplayFields)
+        body: JSON.stringify(safeResult)
       });
     },
 

@@ -48,6 +48,7 @@ function configuredPublicOrigins(): Set<string> {
   const origins = new Set<string>();
 
   for (const domain of [
+    ...(process.env.ALLOWED_ORIGINS || '').split(','),
     process.env.REPLIT_DEV_DOMAIN,
     ...(process.env.REPLIT_DOMAINS || '').split(','),
   ]) {
@@ -69,30 +70,10 @@ function configuredPublicOrigins(): Set<string> {
   return origins;
 }
 
-function forwardedPublicOrigin(req: Request): string | null {
-  const forwardedProto = String(req.get('x-forwarded-proto') || '')
-    .split(',')[0]
-    .trim();
-  const forwardedHost = String(req.get('x-forwarded-host') || '')
-    .split(',')[0]
-    .trim();
-
-  if (
-    (forwardedProto !== 'http' && forwardedProto !== 'https') ||
-    !forwardedHost
-  ) {
-    return null;
-  }
-
-  return originFromUrl(`${forwardedProto}://${forwardedHost}`);
-}
-
-function recoveryRedirectOrigin(req: Request, requestedRedirectTo: unknown): string {
+export function recoveryRedirectOrigin(req: Request, requestedRedirectTo: unknown): string {
   const requestedOrigin = originFromUrl(requestedRedirectTo);
   const configuredOrigins = configuredPublicOrigins();
-  const forwardedOrigin = forwardedPublicOrigin(req);
   const requestOrigin = originFromUrl(`${req.protocol}://${req.get('host')}`);
-  const publicRequestOrigin = forwardedOrigin ?? requestOrigin;
 
   // The frontend supplies window.location.origin. Accept it only when it is
   // one of the deployment's known origins. When no public origin is
@@ -104,7 +85,8 @@ function recoveryRedirectOrigin(req: Request, requestedRedirectTo: unknown): str
   if (
     requestedOrigin &&
     configuredOrigins.size === 0 &&
-    publicRequestOrigin === requestedOrigin
+    process.env.NODE_ENV !== 'production' &&
+    requestOrigin === requestedOrigin
   ) {
     return requestedOrigin;
   }
@@ -118,13 +100,9 @@ function recoveryRedirectOrigin(req: Request, requestedRedirectTo: unknown): str
   }
   if (configuredOrigins.size > 0) return [...configuredOrigins][0];
 
-  // A forwarded public origin is the safest fallback behind a reverse proxy.
-  if (forwardedOrigin) return forwardedOrigin;
-
-  // Keep standalone local development working. A non-local request origin
-  // without an explicit public URL is unsafe because it may be an internal
-  // host supplied by a reverse proxy. Fail instead of sending a broken email.
-  if (requestOrigin && isLocalOrigin(requestOrigin)) return requestOrigin;
+  if (process.env.NODE_ENV !== 'production' && requestOrigin && isLocalOrigin(requestOrigin)) {
+    return requestOrigin;
+  }
   throw new Error('No safe public recovery origin is configured.');
 }
 
@@ -355,10 +333,10 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
       });
     }
 
-    // Do not pass redirectTo — Supabase uses its configured Site URL, which
-    // avoids redirect-allowlist validation errors entirely. The Site URL in the
-    // Supabase dashboard must point to the deployed app domain.
-    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
+    const redirectOrigin = recoveryRedirectOrigin(req, req.body?.redirectTo);
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: `${redirectOrigin}/`,
+    });
 
     if (error) {
       console.error('[supabase] resetPasswordForEmail error:', error.message);

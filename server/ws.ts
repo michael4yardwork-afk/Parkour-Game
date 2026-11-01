@@ -5,6 +5,7 @@ import pool from './db';
 import { getAuthenticatedAccountFromToken, type AuthenticatedAccount } from './authIdentity';
 import {
   hasRaceParticipantFinished,
+  hasRaceParticipantDnf,
   recordRaceDnf,
   recordRaceFinish,
   registerRaceSession,
@@ -61,13 +62,18 @@ const AUTH_TIMEOUT_MS = 5_000;
 const allowedWsOrigins = new Set<string>();
 for (const configured of [
   process.env.APP_URL,
+  ...(process.env.ALLOWED_ORIGINS || '').split(','),
   process.env.REPLIT_DEV_DOMAIN,
   ...(process.env.REPLIT_DOMAINS || '').split(','),
 ]) {
   if (!configured?.trim()) continue;
   try {
     const value = configured.trim();
-    allowedWsOrigins.add(new URL(value.startsWith('http') ? value : `https://${value}`).origin);
+    const origin = new URL(value.startsWith('http') ? value : `https://${value}`).origin;
+    const hostname = new URL(origin).hostname.toLowerCase();
+    if (process.env.NODE_ENV === 'production' &&
+      ['localhost', '127.0.0.1', '::1', '[::1]'].includes(hostname)) continue;
+    allowedWsOrigins.add(origin);
   } catch {
     // Ignore invalid deployment configuration; it cannot widen the allowlist.
   }
@@ -293,7 +299,10 @@ export function setupWebSocketServer(httpServer: Server) {
               ws.close(4003, 'Account already in race');
               return;
             }
-            removeFromQueue(previousSocket);
+            if (removeFromQueue(previousSocket)) {
+              if (queue.length < 2) stopQueueCountdown();
+              broadcastQueueUpdate();
+            }
             previousSocket.close(4001, 'Session replaced');
           }
 
@@ -384,6 +393,7 @@ export function setupWebSocketServer(httpServer: Server) {
               }
             }
             if (!senderRoom || !sender || sender.accountId !== account.id) break;
+            if (hasRaceParticipantDnf(senderRoom.id, sender.accountId)) break;
             const payload = JSON.stringify({
               type: 'GAME_TICK',
               username: sender.username,

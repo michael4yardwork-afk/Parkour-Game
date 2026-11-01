@@ -152,12 +152,15 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
     wsRef.current = ws;
 
     ws.onopen = () => {
+      const token = localStorage.getItem('delta_rush_token');
+      if (!token) {
+        setIsSearching(false);
+        ws.close(4001, 'Authentication required');
+        return;
+      }
       ws.send(JSON.stringify({
-        type: 'QUEUE_JOIN',
-        username: currentUser.username,
-        color,
-        avatar: currentUser.avatar || '🏃',
-        avatarBg: currentUser.avatarBg || '',
+        type: 'AUTH',
+        token,
       }));
     };
 
@@ -165,7 +168,13 @@ export default function Races({ currentUser, onSelectLevel, refreshKey, isPlatin
       let msg: any;
       try { msg = JSON.parse(event.data); } catch { return; }
 
-      if (msg.type === 'QUEUE_UPDATE') {
+      if (msg.type === 'AUTH_OK') {
+        ws.send(JSON.stringify({ type: 'QUEUE_JOIN', color }));
+      } else if (msg.type === 'AUTH_ERROR' || msg.type === 'QUEUE_ERROR') {
+        setIsSearching(false);
+        setTimerActive(false);
+        console.warn('[Races] Matchmaking rejected:', msg.error);
+      } else if (msg.type === 'QUEUE_UPDATE') {
         setTimeLeft(msg.timeLeft);
         setTimerActive(msg.timerActive);
         // Play tick sound whenever countdown advances

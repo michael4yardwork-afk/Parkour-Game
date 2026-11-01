@@ -1146,15 +1146,14 @@ export default function GameCanvas({
       // If the race is already complete (waiting for others or finished screen)
       // there is nothing to penalise — the normal race-result flow handles it.
       if (isCompletedRef.current) return;
+      if (!raceRoomId) return;
 
       const token = localStorage.getItem('delta_rush_token');
       if (!token) return;
 
       const payload = JSON.stringify({
         token,
-        username: currentUser.username,
-        levelId:   level.id,
-        levelName: level.name,
+        raceId: raceRoomId,
       });
 
       // sendBeacon cannot set custom headers so the token travels in the body.
@@ -1166,7 +1165,7 @@ export default function GameCanvas({
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [raceMode, currentUser, level.id, level.name]);
+  }, [raceMode, currentUser, level.id, level.name, raceRoomId]);
 
   // Keep commitRaceResultsRef pointing to the freshest closure (captures latest state setters & refs)
   useEffect(() => {
@@ -1715,7 +1714,14 @@ export default function GameCanvas({
           };
           // Prefer WebSocket (cross-machine); fall back to BroadcastChannel
           if (raceWs && raceWs.readyState === WebSocket.OPEN) {
-            raceWs.send(JSON.stringify(tickPayload));
+            raceWs.send(JSON.stringify({
+              type: tickPayload.type,
+              x: tickPayload.x,
+              y: tickPayload.y,
+              z: tickPayload.z,
+              ry: tickPayload.ry,
+              time: tickPayload.time,
+            }));
           } else if (bcRef.current) {
             try { bcRef.current.postMessage(tickPayload); } catch { /* channel closed during unmount */ }
           }
@@ -2646,7 +2652,7 @@ export default function GameCanvas({
         time: finalTime,
       };
       if (raceWs && raceWs.readyState === WebSocket.OPEN) {
-        raceWs.send(JSON.stringify(finishedPayload));
+        raceWs.send(JSON.stringify({ type: finishedPayload.type }));
       } else if (bcRef.current) {
         try { bcRef.current.postMessage(finishedPayload); } catch { /* channel closed during unmount */ }
       }

@@ -271,10 +271,11 @@ export default function SettingsModal({
                     />
                     <input
                       type="password"
-                      placeholder="New Password (Min. 6)"
+                      placeholder="New Password (Min. 12)"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="w-full bg-white border border-neutral-250 py-1.5 px-3 rounded-lg text-neutral-800"
+                      minLength={12}
                       required
                     />
                     <input

@@ -14,6 +14,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.cjs",
     "lint": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.mjs",
     "seed:stripe": "tsx scripts/seed-stripe-products.ts",
     "postinstall": "node scripts/patch-postcss.cjs && node scripts/setup-hooks.cjs"
   },
@@ -21,12 +22,13 @@
     "@supabase/supabase-js": "^2.109.0",
     "@types/nodemailer": "^8.0.1",
     "bcryptjs": "^3.0.3",
+    "browserslist": "^4.28.7",
     "dotenv": "^17.2.3",
     "express": "^4.22.3",
     "express-rate-limit": "^8.7.2",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
-    "nodemailer": "^9.1.1",
+    "nodemailer": "^10.3.1",
     "pg": "^8.22.0",
     "postcss": "^8.5.25",
     "stripe": "^22.3.1",
@@ -34,7 +36,12 @@
     "ws": "^8.21.0"
   },
   "overrides": {
-    "esbuild": "0.28.1"
+    "esbuild": "0.28.1",
+    "body-parser": "1.20.9",
+    "nanoid": "3.3.18",
+    "proxy-addr": "2.0.8",
+    "qs": "6.16.2",
+    "source-map-js": "1.2.2"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.14",

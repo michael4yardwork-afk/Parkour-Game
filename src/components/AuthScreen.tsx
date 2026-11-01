@@ -317,7 +317,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     e.preventDefault();
     setFeedback(null);
     synths.playTick();
-    if (newPassword.length < 6) {
+    if (newPassword.length < 12) {
       notifyFeedback('error', 'Password must be at least 12 characters long.');
       return;
     }
@@ -352,7 +352,10 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
     const trimmedUsername = username.trim();
     if (!trimmedUsername) { notifyFeedback('error', 'Please enter a valid username.'); return; }
     if (trimmedUsername.length < 3) { notifyFeedback('error', 'Username must be at least 3 characters long.'); return; }
-    if (password.length < 12) { notifyFeedback('error', 'Password must be at least 12 characters long.'); return; }
+    if (isSignUp && password.length < 12) {
+      notifyFeedback('error', 'Password must be at least 12 characters long.');
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -578,7 +581,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
                       type={showNewPassword ? 'text' : 'password'} placeholder="Min. 12 characters" value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-10 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
-                      minLength={6} autoFocus required
+                      minLength={12} autoFocus required
                     />
                     <button type="button" onClick={() => { setShowNewPassword(!showNewPassword); synths.playTick(); }}
                       className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition">
@@ -595,7 +598,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
                       type={showNewPasswordConfirm ? 'text' : 'password'} placeholder="Repeat new password" value={newPasswordConfirm}
                       onChange={(e) => setNewPasswordConfirm(e.target.value)}
                       className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-10 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
-                      minLength={6} required
+                      minLength={12} required
                     />
                     <button type="button" onClick={() => { setShowNewPasswordConfirm(!showNewPasswordConfirm); synths.playTick(); }}
                       className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition">
@@ -728,10 +731,10 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-neutral-500"><Lock className="w-4 h-4" /></span>
                     <input
-                      type={showPassword ? 'text' : 'password'} placeholder="Min. 6 alphanumeric" value={password}
+                      type={showPassword ? 'text' : 'password'} placeholder={isSignUp ? 'Min. 12 characters' : 'Password'} value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-10 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
-                      minLength={6} required
+                      minLength={isSignUp ? 12 : 1} required
                     />
                     <button type="button" onClick={() => { setShowPassword(!showPassword); synths.playTick(); }}
                       className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition">
@@ -750,7 +753,7 @@ export default function AuthScreen({ onLoginSuccess, onPlayDemo, initialMode }: 
                           type={showConfirmPassword ? 'text' : 'password'} placeholder="Repeat password" value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
                           className="w-full bg-neutral-950 border border-neutral-800 focus:border-indigo-500/70 focus:ring-1 focus:ring-indigo-500/20 text-sm py-2.5 pl-10 pr-10 rounded-xl text-neutral-100 placeholder-neutral-600 transition"
-                          minLength={6} required
+                          minLength={12} required
                         />
                         <button type="button" onClick={() => { setShowConfirmPassword(!showConfirmPassword); synths.playTick(); }}
                           className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-neutral-300 transition">

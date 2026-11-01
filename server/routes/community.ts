@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import type { PoolClient } from 'pg';
 import pool from '../db';
 import { getAuthenticatedAccount } from '../authIdentity';
 import { deleteRaceHistoryForLevel } from '../supabaseRaceHistory';
@@ -60,7 +61,7 @@ router.get('/courses', async (req: Request, res: Response) => {
 });
 
 router.post('/courses', async (req: Request, res: Response) => {
-  let client: Awaited<ReturnType<typeof pool.connect>> | undefined;
+  let client: PoolClient | undefined;
   try {
     const username = await getAuth(req);
     if (!username) return res.status(401).json({ error: 'Unauthorized.' });

@@ -30,6 +30,7 @@ export interface VerifiedRaceOutcome {
 
 const sessions = new Map<string, RaceSession>();
 const MAX_SESSION_AGE_MS = 20 * 60 * 1000;
+const MAX_STORED_SESSIONS = 1_000;
 export const MIN_RACE_DURATION_MS = 5_000;
 export const MIN_RATING = 100;
 export const MAX_RATING = 5_000;
@@ -47,6 +48,11 @@ export function registerRaceSession(
   startedAtMs: number
 ): void {
   pruneExpiredSessions(Date.now());
+  while (sessions.size >= MAX_STORED_SESSIONS) {
+    const oldest = sessions.keys().next().value;
+    if (oldest === undefined) break;
+    sessions.delete(oldest);
+  }
   sessions.set(id, {
     id,
     levelId,
@@ -89,6 +95,10 @@ export function isRaceParticipant(raceId: string, accountId: number): boolean {
 export function hasRaceParticipantFinished(raceId: string, accountId: number): boolean {
   const participant = sessions.get(raceId)?.participants.find(item => item.accountId === accountId);
   return participant?.finishedAtMs !== null && participant?.finishedAtMs !== undefined;
+}
+
+export function hasRaceParticipantDnf(raceId: string, accountId: number): boolean {
+  return sessions.get(raceId)?.participants.find(item => item.accountId === accountId)?.dnf ?? false;
 }
 
 export function getVerifiedRaceOutcomes(raceId: string): VerifiedRaceOutcome[] | null {
